@@ -114,6 +114,16 @@
   font-weight: 600;
 }
 
+.links {
+  display: block;
+  margin-top: 6px;
+}
+
+.links a {
+  color: inherit;
+  font-weight: 600;
+}
+
 .note[data-tone='warn'] {
   background: var(--tint-warn);
   color: var(--soft-warn);

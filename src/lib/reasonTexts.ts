@@ -687,9 +687,10 @@ export const REASONS: Record<string, Variant[]> = {
   NO_LINE: [r('none of the lines watched changed')],
   AMBIGUOUS: [r('more than one line changed at once ({lines})', {when: {lines: {present: true}}}), r('more than one line changed at once')],
   FLUTTER: [r('line {lines} changed while nothing was touched', {when: {lines: {present: true}}}), r('a line changed while nothing was touched')],
+  // the table of inputs_assign or the date and stand time of summary, after the restart
   NOT_APPLIED: [
-    r('the mower does not use the new assignment, {key} is set by hand in the device file', {when: {key: {present: true}}}),
-    r('the mower does not use the new assignment after the restart'),
+    r('the mower does not use what the step wrote, {key} is set by hand in the device file', {when: {key: {present: true}}}),
+    r('the mower does not use what the step wrote after the restart'),
   ],
   RESTART_FAILED: [r('MowBite OS was not back within {limit:0} s', {when: {limit: {present: true}}}), r('MowBite OS was not back in time')],
   CONFIRM_MISSING: [r('not every point is confirmed')],
@@ -705,6 +706,7 @@ export const REASONS: Record<string, Variant[]> = {
   SAFETY_INPUTS: [r('STOP button, lifting and bumper have to pass standing first')],
   BLADE_NOT_ALLOWED: [r("the driver doesn't let the blade turn ({key} is false)", {when: {key: {present: true}}}), r("the driver doesn't let the blade turn")],
   SAFETY_AIR: [r('the steps with the mower jacked up have to pass first')],
+  SAFETY_STEPS: [r("every safety check has to pass first, skipped ones don't count")],
   NO_STANDSTILL: [r("the mower didn't come to a standstill after the stop")],
   DRIVER_REFUSED: [r('the board refused the check, the mower charges or the blade runs')],
   LOGIC_REFUSED: [r("the mower didn't take the step: it is on its way, charges or has an emergency stop")],

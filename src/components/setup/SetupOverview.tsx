@@ -1,19 +1,12 @@
 'use client';
 
 import {ChevronIcon, LockIcon} from '@/components/icons';
-import {numericDay} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
-import {causeText, isDone, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
+import {causeText, dayText, isDone, isSummary, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord, useMoved} from './StateMark';
 import styles from './SetupOverview.module.css';
-
-// the day of the measurement as the app writes days, as it came when it isn't a date
-function measuredDay(date: string): string {
-  const t = new Date(`${date}T00:00`).getTime();
-  return Number.isNaN(t) ? date : numericDay(t / 1000);
-}
 
 // the line under a stage: what keeps it locked, how far it got, or its state
 function stageLine(state: StepState, steps: SetupStep[], all: SetupStep[], lang: string): string {
@@ -39,6 +32,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
   const next = setup.steps.find((s) => s.id === setup.current);
   const {safety} = setup;
   const lockMoved = useMoved(safety.open);
+  const releasing = setup.steps.some((s) => isSummary(s) && s.state === 'running');
   return (
     <section className={styles.overview} aria-label={tr('Setup')}>
       <p className={styles.lock} data-open={safety.open} data-moved={lockMoved || undefined}>
@@ -48,7 +42,11 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
             <b>{tr('Safety measured')}</b>
             {(safety.date || safety.source) && (
               <span>
-                {[safety.date && measuredDay(safety.date), safety.source && tr(safety.source === 'program' ? 'With the setup program' : 'Entered by hand')]
+                {[
+                  safety.date && dayText(safety.date),
+                  safety.source && tr(safety.source === 'program' ? 'With the setup program' : 'Entered by hand'),
+                  safety.firmware && tr('Firmware {v}', {v: safety.firmware}),
+                ]
                   .filter(Boolean)
                   .join(' · ')}
               </span>
@@ -57,7 +55,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
         ) : (
           <span>
             <b>{tr('Safety measurement missing')}</b>
-            <span>{whyText(safety.why)}</span>
+            <span>{releasing ? tr('Releasing: MowBite OS is starting again') : whyText(safety.why)}</span>
             {safety.closed?.map((c) => (
               <span key={`${c.step}-${c.t}`} data-cause={c.reason}>
                 {causeText(c, setup.steps, lang)}

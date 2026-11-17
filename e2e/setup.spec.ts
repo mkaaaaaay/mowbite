@@ -103,7 +103,7 @@ test.describe('setup', () => {
     await demoWith(page, 'Setup', 'Geometry');
     await page.goto('/');
     const card = page.locator('[data-card="setup"]');
-    await expect(card).toContainText('1 of 11 steps done');
+    await expect(card).toContainText('1 of 12 steps done');
     await card.getByRole('link', {name: 'Go on with the setup'}).click();
     await expect(page).toHaveURL(/\/setup\/?\?step=board/);
 
@@ -204,12 +204,19 @@ test.describe('setup', () => {
     await expect(page.locator('[data-cause="NOT_SEEN"]')).toContainText('Driving on the ground: The mower didn');
   });
 
-  test('releases the blade with a restart, stops it six ways, and every safety step passed opens the lock', async ({page}) => {
+  test('releases the blade with a restart, stops it six ways, and the release with the safety steps passed opens the lock', async ({page}) => {
     await demoWith(page, 'Setup');
     const b = step(page, 'blade');
+    const sum = step(page, 'summary');
     const waiting = b.locator('li[data-state="waiting"]');
-    await page.goto('/setup/?step=blade');
+    // the release names the safety steps not passed yet, each a way to it
+    await page.goto('/setup/?step=summary');
+    const due = sum.locator('[data-blocked="SAFETY_STEPS"]');
+    await expect(due).toContainText('Every safety check has to pass first');
+    await expect(due.getByRole('link', {name: 'Wheels'})).toHaveAttribute('href', /\/setup\/?\?step=wheels/);
+    await due.getByRole('link', {name: 'Blade'}).click();
     await expect(b.locator('[data-blocked="SAFETY_INPUTS"]')).toBeVisible();
+    await expect(b.locator('[data-blocked="SAFETY_INPUTS"]').getByRole('link', {name: 'STOP button'})).toBeVisible();
     await inputsPassed(page);
     await wheelsPassed(page);
     await groundPassed(page);
@@ -234,7 +241,25 @@ test.describe('setup', () => {
     await expect(b).toHaveAttribute('data-state', 'ok');
     await expect(b.locator('[data-ok="true"]')).toHaveCount(7);
     await overview(page);
+    await expect(page.getByText('Safety measurement missing')).toBeVisible();
+
+    // the release: what it writes before the tick, the restart, then the lock open with the date and the firmware
+    await to(page, 'Safety', 'Release safety');
+    await expect(sum.locator('[data-blocked]')).toHaveCount(0);
+    await sum.getByRole('button', {name: 'Start'}).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.locator('[data-summary]')).toContainText('Date');
+    await expect(sheet.locator('[data-summary]')).toContainText('MowBite OS restarts once');
+    await expect(sheet.getByRole('button', {name: 'Release the mower'})).toBeDisabled();
+    await sheet.getByRole('checkbox').check();
+    await sheet.getByRole('button', {name: 'Release the mower'}).click();
+    await expect(sum.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(sum.getByRole('button', {name: 'Cancel'})).toHaveCount(0);
+    await expect(sum).toHaveAttribute('data-state', 'ok');
+    await expect(sum).toContainText('0.600 s');
+    await overview(page);
     await expect(page.getByText('With the setup program')).toBeVisible();
+    await expect(page.getByText('Firmware 1.4.2')).toBeVisible();
 
     // a repeat says what failing it would do
     await to(page, 'Blade', 'Blade');

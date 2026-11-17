@@ -1,4 +1,4 @@
-import type {Motion, Named, Safety, SafetyCause, Setup, SetupInput, SetupLine, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
+import type {Blocked, Motion, Named, Safety, SafetyCause, Setup, SetupInput, SetupLine, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
 import {RPC, TOPIC} from '../openmower';
 
 // MowBite OS's setup program for the click tests (setup.*), on with window.mowbiteDemoSetup: a short step list like the
@@ -15,6 +15,7 @@ const STAGES: Named[] = [
   named('wheels', 'Wheels', 'Räder'),
   named('ground', 'Driving on the ground', 'Fahren am Boden'),
   named('blade', 'Blade', 'Messer'),
+  named('safety', 'Safety', 'Sicherheit'),
   named('position', 'Position', 'Position'),
   named('map', 'Map', 'Karte'),
 ];
@@ -229,6 +230,22 @@ const TRON_STEPS: Base[] = [
       ['Messer', 'Die Messerscheibe ist ab. Der Motor läuft an und wird auf verschiedene Weise gestoppt: abschalten, ohne Verlängerung, ohne Steuerung, dann mit STOP-Taste, Anheben und Stoßfänger. Er muss jedes Mal rechtzeitig stehen und darf nicht wieder anlaufen.', 'Steht der Motor nicht rechtzeitig oder läuft er wieder an: nicht mähen lassen, Platine und Motor prüfen.'],
     ),
   }),
+  // every safety step passed: the date and the stand time written, the OS restarted, the lock opens (check summary)
+  step({
+    id: 'summary',
+    stage: 'safety',
+    check: 'summary',
+    kind: 'confirm',
+    start: true,
+    skippable: false,
+    restart: true,
+    confirm: [named('seen_myself', 'I saw every safety check on this mower myself', 'Ich habe jede Sicherheitsprüfung an diesem Mäher selbst gesehen')],
+    values: [value('date', 'Date', 'Datum', ''), value('failsafe', 'Stop without control', 'Halt ohne Steuerung', 's')],
+    texts: tx(
+      ['Release safety', 'All safety checks passed. With one tap the mower allows driving and mowing on its own. MowBite OS restarts once for it.', 'If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.'],
+      ['Sicherheit freigeben', 'Alle Sicherheitsprüfungen sind bestanden. Mit einem Tipp gibt der Mäher das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.', 'Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.'],
+    ),
+  }),
   step({
     id: 'correction',
     stage: 'position',
@@ -320,6 +337,8 @@ const PRESSED = question('pressed', ['Did you do it?', 'The mower noticed nothin
   named('no', 'No, not yet', 'Nein, noch nicht'),
 ]);
 const FIRMWARE = '1.4.2';
+// the stand time without control the demo's summary writes (s): it has no step silence to take it from
+const FAILSAFE = 0.6;
 // the step that puts the sensors on their lines, as on the NX60i (demo part Assign): a press proposes a line, accept takes it
 const ASSIGN: Base = step({
   id: 'assign',
@@ -400,26 +419,36 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
   // the inputs that have to pass before anything turns, no emergency stop, and on the ground while the lock is closed
   // the steps jacked up
-  const gates = (s: Base) => {
+  // the summary: every safety step passed and none of them keeping the lock closed, those skipped named apart
+  const gates = (s: Base): Blocked[] => {
     const open = (keep: (x: Base) => boolean) => STEPS.filter((x) => keep(x) && kept[x.id].state !== 'ok').map((x) => x.id);
     const inputs = s.motion ? open((x) => !!BIT[x.id]) : [];
     const air = s.motion?.wheels && !s.motion.raised && !safety().open ? open((x) => !!x.motion?.raised) : [];
+    const due = s.check === 'summary' ? STEPS.filter((x) => x.safety && (kept[x.id].state !== 'ok' || closed.some((c) => c.step === x.id))).map((x) => x.id) : [];
+    const skipped = due.filter((id) => kept[id].state === 'skipped');
     return [
       ...(s.motion && latched('LATCH') ? [{reason: 'EMERGENCY', message: 'The emergency stop is latched'}] : []),
-      ...(inputs.length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputs.join(', ')}`}] : []),
-      ...(air.length ? [{reason: 'SAFETY_AIR', message: `First: ${air.join(', ')}`}] : []),
+      ...(inputs.length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputs.join(', ')}`, steps: inputs}] : []),
+      ...(air.length ? [{reason: 'SAFETY_AIR', message: `First: ${air.join(', ')}`, steps: air}] : []),
+      ...(due.length ? [{reason: 'SAFETY_STEPS', message: `Safety steps are not ok: ${due.join(', ')}`, steps: due, skipped}] : []),
     ];
   };
-  const blocked = (s: Base) => {
+  const blocked = (s: Base): Blocked[] => {
     if (run?.id === s.id)
       return BIT[s.id] && run.phase === 'rest' && latched(BIT[s.id]) ? [{reason: 'EMERGENCY', message: `The emergency ${BIT[s.id]} is still latched`}] : [];
-    if (run && s.start && s.kind !== 'confirm') return [{reason: 'BUSY', message: `${run.id} is running`}];
+    if (run && s.start && (s.kind !== 'confirm' || s.check === 'summary')) return [{reason: 'BUSY', message: `${run.id} is running`}];
     if (restarting && s.motion?.blade) return [{reason: 'BUSY', message: 'MowBite OS restarts'}];
     return gates(s);
   };
+  // the date stays while a failed step closes the lock; firmware only while the summary is passed
   const safety = (): Safety => {
-    if (closed.length) return {open: false, date: null, firmware: null, why: 'CHECK_FAILED', source: null, closed};
-    if (measured) return {open: true, date: measured, firmware: FIRMWARE, why: null, source: 'program', closed: []};
+    const source = measured ? 'program' : null;
+    const firmware = measured && kept.summary.state === 'ok' ? FIRMWARE : null;
+    if (closed.length) {
+      const why = closed.some((c) => c.step) ? 'CHECK_FAILED' : 'RESET';
+      return {open: false, date: measured, firmware, why, source, closed};
+    }
+    if (measured) return {open: true, date: measured, firmware, why: null, source, closed: []};
     return {open: false, date: null, firmware: null, why: 'NO_SAFETY_MEASUREMENT', source: null, closed: []};
   };
   // the lines of an input step, one per part as on Tron: the one of the part last pressed is on while its emergency holds
@@ -552,18 +581,36 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     changed();
   }
 
-  // a safety step failed for a reason that closes the lock, or passed: the lock opens once every safety step passed
-  // and nothing keeps it closed (on the mower the summary of the setup gives the date)
+  // a safety step failed for a reason that closes the lock, or passed again: only the summary gives the date, a failed
+  // step puts it back to open
   function lock(s: Base, ok: boolean, reason: string | null, part: string | null) {
     const was = safety().open;
     if (!ok && reason && CLOSES.includes(reason)) {
       closed = [...closed.filter((c) => c.step !== s.id), {step: s.id, part, reason, t: now()}];
-      measured = null;
       event({type: 'SETUP', what: 'safety_closed', step: s.id, cause: reason, severity: 'warning', resume: 'user'});
     }
+    if (!ok && kept.summary.state === 'ok') kept.summary = {...kept.summary, state: 'open'};
     if (ok) closed = closed.filter((c) => c.step !== s.id);
-    if (!closed.length && STEPS.every((x) => !x.safety || kept[x.id].state === 'ok')) measured ??= new Date().toISOString().slice(0, 10);
-    if (!was && safety().open) event({type: 'SETUP', what: 'safety_opened', severity: 'info', resume: 'auto'});
+    opened(was);
+  }
+  const opened = (was: boolean) => {
+    if (!was && safety().open) event({type: 'SETUP', what: 'safety_opened', date: measured, severity: 'info', resume: 'auto'});
+  };
+
+  // the summary writes the date and the stand time, the lock stays closed with a reset until the OS is back
+  function summary(s: Base, k: Kept) {
+    const date = new Date().toISOString().slice(0, 10);
+    k.state = 'running';
+    k.result = null;
+    k.values = s.values.map((v) => ({...v, value: v.id === 'date' ? date : FAILSAFE}));
+    if (!closed.some((c) => !c.step)) closed = [...closed, {step: null, part: null, reason: 'RESET', t: now()}];
+    restart(() => {
+      const was = safety().open;
+      closed = closed.filter((c) => c.step);
+      measured = date;
+      end(s, true);
+      opened(was);
+    });
   }
 
   // the step ends without a result: open again, the event says failed with why
@@ -757,6 +804,10 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       k.attempt++;
       if (s.check === 'confirm') {
         end(s, true);
+        return setup();
+      }
+      if (s.check === 'summary') {
+        summary(s, k);
         return setup();
       }
       k.state = 'running';

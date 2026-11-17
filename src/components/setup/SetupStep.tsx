@@ -3,9 +3,24 @@
 import {BackIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {isDone, keepStep, KEEP_MS, moves, releasesBlade, nameById, nameOf, OPEN_SCREENS, unmet, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
+import {
+  isDone,
+  keepStep,
+  KEEP_MS,
+  moves,
+  releasesBlade,
+  nameById,
+  nameOf,
+  OPEN_SCREENS,
+  unmet,
+  words,
+  type Blocked,
+  type Setup,
+  type SetupStep as Step,
+  type Sizes,
+} from '@/lib/setup';
 import Link from 'next/link';
-import {useEffect, useState} from 'react';
+import {Fragment, useEffect, useState} from 'react';
 import {ConfirmSheet} from './ConfirmSheet';
 import {EmergencyBlock} from './EmergencyBlock';
 import {RestartWait} from './RestartWait';
@@ -23,6 +38,31 @@ export interface StepActions {
   answer: (step: string, values: Record<string, unknown>) => void;
   skip: (step: string, reason: string, note: string) => void;
   abort: (step: string) => void;
+}
+
+// what keeps the step from going on, the steps it names linked, those of them skipped apart
+function BlockedNote({b, steps, lang}: {b: Blocked; steps: Step[]; lang: string}) {
+  const skipped = b.skipped ?? [];
+  const due = (b.steps ?? []).filter((id) => !skipped.includes(id));
+  const links = (label: string, ids: string[]) =>
+    ids.length > 0 && (
+      <span className={styles.links} data-list={label}>
+        {tr(label)}{' '}
+        {ids.map((id, i) => (
+          <Fragment key={id}>
+            {i > 0 && ', '}
+            <Link href={`/setup?step=${encodeURIComponent(id)}`}>{nameById(steps, id, lang)}</Link>
+          </Fragment>
+        ))}
+      </span>
+    );
+  return (
+    <p className={styles.note} data-tone="warn" data-blocked={b.reason}>
+      {reasonSentence(b.reason, 'SETUP_BLOCKED', b)}
+      {links('Not passed yet:', due)}
+      {links('Skipped:', skipped)}
+    </p>
+  );
 }
 
 // One step: where it is in its stage, what to do, its parts and values, what keeps it from going on, and its buttons
@@ -43,6 +83,7 @@ export function SetupStep(props: {
   const emergency = step.blocked.some((b) => b.reason === 'EMERGENCY');
   const others = step.blocked.filter((b) => b.reason !== 'EMERGENCY');
   const running = step.state === 'running';
+  const restarting = step.restart && setup.restart_pending;
   const done = isDone(step.state);
   const needs = step.state === 'locked' ? unmet(step.needs, setup.steps) : [];
   // repeating a passed safety step while the lock is open: failing it closes the lock again
@@ -78,7 +119,7 @@ export function SetupStep(props: {
       <div className={styles.body}>
         <div className={styles.visual}>
           {emergency ? <EmergencyBlock /> : <StepFigure step={step} sizes={props.sizes} />}
-          {step.restart && setup.restart_pending && <RestartWait />}
+          {restarting && <RestartWait />}
         </div>
         <div className={styles.content} data-held={emergency || undefined}>
           <div className={styles.lead}>
@@ -144,9 +185,7 @@ export function SetupStep(props: {
             </p>
           )}
           {others.map((b) => (
-            <p key={b.reason} className={styles.note} data-tone="warn" data-blocked={b.reason}>
-              {reasonSentence(b.reason, 'SETUP_BLOCKED')}
-            </p>
+            <BlockedNote key={b.reason} b={b} steps={setup.steps} lang={lang} />
           ))}
           {props.error && (
             <p className={styles.note} data-tone="bad" role="alert">
@@ -166,7 +205,7 @@ export function SetupStep(props: {
             {step.state === 'open' && !r ? tr('Start') : tr('Repeat')}
           </button>
         )}
-        {running && (
+        {running && !restarting && (
           <button type="button" className={styles.button} disabled={busy} onClick={() => act.abort(step.id)}>
             {tr('Cancel')}
           </button>
@@ -180,6 +219,7 @@ export function SetupStep(props: {
       {sheet === 'confirm' && (
         <ConfirmSheet
           step={step}
+          steps={setup.steps}
           lang={lang}
           busy={busy}
           risky={risky}

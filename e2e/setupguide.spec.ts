@@ -13,7 +13,7 @@ test.describe('setup guide', () => {
     await page.goto('/setup/');
     await page.getByRole('link', {name: 'How the setup works'}).click();
     await expect(page.getByRole('heading', {level: 1})).toHaveText('The setup');
-    for (const title of ['A step', 'Sensors on their lines', 'Before it moves', 'Wheels in the air', 'Driving on the ground', 'The blade', 'Skipping and the safety measurement']) {
+    for (const title of ['A step', 'Sensors on their lines', 'Before it moves', 'Wheels in the air', 'Driving on the ground', 'The blade', 'Skipping and the safety measurement', 'Releasing the safety']) {
       await page.getByRole('button', {name: 'Next'}).last().click();
       await expect(page.getByRole('heading', {level: 1})).toHaveText(title);
     }

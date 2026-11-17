@@ -1,4 +1,5 @@
 import {fromBase64, toBase64} from './base64';
+import {numericDay} from './dates';
 import {reasonSentence} from './events';
 import {tr} from './i18n';
 import {num, outlineOf} from './mowerBody';
@@ -91,7 +92,7 @@ export interface SetupStep {
   state: StepState;
   attempt: number;
   needs: string[];
-  blocked: {reason: string; message: string}[];
+  blocked: Blocked[];
   motion: Motion | null;
   // passing it counts for the lock of autonomous driving and mowing, failing it closes the lock
   safety?: boolean;
@@ -114,6 +115,15 @@ export interface SetupStep {
   restart: boolean;
   lines: SetupLine[];
   ask: SetupAsk | null;
+}
+// what keeps a step from going on, with the fields of its reason: steps not passed yet and those of them skipped
+// (SAFETY_STEPS, SAFETY_INPUTS, SAFETY_AIR), clock_reason (CLOCK_UNSAFE), key (BLADE_NOT_ALLOWED)
+export interface Blocked {
+  reason: string;
+  message: string;
+  steps?: string[];
+  skipped?: string[];
+  [field: string]: unknown;
 }
 // what turns in a step: max_distance null while the mower stands raised, max_speed m/s, max_time s
 export interface Motion {
@@ -142,7 +152,7 @@ export interface Safety {
 // why the lock is closed (safety.why) besides no measurement, and a cause of closed[] without a step
 export const SAFETY_WHY: Record<string, string> = {
   CHECK_FAILED: 'A safety step failed: the mower drives only while you watch until it passes again',
-  RESET: 'The setup was started anew: the safety has to be measured again',
+  RESET: "The setup was started anew or a release didn't pass: the safety has to be released again",
   UNREADABLE: "The mower couldn't read the state of the lock: the safety has to be measured again",
 };
 // why the lock is closed in words, the program's reason for one it doesn't know
@@ -228,6 +238,24 @@ export const KEEP_LIMIT_MS = 1000;
 export const moves = (m: Motion | null | undefined) => !!(m?.wheels || m?.blade);
 // the blade still locked by the driver: the step's first start releases it and restarts the OS, the step runs on the next
 export const releasesBlade = (s: SetupStep) => s.restart && !!s.motion?.blade;
+
+// the last safety step: it writes the date of the safety measurement, restarts the OS and opens the lock once it passed
+export const isSummary = (s: SetupStep) => s.check === 'summary';
+// what a summary writes when it starts: today's date in UTC as the OS writes it, the longest stand time of the passed
+// step silence (null while unknown)
+export function summaryPreview(steps: SetupStep[], now = Date.now()): {date: string; failsafe: number | null} {
+  const rounds = steps
+    .filter((s) => s.check === 'silence' && s.state === 'ok')
+    .flatMap((s) => s.values)
+    .filter((v) => v.id.startsWith('round_') && typeof v.value === 'number')
+    .map((v) => v.value as number);
+  return {date: new Date(now).toISOString().slice(0, 10), failsafe: rounds.length ? Math.max(...rounds) : null};
+}
+// a day YYYY-MM-DD as the app writes days, as it came when it isn't one
+export function dayText(date: string): string {
+  const t = new Date(`${date}T00:00`).getTime();
+  return Number.isNaN(t) ? date : numericDay(t / 1000);
+}
 export const keepStep = (step: string) => callCommand<{running: boolean}>(RPC.setupKeep, {step}, KEEP_LIMIT_MS);
 
 // at most this much of an image in one answer of setup.image, and at most this large (x-setup.limits.image_bytes)

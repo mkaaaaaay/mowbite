@@ -461,27 +461,30 @@ const GroundArt = () => <PartsArt label={tr('Driving on the ground')} parts={[tr
 // the blade: switched off and off without control by itself, then STOP and lifting while it turns
 const BladeArt = () => <PartsArt label={tr('The blade')} parts={[tr('On and off'), tr('Off without control'), tr('Press STOP'), tr('Lift')]} />;
 
-function SafetyArt() {
-  // a step skipped for now, then the safety measurement passes and the lock on top opens
-  const lock = (open: boolean) => {
-    const color = open ? 'var(--soft-good)' : 'var(--soft-warn)';
-    return (
-      <>
-        <rect x={20} y={22} width={280} height={44} rx={12} fill={open ? 'var(--tint-good)' : 'var(--tint-warn)'} />
-        <g transform="translate(32 35)" style={{color}}>
-          <LockIcon open={open} size={18} />
-        </g>
-        <text x={58} y={open ? 48 : 41} fontSize={12} fontWeight={600} style={{fill: color}}>
-          {open ? tr('Safety measured') : tr('Safety measurement missing')}
+// the lock on top of the setup, closed or open
+function LockBar({open}: {open: boolean}) {
+  const color = open ? 'var(--soft-good)' : 'var(--soft-warn)';
+  return (
+    <>
+      <rect x={20} y={22} width={280} height={44} rx={12} fill={open ? 'var(--tint-good)' : 'var(--tint-warn)'} />
+      <g transform="translate(32 35)" style={{color}}>
+        <LockIcon open={open} size={18} />
+      </g>
+      <text x={58} y={open ? 48 : 41} fontSize={12} fontWeight={600} style={{fill: color}}>
+        {open ? tr('Safety measured') : tr('Safety measurement missing')}
+      </text>
+      {!open && (
+        <text x={58} y={56} fontSize={10} style={{fill: color}}>
+          {tr('Drives only while you watch')}
         </text>
-        {!open && (
-          <text x={58} y={56} fontSize={10} style={{fill: color}}>
-            {tr('Drives only while you watch')}
-          </text>
-        )}
-      </>
-    );
-  };
+      )}
+    </>
+  );
+}
+
+function SafetyArt() {
+  // a step skipped for now, then a failed safety step closes the lock until it passes again
+  const lock = (open: boolean) => <LockBar open={open} />;
   return (
     <Scene label={tr('Skipping and the safety measurement')}>
       <Shown to={0.62}>{lock(false)}</Shown>
@@ -504,13 +507,58 @@ function SafetyArt() {
         x={30}
         y={130}
         w={260}
-        name={tr('Safety measurement')}
+        name={tr('Release safety')}
         states={[
           {from: 0, state: 'open'},
           {from: 0.3, state: 'running'},
           {from: 0.56, state: 'ok'},
         ]}
       />
+    </Scene>
+  );
+}
+
+function ReleaseArt() {
+  // what the release writes, the tick, Release, the restart, then the lock opens
+  return (
+    <Scene label={tr('Releasing the safety')}>
+      <Shown to={0.74}>
+        <LockBar open={false} />
+      </Shown>
+      <Shown from={0.74}>
+        <LockBar open />
+      </Shown>
+      <rect x={20} y={76} width={280} height={118} rx={14} style={card} />
+      {[
+        [tr('Date'), tr('Today')],
+        [tr('Stop without control'), '0.6 s'],
+      ].map(([name, value], i) => (
+        <g key={name}>
+          <text x={34} y={98 + i * 18} fontSize={11} style={dim}>
+            {name}
+          </text>
+          <text x={286} y={98 + i * 18} fontSize={11} fontWeight={600} textAnchor="end" style={text}>
+            {value}
+          </text>
+        </g>
+      ))}
+      <Tick x={34} y={128} at={0.2} />
+      <text x={56} y={139} fontSize={10} style={text}>
+        {tr('I saw every safety check myself')}
+      </text>
+      <Shown to={0.46}>
+        <Button x={34} y={156} w={252} h={26} size={11} label={tr('Release the mower')} main at={0.38} />
+      </Shown>
+      <Shown from={0.46} to={0.74}>
+        <text x={160} y={173} fontSize={11} fontWeight={600} textAnchor="middle" style={dim}>
+          {tr('MowBite OS is starting again')}
+        </text>
+      </Shown>
+      <Shown from={0.74}>
+        <text x={160} y={173} fontSize={11} fontWeight={600} textAnchor="middle" style={{fill: 'var(--soft-good)'}}>
+          {tr('Passed')}
+        </text>
+      </Shown>
     </Scene>
   );
 }
@@ -553,8 +601,13 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Skipping and the safety measurement',
-    text: "A step you can't do now can be skipped with a reason and done later. Until the safety measurement passed, the mower drives only while you watch: the lock on top of the setup says so, and why. If a safety step fails, for instance a wheel turns the wrong way, the lock closes again until that step passes; repeating a passed safety step says so first.",
+    text: "A step you can't do now can be skipped with a reason and done later. Until the safety is released, the mower drives only while you watch: the lock on top of the setup says so, and why. If a safety step fails, for instance a wheel turns the wrong way, the lock closes again until that step passes; repeating a passed safety step says so first.",
     Art: SafetyArt,
+  },
+  {
+    title: 'Releasing the safety',
+    text: "The last safety step releases the mower. It needs every safety check passed, a skipped one doesn't count: the step names the ones missing, tap one to go there. Before the release it shows what the mower records, the date and how long it stops without control. Tick that you saw every check yourself and tap Release the mower: MowBite OS restarts once, then the lock opens. If a safety step fails later, release again once it passed.",
+    Art: ReleaseArt,
   },
 ];
 

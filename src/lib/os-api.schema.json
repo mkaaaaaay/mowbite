@@ -5324,6 +5324,10 @@
           "description": "With safety_closed: its reason of SETUP_STEP",
           "type": "string"
         },
+        "date": {
+          "description": "With safety_opened by a step summary: the date it wrote",
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -5346,7 +5350,7 @@
           "description": "What happened; a type this version does not know carries only the envelope for sure"
         },
         "what": {
-          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open again; blade_allowed: the first start of a step blade allowed the blade, the OS restarts and the step waits for its next start",
+          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open (again); blade_allowed: the first start of a step blade allowed the blade, the OS restarts and the step waits for its next start",
           "enum": [
             "stage_done",
             "complete",
@@ -10134,7 +10138,7 @@
               ]
             },
             "firmware": {
-              "description": "The firmware it was made with, null while unknown",
+              "description": "With source program: the firmware of the boards when the summary passed; null else",
               "type": [
                 "string",
                 "null"
@@ -10157,7 +10161,7 @@
               ]
             },
             "why": {
-              "description": "While closed: NO_SAFETY_MEASUREMENT (no date), CHECK_FAILED (a safety step failed) or RESET (the program was reset or its file could not be read)",
+              "description": "While closed: NO_SAFETY_MEASUREMENT (no date), CHECK_FAILED (a safety step failed) or RESET (the program was reset, a summary did not pass after it wrote a date, or its file could not be read)",
               "enum": [
                 "NO_SAFETY_MEASUREMENT",
                 "CHECK_FAILED",
@@ -10658,7 +10662,7 @@
                 ]
               },
               "restart": {
-                "description": "The program restarts the OS for it by itself: a step inputs_assign for its result, a step blade at its first start while the driver does not allow the blade",
+                "description": "The program restarts the OS for it by itself: a step inputs_assign for its result, a step blade at its first start while the driver does not allow the blade, a step summary",
                 "type": "boolean"
               },
               "result": {
@@ -15678,11 +15682,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:47",
+  "$id": "urn:mowbite-os:api:48",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 47,
+  "x-api": 48,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -16810,7 +16814,7 @@
       "result": "#/$defs/setup.keep.result"
     },
     "setup.reset": {
-      "description": "Takes every result back: all steps are open again, the record starts anew",
+      "description": "Takes every result back: all steps are open again, the record starts anew. It takes the date, the stand time and allow_blade out of the parameter file of the program; a lock the program opened (safety.source program) closes with a reset until a summary passes again, a date from the file kept by hand stays as it is. The causes of failed safety steps stay",
       "node": "mowbite_setup",
       "offered": "where the platform has a step list (setup/setup.yaml)",
       "params": "#/$defs/setup.reset.params",
@@ -19168,6 +19172,26 @@
           }
         }
       },
+      "CLOCK_UNSAFE": {
+        "description": "The clock is not safe (time/clock): the date would be wrong",
+        "fields": {
+          "clock_reason": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher ins Internet bringen oder auf eine genaue Position warten, dann erneut versuchen.",
+            "help": "Der Mäher kennt das Datum nicht sicher. Die Freigabe trägt aber das Datum von heute ein.",
+            "name": "Uhrzeit unsicher"
+          },
+          "en": {
+            "fix": "Connect the mower to the internet or wait for an exact position, then try again.",
+            "help": "The mower doesn't know the date for sure, but the release records today's date.",
+            "name": "Clock not safe"
+          }
+        }
+      },
       "DRIVER_MISSING": {
         "description": "The driver of the platform reports no status",
         "fields": {},
@@ -19356,6 +19380,27 @@
           }
         }
       },
+      "SAFETY_STEPS": {
+        "description": "A safety step of the list is not ok, or the lock holds a cause of it: steps names them, skipped those of them that were skipped",
+        "fields": {
+          "skipped": "",
+          "steps": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die genannten Schritte abschließen.",
+            "help": "Freigeben geht erst, wenn jede Sicherheitsprüfung bestanden ist. Übersprungene zählen nicht.",
+            "name": "Erst alle Sicherheitsprüfungen"
+          },
+          "en": {
+            "fix": "Finish the steps named.",
+            "help": "Releasing works only once every safety check passed. Skipped ones don't count.",
+            "name": "All safety checks first"
+          }
+        }
+      },
       "STORAGE_NOT_WRITABLE": {
         "description": "setup.json in data_dir cannot be written",
         "fields": {
@@ -19416,6 +19461,26 @@
             "fix": "End the running step or wait until the mower stands.",
             "help": "Another step is still running, or the mower is on its way.",
             "name": "Not possible right now"
+          }
+        }
+      },
+      "CLOCK_UNSAFE": {
+        "description": "The clock is not safe (time/clock): the date would be wrong",
+        "fields": {
+          "clock_reason": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher ins Internet bringen oder auf eine genaue Position warten, dann erneut versuchen.",
+            "help": "Der Mäher kennt das Datum nicht sicher. Die Freigabe trägt aber das Datum von heute ein.",
+            "name": "Uhrzeit unsicher"
+          },
+          "en": {
+            "fix": "Connect the mower to the internet or wait for an exact position, then try again.",
+            "help": "The mower doesn't know the date for sure, but the release records today's date.",
+            "name": "Clock not safe"
           }
         }
       },
@@ -19644,6 +19709,27 @@
             "fix": "Finish the check of the inputs; it can't be skipped for this.",
             "help": "Before any wheel turns, STOP button, lifting and bumper have to be checked standing.",
             "name": "Check the sensors first"
+          }
+        }
+      },
+      "SAFETY_STEPS": {
+        "description": "A safety step of the list is not ok, or the lock holds a cause of it: steps names them, skipped those of them that were skipped",
+        "fields": {
+          "skipped": "",
+          "steps": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die genannten Schritte abschließen.",
+            "help": "Freigeben geht erst, wenn jede Sicherheitsprüfung bestanden ist. Übersprungene zählen nicht.",
+            "name": "Erst alle Sicherheitsprüfungen"
+          },
+          "en": {
+            "fix": "Finish the steps named.",
+            "help": "Releasing works only once every safety check passed. Skipped ones don't count.",
+            "name": "All safety checks first"
           }
         }
       },
@@ -19904,7 +19990,7 @@
       },
       "NOT_APPLIED": {
         "closes": false,
-        "description": "After the restart hw/inputs does not show the table the step wrote",
+        "description": "After the restart the driver does not show what the step wrote: hw/inputs the table of inputs_assign, hw/capabilities the date and stand time of summary",
         "fields": {
           "key": ""
         },
@@ -19912,14 +19998,14 @@
         "severity": "warning",
         "texts": {
           "de": {
-            "fix": "Die Einträge zu den Eingängen aus der Gerätedatei des Mähers entfernen, dann den Schritt wiederholen.",
-            "help": "Nach dem Neustart arbeitet der Mäher nicht mit der neuen Zuordnung. Ein Eintrag in der von Hand gepflegten Gerätedatei hat Vorrang.",
-            "name": "Zuordnung nicht übernommen"
+            "fix": "Den genannten Eintrag in der Gerätedatei des Mähers prüfen oder entfernen, dann den Schritt wiederholen.",
+            "help": "Nach dem Neustart arbeitet der Mäher nicht mit dem, was der Schritt eingetragen hat. Ein Eintrag in der von Hand gepflegten Gerätedatei hat Vorrang.",
+            "name": "Nicht übernommen"
           },
           "en": {
-            "fix": "Remove the entries of the inputs from the device file of the mower, then repeat the step.",
-            "help": "After the restart the mower does not work with the new assignment. An entry in the device file kept by hand comes first.",
-            "name": "Assignment not applied"
+            "fix": "Check or remove the entry named in the device file of the mower, then repeat the step.",
+            "help": "After the restart the mower does not work with what the step wrote. An entry in the device file kept by hand comes first.",
+            "name": "Not applied"
           }
         }
       },
@@ -23536,6 +23622,82 @@
           }
         }
       },
+      "summary": {
+        "auto": false,
+        "description": "Opens the lock of autonomous driving and mowing with one tap: blocked while a safety step of the list is not ok (SAFETY_STEPS, skipped ones named apart) or the clock is not safe (CLOCK_UNSAFE). setup.start confirms seen_myself, writes into the parameter file of the program for node the date of today (UTC) as safety_measurement_date and the longest stand time of the step silence as failsafe_without_host, and restarts the OS (restart of the step list). After the restart hw/capabilities has to show the date written, or a date the file kept by hand sets, and the stand time unless that file sets it: then the step is ok, a reset of the lock goes and the lock opens (SETUP safety_opened). Else NOT_APPLIED, naming the setting of the file kept by hand. Until it passes, a date the program wrote does not open the lock. A safety step that fails later makes it open again; the lock itself only closes for that step",
+        "kind": "confirm",
+        "params": {
+          "node": {
+            "description": "The node of the driver the date and the stand time are written for",
+            "required": true,
+            "type": "text"
+          },
+          "restart_time": {
+            "default": 120.0,
+            "description": "The OS is back within this time after the restart",
+            "max": 600.0,
+            "min": 20.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NOT_APPLIED",
+          "RESTART_FAILED",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": false,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.",
+            "help": "Alle Sicherheitsprüfungen sind bestanden. Mit einem Tipp gibt der Mäher das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.",
+            "name": "Sicherheit freigeben"
+          },
+          "en": {
+            "fix": "If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.",
+            "help": "All safety checks passed. With one tap the mower allows driving and mowing on its own. MowBite OS restarts once for it.",
+            "name": "Release safety"
+          }
+        },
+        "values": {
+          "date": {
+            "description": "The date written, YYYY-MM-DD",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Datum"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Date"
+              }
+            },
+            "unit": ""
+          },
+          "failsafe": {
+            "description": "The stand time written: the longest of the step silence",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Halt ohne Steuerung"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Stop without control"
+              }
+            },
+            "unit": "s"
+          }
+        }
+      },
       "wheels": {
         "auto": false,
         "description": "The mower jacked up turns its wheels part by part, see wheel_parts: each part drives time s after a run-up of 0.5 s, and the odometry has to show it with its sign and 0.5 to 1.5 times speed. In the part one_wheel only the right wheel turns, and inputs[] asks which one turns. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
@@ -24043,6 +24205,22 @@
             "fix": "",
             "help": "",
             "name": "Mower jacked up, wheels free"
+          }
+        }
+      },
+      "seen_myself": {
+        "description": "The user saw every safety check pass on this mower",
+        "order": 6,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Ich habe jede Sicherheitsprüfung an diesem Mäher selbst gesehen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "I saw every safety check on this mower myself"
           }
         }
       }

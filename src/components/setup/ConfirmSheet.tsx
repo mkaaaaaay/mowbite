@@ -1,17 +1,19 @@
 'use client';
 
 import {fmt, tr} from '@/lib/i18n';
-import {moves, nameOf, releasesBlade, words, type SetupStep} from '@/lib/setup';
+import {dayText, isSummary, moves, nameById, nameOf, releasesBlade, summaryPreview, words, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
 import {StepSymbol} from './StepSymbol';
+import {valueText} from './StepValues';
 
 // what moves in a step, as its start button says it; a blade still locked is released first
 function startLabel(step: SetupStep): string {
   const {motion} = step;
   if (motion?.blade) return releasesBlade(step) ? tr('Release the blade') : tr('Let the blade turn');
   if (motion?.wheels) return motion.raised ? tr('Let the wheels turn') : tr('Let the mower drive');
+  if (isSummary(step)) return tr('Release the mower');
   return tr('Start');
 }
 
@@ -23,9 +25,18 @@ const Move = ({sign, still, children}: {sign: string; still?: boolean; children:
   </p>
 );
 
-// Before a start: what moves, every point of the step ticked off, the start names what moves
-export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolean; risky: boolean; onStart: (confirm: string[]) => void; onClose: () => void}) {
+// Before a start: what moves or what the release writes, every point of the step ticked off, the start names what moves
+export function ConfirmSheet(props: {
+  step: SetupStep;
+  steps: SetupStep[];
+  lang: string;
+  busy: boolean;
+  risky: boolean;
+  onStart: (confirm: string[]) => void;
+  onClose: () => void;
+}) {
   const {step, lang, busy, risky, onStart, onClose} = props;
+  const summary = isSummary(step) ? summaryPreview(props.steps) : null;
   const [ticked, setTicked] = useState<string[]>([]);
   const all = step.confirm.every((c) => ticked.includes(c.id));
   const m = moves(step.motion) ? step.motion : null;
@@ -61,6 +72,20 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
           )}
           {!!m.max_time && <p className={styles.limit}>{tr('Each move at most {n} s, then it stops by itself', {n: m.max_time})}</p>}
           <p className={styles.limit}>{tr('Keep this page open: if it closes, the mower stops.')}</p>
+        </div>
+      )}
+      {summary && (
+        <div className={styles.list} data-summary>
+          <p className={styles.limit}>{tr('The mower records:')}</p>
+          <p className={styles.written}>
+            <span>{nameById(step.values, 'date', lang)}</span>
+            <b>{dayText(summary.date)}</b>
+          </p>
+          <p className={styles.written}>
+            <span>{nameById(step.values, 'failsafe', lang)}</span>
+            <b>{valueText(summary.failsafe, 's')}</b>
+          </p>
+          <p className={styles.limit}>{tr('MowBite OS restarts once, the lock opens when it is back.')}</p>
         </div>
       )}
       {risky && (

@@ -3053,17 +3053,17 @@
   ],
   "NOT_APPLIED": [
    {
-    "en": "the mower does not use the new assignment, {key} is set by hand in the device file",
+    "en": "the mower does not use what the step wrote, {key} is set by hand in the device file",
     "when": {
      "key": {
       "present": true
      }
     },
-    "de": "der Mäher nutzt die neue Zuordnung nicht, {key} ist in der Gerätedatei von Hand gesetzt"
+    "de": "der Mäher nutzt nicht, was der Schritt eingetragen hat, {key} ist in der Gerätedatei von Hand gesetzt"
    },
    {
-    "en": "the mower does not use the new assignment after the restart",
-    "de": "der Mäher nutzt die neue Zuordnung nach dem Neustart nicht"
+    "en": "the mower does not use what the step wrote after the restart",
+    "de": "der Mäher nutzt nach dem Neustart nicht, was der Schritt eingetragen hat"
    }
   ],
   "RESTART_FAILED": [
@@ -3160,6 +3160,12 @@
    {
     "en": "the steps with the mower jacked up have to pass first",
     "de": "erst müssen die Schritte mit aufgebocktem Mäher bestanden sein"
+   }
+  ],
+  "SAFETY_STEPS": [
+   {
+    "en": "every safety check has to pass first, skipped ones don't count",
+    "de": "erst muss jede Sicherheitsprüfung bestanden sein, übersprungene zählen nicht"
    }
   ],
   "NO_STANDSTILL": [

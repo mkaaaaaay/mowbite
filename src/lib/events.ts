@@ -252,8 +252,8 @@ export function reasonText(e: MowerEvent): string {
 }
 
 // a reason of an answer (no event) in words, as a sentence
-export function reasonSentence(reason: string, type: string): string {
-  const text = reasonText({id: '', t: 0, type, reason});
+export function reasonSentence(reason: string, type: string, fields: object = {}): string {
+  const text = reasonText({...fields, id: '', t: 0, type, reason});
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
 }
 

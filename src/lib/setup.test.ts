@@ -1,8 +1,9 @@
 import {createHash} from 'node:crypto';
 import {describe, expect, it, vi} from 'vitest';
-import {DEMO_IMAGES} from './demo/setup';
+import {DEMO_IMAGES, demoSetup} from './demo/setup';
+import {RPC} from './openmower';
 import {robotShape, shapePath} from './robotShape';
-import {derivedParts, loadSetup, setupNow, startStep, words, type Setup} from './setup';
+import {derivedParts, loadSetup, setupNow, startStep, summaryPreview, words, type Setup, type SetupStep} from './setup';
 import {TRON_SHAPE} from './tronShape';
 
 // each call answers when the test lets it
@@ -51,6 +52,25 @@ describe('the setup program', () => {
 
   it("gives the demo's images with their checksum", () => {
     for (const [name, img] of Object.entries(DEMO_IMAGES)) expect(createHash('sha256').update(img.svg).digest('hex'), name).toBe(img.sha256);
+  });
+
+  it('names the safety steps the release waits for, those skipped apart, and refuses it until they passed', () => {
+    const demo = demoSetup(() => {}, () => false, () => {});
+    const get = () => demo.methods[RPC.setupGet]({}) as Setup;
+    const summary = () => get().steps.find((s) => s.id === 'summary')!;
+    const all = ['stop', 'lift', 'wheels', 'ground', 'blade'];
+    expect(summary().blocked).toEqual([{reason: 'SAFETY_STEPS', message: expect.any(String), steps: all, skipped: []}]);
+    demo.methods[RPC.setupSkip]({step: 'wheels', version: get().version, reason: 'later'});
+    expect(summary().blocked[0]).toMatchObject({steps: all, skipped: ['wheels']});
+    expect(() => demo.methods[RPC.setupStart]({step: 'summary', version: get().version, confirm: ['seen_myself']})).toThrow('Safety steps are not ok');
+  });
+
+  it('shows what the release writes: the day in UTC and the longest stand time of the passed step silence', () => {
+    const silence = (state: SetupStep['state'], values: [string, unknown][]) =>
+      ({check: 'silence', state, values: values.map(([id, value]) => ({id, value}))}) as unknown as SetupStep;
+    const at = Date.UTC(2026, 10, 17, 23, 30);
+    expect(summaryPreview([silence('ok', [['round_1', 0.4], ['round_2', 0.7], ['limit', 2]])], at)).toEqual({date: '2026-11-17', failsafe: 0.7});
+    expect(summaryPreview([silence('failed', [['round_1', 0.4]])], at).failsafe).toBeNull();
   });
 
   it("keeps a newer state over an older call's answer, not one from before a restart", async () => {
