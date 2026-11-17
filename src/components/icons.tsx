@@ -338,6 +338,17 @@ export function CameraIcon({size = 20, off = false}: IconProps & {off?: boolean}
   );
 }
 
+// corners of a box around a dot: what the mower recognises in its picture
+export function DetectIcon({size = 20, off = false}: IconProps & {off?: boolean}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
 export function PushPinIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>

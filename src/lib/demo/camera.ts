@@ -9,27 +9,31 @@ import {demoFlags} from './flags';
 // stream turned down with it, window.mowbiteDemoCameraStatus to the HTTP status its address answers once
 
 const CAMERAS: Camera[] = [
-  {id: 'stereo', name: 'Stereo camera', kind: 'stereo', position: 'front', width: 640, height: 480, protocols: ['mjpeg'], available: true},
+  {id: 'stereo', name: 'Stereo camera', kind: 'stereo', position: 'front', width: 640, height: 480, protocols: ['mjpeg'], available: true, detections: true},
   {id: 'oa_left', name: 'Obstacle camera left', kind: 'obstacle', position: 'left', width: 640, height: 400, protocols: ['mjpeg'], available: true},
   {id: 'oa_right', name: 'Obstacle camera right', kind: 'obstacle', position: 'right', width: 640, height: 400, protocols: ['mjpeg'], available: true},
   {id: 'rear', name: 'Rear camera', kind: 'rear', position: 'rear', width: 640, height: 480, protocols: ['mjpeg'], available: true},
 ];
 
-// a lawn up to a hedge, the stripes and a leaf that crosses in 7 s (t in s); the side and the back a little different
-function picture(c: Camera, t: number): string {
+// a lawn up to a hedge, the stripes and a leaf that crosses in 7 s (t in s); the side and the back a little different.
+// boxes: one around the leaf, as the mower marks what it recognises
+function picture(c: Camera, t: number, boxes: boolean): string {
+  const leaf = Math.round(((t % 7) / 7) * (c.width + 40) - 20);
   const hue = c.position === 'rear' ? 95 : c.position === 'left' ? 110 : c.position === 'right' ? 105 : 120;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${c.width}" height="${c.height}" viewBox="0 0 ${c.width} ${c.height}">
 <rect width="100%" height="45%" fill="#9cc9e8"/>
 <rect y="30%" width="100%" height="18%" fill="hsl(${hue - 20},35%,28%)"/>
 <rect y="45%" width="100%" height="55%" fill="hsl(${hue},40%,38%)"/>
 ${[0, 1, 2, 3].map((i) => `<path d="M${c.width * (0.2 + 0.2 * i)} ${c.height * 0.45} L${c.width * (-0.4 + 0.6 * i)} ${c.height} L${c.width * (-0.1 + 0.6 * i)} ${c.height} Z" fill="hsl(${hue},45%,44%)"/>`).join('')}
-<ellipse cx="${Math.round(((t % 7) / 7) * (c.width + 40) - 20)}" cy="${c.height * 0.7}" rx="14" ry="7" fill="#c98a2b"/>
+<ellipse cx="${leaf}" cy="${c.height * 0.7}" rx="14" ry="7" fill="#c98a2b"/>
+${boxes ? `<rect x="${leaf - 24}" y="${c.height * 0.7 - 16}" width="48" height="32" fill="none" stroke="#ffd400" stroke-width="3"/><text x="${leaf - 24}" y="${c.height * 0.7 - 22}" font-family="sans-serif" font-size="16" fill="#ffd400">leaf 0.87</text>` : ''}
 <text x="16" y="${c.height - 16}" font-family="sans-serif" font-size="22" fill="#fff" opacity="0.8">Demo · ${c.name}</text>
 </svg>`;
 }
 
-// the places given out by camera.stream and not connected to yet, each for one connection, and the streams that run
-const places = new Map<string, Camera>();
+// the places given out by camera.stream and not connected to yet, each for one connection (with or without boxes), and
+// the streams that run
+const places = new Map<string, {camera: Camera; boxes: boolean}>();
 const streams = new Set<{camera: Camera; end: () => void}>();
 const FRAME_MS = 200;
 
@@ -40,11 +44,12 @@ export function demoStream(url: string, init: RequestInit): Response {
   const status = flags.mowbiteDemoCameraStatus as number | undefined;
   delete flags.mowbiteDemoCameraStatus;
   const token = new URL(url).searchParams.get('t') ?? '';
-  const camera = places.get(token);
+  const place = places.get(token);
   places.delete(token);
-  if (status || !camera) return new Response('no place for this token\n', {status: status ?? 401});
+  if (status || !place) return new Response('no place for this token\n', {status: status ?? 401});
   const text = new TextEncoder();
   let timer: ReturnType<typeof setInterval>;
+  const {camera, boxes} = place;
   const stream = {camera, end: () => {}};
   const off = () => {
     clearInterval(timer);
@@ -60,7 +65,7 @@ export function demoStream(url: string, init: RequestInit): Response {
         } catch {}
       };
       const send = () => {
-        const svg = text.encode(picture(camera, Date.now() / 1000));
+        const svg = text.encode(picture(camera, Date.now() / 1000, boxes));
         out.enqueue(text.encode(`--frame\r\nContent-Type: image/svg+xml\r\nContent-Length: ${svg.length}\r\n\r\n`));
         out.enqueue(svg);
         out.enqueue(text.encode('\r\n'));
@@ -95,11 +100,12 @@ export function demoCameras(deliver: (topic: string, text: string) => void) {
       // (mowbiteDemoCameraWebrtc: webrtc offered too and turned down, like MowBite OS while its media server isn't ready)
       [RPC.cameraList]: () => (demoFlags().mowbiteDemoCameraWebrtc ? cameras.map((c) => ({...c, protocols: ['webrtc', ...c.protocols]})) : cameras),
       [RPC.cameraStream]: (params: unknown) => {
-        const {id, protocol} = (params ?? {}) as {id?: string; protocol?: string};
+        const {id, protocol, detections} = (params ?? {}) as {id?: string; protocol?: string; detections?: boolean};
         const c = cameras.find((x) => x.id === id);
         if (!c) throw new Error(`no camera ${id}`);
         if (protocol === 'webrtc' && demoFlags().mowbiteDemoCameraWebrtc) throw new Refused('NOT_SET_UP');
         if (protocol && !c.protocols.includes(protocol)) throw new Error(`${id} has no ${protocol}`);
+        if (detections && !c.detections) throw new Error(`${id} has no detections`);
         const flags = demoFlags();
         const refuse = flags.mowbiteDemoCameraRefuse as string | undefined;
         if (refuse) {
@@ -108,8 +114,9 @@ export function demoCameras(deliver: (topic: string, text: string) => void) {
         }
         if (!c.available) throw new Refused(c.reason ?? 'NO_SIGNAL');
         const token = `demo${++n}`;
-        places.set(token, c);
-        return {url: `http://demo.invalid:8890/camera/${c.id}.mjpg?t=${token}`, protocol: 'mjpeg', expires: Math.floor(Date.now() / 1000) + 30};
+        const boxes = detections ?? !!c.detections;
+        places.set(token, {camera: c, boxes});
+        return {url: `http://demo.invalid:8890/camera/${c.id}.mjpg?t=${token}`, protocol: 'mjpeg', expires: Math.floor(Date.now() / 1000) + 30, detections: boxes};
       },
     } as Record<string, (params: unknown) => unknown>,
     blade(on: boolean) {
