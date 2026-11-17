@@ -126,6 +126,12 @@ export function words(texts: Texts | undefined, lang: string): Words {
 // the item's name in the language shown, its id without one
 export const nameOf = (item: Named, lang: string) => words(item.texts, lang).name || item.id;
 
+// the name of the item with this id in the list, the id when it is not there
+export const nameById = (list: Named[], id: string, lang: string) => nameOf(list.find((x) => x.id === id) ?? {id, texts: {}}, lang);
+
+// the steps of these ids not passed yet
+export const unmet = (ids: string[], steps: SetupStep[]) => ids.filter((n) => steps.find((s) => s.id === n)?.state !== 'ok');
+
 // a step that counts as done for the progress
 export const isDone = (s: StepState) => s === 'ok' || s === 'skipped';
 

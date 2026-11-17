@@ -111,8 +111,6 @@
 }
 
 .reason {
-  background: color-mix(in srgb, var(--error) 13%, transparent);
-  color: var(--soft-bad);
   font-weight: 600;
 }
 
@@ -121,6 +119,7 @@
   color: var(--soft-warn);
 }
 
+.reason,
 .note[data-tone='bad'] {
   background: color-mix(in srgb, var(--error) 13%, transparent);
   color: var(--soft-bad);
@@ -165,18 +164,11 @@
 }
 
 .button {
+  composes: button from './Sheet.module.css';
   display: flex;
   flex: 1 1 0;
   align-items: center;
   justify-content: center;
-  min-height: 50px;
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
-  color: var(--foreground);
-  font-size: 15px;
-  font-weight: 600;
   text-align: center;
   text-decoration: none;
 }
@@ -184,15 +176,6 @@
 .button[data-primary] {
   flex-basis: 100%;
   order: -1;
-  background: var(--accent);
-  box-shadow: var(--btn-glass);
-  color: var(--accent-foreground, #fff);
-}
-
-.button:disabled {
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  box-shadow: none;
-  color: color-mix(in srgb, var(--foreground) 45%, transparent);
 }
 
 @media (min-width: 900px) {

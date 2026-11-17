@@ -1,3 +1,4 @@
+import {line} from '@/components/icons';
 import {tr} from '@/lib/i18n';
 import type {PartState, StepState} from '@/lib/setup';
 import styles from './StateMark.module.css';
@@ -37,12 +38,12 @@ export function stateWord(s: State): string {
 }
 
 // the state as a round sign: tick, cross, arrow on, clock, lock; a ring while open, running or waiting
-export function StateMark({state, big = false}: {state: State; big?: boolean}) {
+export function StateMark({state, size}: {state: State; size?: 'small' | 'big'}) {
   const sign = SIGNS[state];
   return (
-    <span className={styles.mark} data-state={state} data-big={big || undefined} aria-hidden="true">
+    <span className={styles.mark} data-state={state} data-size={size} aria-hidden="true">
       {sign && (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" {...line} strokeWidth={2.5}>
           {sign}
         </svg>
       )}

@@ -68,7 +68,7 @@ export function BatteryIcon({size = 20}: IconProps) {
   );
 }
 
-const line = {fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'} as const;
+export const line = {fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'} as const;
 
 export function PencilIcon({size = 20}: IconProps) {
   return (
@@ -228,11 +228,17 @@ export function RecordIcon({size = 20}: IconProps) {
 }
 
 // the blade from above
+export const BLADE = (
+  <>
+    <circle cx="12" cy="12" r="2" />
+    <path d="M12 10c0-4 1.5-6 4-7-1 3-1 5-3 7M14 12c4 0 6 1.5 7 4-3-1-5-1-7-3M12 14c0 4-1.5 6-4 7 1-3 1-5 3-7M10 12c-4 0-6-1.5-7-4 3 1 5 1 7 3" />
+  </>
+);
+
 export function BladeIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
-      <circle cx="12" cy="12" r="2" />
-      <path d="M12 10c0-4 1.5-6 4-7-1 3-1 5-3 7M14 12c4 0 6 1.5 7 4-3-1-5-1-7-3M12 14c0 4-1.5 6-4 7 1-3 1-5 3-7M10 12c-4 0-6-1.5-7-4 3 1 5 1 7 3" />
+      {BLADE}
     </svg>
   );
 }

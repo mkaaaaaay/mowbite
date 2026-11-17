@@ -78,7 +78,7 @@ export function StepFigure({step, sizes}: {step: SetupStep; sizes: Sizes | null}
         </span>
       )}
       {step.state === 'running' && step.progress && (
-        <span className={styles.tag}>{tr('{n} of {of}', {n: step.progress.n, of: step.progress.of})}</span>
+        <span className={styles.tag}>{tr('{n} of {m}', {n: step.progress.n, m: step.progress.of})}</span>
       )}
       {left !== null && <Clock left={left} />}
     </div>

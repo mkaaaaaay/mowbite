@@ -26,15 +26,18 @@ export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]
             <legend>{w.name || i.name}</legend>
             {w.help && <p className={styles.help}>{w.help}</p>}
             {i.type === 'choice' ? (
-              (i.values ?? []).map((v) => (
-                <label key={v.id} className={styles.choice}>
-                  <input type="radio" name={i.name} value={v.id} checked={valueOf(i) === v.id} onChange={() => setGiven({...given, [i.name]: v.id})} />
-                  <span className={styles.text}>
-                    <b>{nameOf(v, lang)}</b>
-                    {words(v.texts, lang).help && <span>{words(v.texts, lang).help}</span>}
-                  </span>
-                </label>
-              ))
+              (i.values ?? []).map((v) => {
+                const help = words(v.texts, lang).help;
+                return (
+                  <label key={v.id} className={styles.choice}>
+                    <input type="radio" name={i.name} value={v.id} checked={valueOf(i) === v.id} onChange={() => setGiven({...given, [i.name]: v.id})} />
+                    <span className={styles.text}>
+                      <b>{nameOf(v, lang)}</b>
+                      {help && <span>{help}</span>}
+                    </span>
+                  </label>
+                );
+              })
             ) : (
               <label className={styles.number}>
                 <input
@@ -52,7 +55,7 @@ export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]
           </fieldset>
         );
       })}
-      <button type="submit" className={styles.answer} disabled={busy || !ready}>
+      <button type="submit" className={styles.answer} data-primary disabled={busy || !ready}>
         {tr('Save')}
       </button>
     </form>

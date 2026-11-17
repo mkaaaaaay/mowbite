@@ -1,26 +1,26 @@
 'use client';
 
-import {ChevronIcon} from '@/components/icons';
+import {ChevronIcon, line} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {isDone, nameOf, type Setup, type SetupStep} from '@/lib/setup';
+import {isDone, nameById, nameOf, unmet, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord} from './StateMark';
 import styles from './SetupOverview.module.css';
 
 const LockIcon = ({open}: {open: boolean}) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg viewBox="0 0 24 24" {...line} aria-hidden="true">
     <rect x="5" y="11" width="14" height="10" rx="2" />
     <path d={open ? 'M8 11V7a4 4 0 0 1 7.5-2' : 'M8 11V7a4 4 0 0 1 8 0v4'} />
   </svg>
 );
 
 // the line under a stage: what keeps it locked, how far it got, or its state
-function stageLine(state: Setup['stages'][number]['state'], steps: SetupStep[], all: SetupStep[], lang: string): string {
+function stageLine(state: StepState, steps: SetupStep[], all: SetupStep[], lang: string): string {
   if (state === 'locked') {
-    const needs = [...new Set(steps.flatMap((s) => s.needs))].filter((n) => !steps.some((s) => s.id === n) && all.find((s) => s.id === n)?.state !== 'ok');
-    if (needs.length) return tr('First: {steps}', {steps: needs.map((n) => nameOf(all.find((s) => s.id === n) ?? {id: n, texts: {}}, lang)).join(', ')});
+    const needs = unmet([...new Set(steps.flatMap((s) => s.needs))], all).filter((n) => !steps.some((s) => s.id === n));
+    if (needs.length) return tr('First: {steps}', {steps: needs.map((n) => nameById(all, n, lang)).join(', ')});
   }
   if (state === 'open' || state === 'running') {
     const done = steps.filter((s) => isDone(s.state)).length;
@@ -68,7 +68,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
           </div>
         </div>
         {next && next.id !== selected && (
-          <Link href={`/setup?step=${encodeURIComponent(next.id)}`} className={styles.next}>
+          <Link href={`/setup?step=${encodeURIComponent(next.id)}`} className={styles.next} data-primary>
             {tr('Go on: {step}', {step: nameOf(next, lang)})}
           </Link>
         )}
@@ -91,10 +91,10 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
                     {steps.map((s) => (
                       <li key={s.id} data-state={s.state}>
                         <button type="button" className={styles.step} aria-current={s.id === selected || undefined} onClick={() => onSelect(s.id)}>
-                          <StateMark state={s.state} />
+                          <StateMark state={s.state} size="small" />
                           <span className={styles.name}>{nameOf(s, lang)}</span>
                           <span className={styles.note}>
-                            {s.state === 'running' && s.progress ? tr('{n} of {of}', {n: s.progress.n, of: s.progress.of}) : stateWord(s.state)}
+                            {s.state === 'running' && s.progress ? tr('{n} of {m}', {n: s.progress.n, m: s.progress.of}) : stateWord(s.state)}
                           </span>
                         </button>
                       </li>

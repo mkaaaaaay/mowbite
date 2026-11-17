@@ -1,3 +1,5 @@
+import {BLADE, line} from '@/components/icons';
+
 // the signs of the setup steps as MowBite OS names them in symbol, drawn in lines on a 24 grid
 const PATHS: Record<string, React.ReactNode> = {
   stop: (
@@ -34,12 +36,7 @@ const PATHS: Record<string, React.ReactNode> = {
       <circle cx="16" cy="16.5" r="2" />
     </>
   ),
-  blade: (
-    <>
-      <circle cx="12" cy="12" r="2" />
-      <path d="M12 10c0-4 1.5-6 4-7-1 3-1 5-3 7M14 12c4 0 6 1.5 7 4-3-1-5-1-7-3M12 14c0 4-1.5 6-4 7 1-3 1-5 3-7M10 12c-4 0-6-1.5-7-4 3 1 5 1 7 3" />
-    </>
-  ),
+  blade: BLADE,
   antenna: (
     <>
       <path d="M12 12v9M9 21h6" />
@@ -70,9 +67,9 @@ const PATHS: Record<string, React.ReactNode> = {
 
 export const hasSymbol = (name: string | null): name is string => !!name && name in PATHS;
 
-export function StepSymbol({name, size = 24}: {name: string; size?: number}) {
+export function StepSymbol({name, size}: {name: string; size: number}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line} aria-hidden="true">
       {PATHS[name]}
     </svg>
   );

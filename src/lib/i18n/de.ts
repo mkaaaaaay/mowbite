@@ -3423,7 +3423,6 @@ const de: Record<string, string> = {
   "Go on: {step}": "Weiter: {step}",
   "{done} of {of} done": "{done} von {of} erledigt",
   "{n} steps": "{n} Schritte",
-  "{n} of {of}": "{n} von {of}",
   "Step {n} of {of}": "Schritt {n} von {of}",
   "Passed": "Bestanden",
   "Not passed": "Nicht bestanden",

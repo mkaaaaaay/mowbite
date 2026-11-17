@@ -7,15 +7,18 @@ export function StepParts({parts, lang}: {parts: SetupPart[]; lang: string}) {
   if (!parts.length) return null;
   return (
     <ol className={styles.parts}>
-      {parts.map((p) => (
-        <li key={p.id} data-state={p.state} className={styles.part}>
-          <StateMark state={p.state} />
-          <span className={styles.text}>
-            <b>{nameOf(p, lang)}</b>
-            {stateWord(p.state) && <span>{stateWord(p.state)}</span>}
-          </span>
-        </li>
-      ))}
+      {parts.map((p) => {
+        const word = stateWord(p.state);
+        return (
+          <li key={p.id} data-state={p.state} className={styles.part}>
+            <StateMark state={p.state} />
+            <span className={styles.text}>
+              <b>{nameOf(p, lang)}</b>
+              {word && <span>{word}</span>}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }

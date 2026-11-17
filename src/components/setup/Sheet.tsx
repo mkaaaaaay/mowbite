@@ -19,5 +19,3 @@ export function Sheet({title, sub, onClose, children}: {title: string; sub?: str
     document.body,
   );
 }
-
-export const sheetStyles = styles;

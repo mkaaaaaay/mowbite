@@ -3,7 +3,8 @@
 import {tr} from '@/lib/i18n';
 import {nameOf, SKIP_TEXT, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
-import {Sheet, sheetStyles as styles} from './Sheet';
+import {Sheet} from './Sheet';
+import styles from './Sheet.module.css';
 
 // Skipping a step: one of its reasons, a text of the user's own with other
 export function SkipSheet({step, lang, busy, onSkip, onClose}: {step: SetupStep; lang: string; busy: boolean; onSkip: (reason: string, note: string) => void; onClose: () => void}) {

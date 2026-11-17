@@ -21,7 +21,7 @@ export function EmergencyBlock() {
       </div>
       <p>{tr('The emergency stop is still on. The next action counts once it is released.')}</p>
       {refused && <p className={styles.refused}>{resetRefusedText(refused)}</p>}
-      <button type="button" className={styles.button} onClick={reset}>
+      <button type="button" className={styles.button} data-primary onClick={reset}>
         {tr('Reset emergency')}
       </button>
     </div>

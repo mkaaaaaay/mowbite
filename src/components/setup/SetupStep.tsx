@@ -3,7 +3,7 @@
 import {BackIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {isDone, nameOf, OPEN_SCREENS, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
+import {isDone, nameById, nameOf, OPEN_SCREENS, unmet, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {ConfirmSheet} from './ConfirmSheet';
@@ -43,7 +43,7 @@ export function SetupStep(props: {
   const others = step.blocked.filter((b) => b.reason !== 'EMERGENCY');
   const running = step.state === 'running';
   const done = isDone(step.state);
-  const needs = step.state === 'locked' ? step.needs.filter((n) => setup.steps.find((s) => s.id === n)?.state !== 'ok') : [];
+  const needs = step.state === 'locked' ? unmet(step.needs, setup.steps) : [];
   const start = () => (step.confirm.length || step.motion ? setSheet('confirm') : act.start(step.id, []));
   const r = step.result;
   const canStart = step.start && !running && step.state !== 'locked';
@@ -72,7 +72,7 @@ export function SetupStep(props: {
           {r && !r.ok && r.reason && (
             <div className={styles.result} data-result="failed">
               <div className={styles.verdict}>
-                <StateMark state="failed" big />
+                <StateMark state="failed" size="big" />
                 <p>
                   <b>{tr('Not passed')}</b>
                   {r.attempt > 0 && <span>{tr('Attempt {n}', {n: r.attempt})}</span>}
@@ -98,13 +98,13 @@ export function SetupStep(props: {
           />
           {r?.skip && (
             <p className={styles.note} data-result="skipped">
-              {tr('Skipped: {why}', {why: nameOf(step.skip_reasons.find((s) => s.id === r.skip) ?? {id: r.skip, texts: {}}, lang)})}
+              {tr('Skipped: {why}', {why: nameById(step.skip_reasons, r.skip, lang)})}
               {r.note && ` (${r.note})`}
             </p>
           )}
           {needs.length > 0 && (
             <p className={styles.note}>
-              {tr('First: {steps}', {steps: needs.map((n) => nameOf(setup.steps.find((s) => s.id === n) ?? {id: n, texts: {}}, lang)).join(', ')})}
+              {tr('First: {steps}', {steps: needs.map((n) => nameById(setup.steps, n, lang)).join(', ')})}
             </p>
           )}
           {others.map((b) => (
