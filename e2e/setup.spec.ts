@@ -16,6 +16,33 @@ test.describe('setup', () => {
     await expect(page.locator('[data-card="setup"]')).toHaveCount(0);
   });
 
+  test('assigns the inputs line by line, waits out the restart, then their delays under advanced', async ({page}) => {
+    await demoWith(page, 'Setup', 'Assign');
+    await page.goto('/setup/?step=assign');
+    const s = step(page, 'assign');
+    await s.getByRole('button', {name: 'Start'}).click();
+    await expect(s.locator('li[data-state="waiting"]')).toContainText('STOP button');
+    await press(page, 'STOP');
+    await expect(s.locator('[data-ask="IN1"]')).toContainText('STOP button: seen on line IN1');
+    await s.getByLabel('Take it').check();
+    await s.getByRole('button', {name: 'Save'}).click();
+    await expect(s.locator('[data-line="IN1"]')).toContainText('STOP button');
+    await press(page, 'LIFT');
+    await expect(s.locator('[data-ask="IN2"]')).toBeVisible();
+    await s.getByLabel('Take it').check();
+    await s.getByRole('button', {name: 'Save'}).click();
+    await expect(s.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(s).toHaveAttribute('data-state', 'ok');
+    await s.getByText('Advanced').click();
+    const delay = s.getByRole('spinbutton').first();
+    await expect(delay).toHaveValue('50');
+    await delay.fill('30');
+    await s.getByRole('button', {name: 'Save'}).click();
+    await expect(s.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(s.getByText('MowBite OS is starting again')).toHaveCount(0);
+    await expect(s.locator('[data-line="IN1"]')).toContainText('STOP button');
+  });
+
   test('from the dashboard through a measured step, an input with its emergency, a choice and a skip', async ({page}) => {
     await demoWith(page, 'Setup', 'Geometry');
     await page.goto('/');

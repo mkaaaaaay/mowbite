@@ -62,7 +62,7 @@ const value = (id: string, en: string, de: string, unit: string, min: number | n
   ok: null,
 });
 
-const STEPS: Base[] = [
+const TRON_STEPS: Base[] = [
   step({
     id: 'board',
     stage: 'device',
@@ -193,6 +193,49 @@ const FIX_MS = 1500;
 // how long a part of the check input waits for its input (s)
 const PART_S = 90;
 const FIRMWARE = '1.4.2';
+// the step that puts the sensors on their lines, as on the NX60i (demo part Assign): a press proposes a line, accept takes it
+const ASSIGN: Base = step({
+  id: 'assign',
+  stage: 'inputs',
+  check: 'inputs_assign',
+  kind: 'input',
+  start: true,
+  skippable: false,
+  symbol: 'board',
+  parts: [
+    {...named('stop', 'STOP button', 'STOP-Taste'), state: 'open'},
+    {...named('lift', 'Lifting', 'Anheben'), state: 'open'},
+  ],
+  texts: tx(
+    ['Assign the inputs', 'Trigger every sensor once and let go. The mower shows the line it saw it on; take it if it is the right one.', 'No proposal: check plug and cable of the sensor, then try again.'],
+    ['Eingänge zuordnen', 'Jeden Sensor einmal auslösen und loslassen. Der Mäher zeigt die Leitung, an der er ihn gesehen hat; passt sie, übernehmen.', 'Kommt kein Vorschlag: Stecker und Kabel des Sensors prüfen, dann wiederholen.'],
+  ),
+});
+const ACCEPT: SetupInput = {
+  name: 'accept',
+  type: 'choice',
+  ask: true,
+  advanced: false,
+  value: null,
+  texts: tx(['Take this line?', 'The mower saw the action on this line.'], ['Leitung übernehmen?', 'Der Mäher hat den Handgriff an dieser Leitung gesehen.']),
+  values: [named('yes', 'Take it', 'Übernehmen'), named('no', 'Not this one', 'Nicht diese')],
+};
+// the delay of a part's line in ms: the platform's at most, shorter only
+const DELAY_MAX = 100;
+const delayOf = (part: Named, value: number): SetupInput => ({
+  name: `delay_${part.id}`,
+  type: 'number',
+  ask: false,
+  advanced: true,
+  value,
+  min: 0,
+  max: DELAY_MAX,
+  unit: 'ms',
+  texts: tx([`${part.texts.en?.name}: delay`, 'The sensor has to stay triggered this long before the mower stops.'], [`${part.texts.de?.name}: Verzögerung`, 'So lange muss der Sensor ausgelöst bleiben, bevor der Mäher stoppt.']),
+});
+// how long the OS takes to restart in the demo (ms)
+const RESTART_MS = 1500;
+
 // the OS's limits (SKIP_TEXT, IMAGE_BYTES of ../setup): the demo imports no values from the app
 const SKIP_TEXT = 200;
 const IMAGE_BYTES = 65536;
@@ -200,9 +243,14 @@ const isDone = (s: StepState) => s === 'ok' || s === 'skipped';
 
 type Kept = {state: StepState; attempt: number; result: SetupStep['result']; parts: SetupStep['parts']; values: SetupValue[]; inputs: SetupInput[]};
 
-// latched: whether the demo's emergency stop holds this reason now (LATCH alone for any)
-export function demoSetup(deliver: (topic: string, text: string) => void, latched: (reason: string) => boolean) {
+// latched: whether the demo's emergency stop holds this reason now (LATCH alone for any); assign: the step of the NX60i too
+export function demoSetup(deliver: (topic: string, text: string) => void, latched: (reason: string) => boolean, assign = false) {
+  const STEPS = assign ? [ASSIGN, ...TRON_STEPS] : TRON_STEPS;
   const now = () => Date.now() / 1000;
+  // the OS restarts for the assignment; the line proposed for the running part; the parts' lines taken
+  let restarting = false;
+  let asked: SetupStep['ask'] = null;
+  let taken: Record<string, string> = {};
   let version = 1;
   const fresh = (s: Base): Kept => ({state: s.initial ?? 'open', attempt: 0, result: null, parts: s.parts, values: s.values, inputs: s.inputs});
   let kept: Record<string, Kept> = Object.fromEntries(STEPS.map((s) => [s.id, fresh(s)]));
@@ -212,6 +260,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const done = (id: string) => isDone(kept[id].state);
+  const wants = (s: Base, part: number) => (s.check === 'inputs_assign' ? BIT[s.parts[part]?.id] : BIT[s.id]);
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
   const blocked = (s: Base) => {
@@ -221,6 +270,13 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   };
   // the lines of an input step, one per part as on Tron: the one of the part last pressed is on while its emergency holds
   const linesOf = (s: Base, running: boolean): SetupLine[] => {
+    if (s.check === 'inputs_assign') {
+      const delays = Object.fromEntries(kept[s.id].inputs.filter((i) => i.advanced).map((i) => [i.name.slice('delay_'.length), Number(i.value)]));
+      return ['IN1', 'IN2', 'IN3'].map((name) => {
+        const role = Object.keys(taken).find((r) => taken[r] === name) ?? '';
+        return {name, role, reason: role ? BIT[role].toLowerCase() : '', active: asked?.line === name, assigned: !!role, held: false, delay_ms: delays[role] ?? DELAY_MAX};
+      });
+    }
     const bit = BIT[s.id];
     if (!bit) return [];
     const on = latched(bit);
@@ -242,9 +298,9 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       progress: running && s.parts.length ? {n: run!.part + 1, of: s.parts.length} : null,
       ends_at: running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
       result: k.result,
-      restart: false,
+      restart: s.check === 'inputs_assign',
       lines: linesOf(s, running),
-      ask: null,
+      ask: running ? asked : null,
     };
   };
   const setup = (): Setup => {
@@ -272,7 +328,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       current: run?.id ?? todo?.id ?? null,
       complete: !todo,
       safety: {open: false, date: null, firmware: null, why: 'NO_SAFETY_MEASUREMENT'},
-      restart_pending: false,
+      restart_pending: restarting,
       stages,
       steps,
     };
@@ -315,6 +371,51 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     changed();
   }
 
+  // the OS starts again, then: the assignment passed with its delays, or after a change of them the input steps are open again
+  function restart(then: () => void) {
+    restarting = true;
+    changed();
+    setTimeout(() => {
+      restarting = false;
+      then();
+    }, RESTART_MS);
+  }
+
+  function answerAssign(s: Base, k: Kept, values: Record<string, unknown>) {
+    if (run?.id === s.id) {
+      if (!asked || (values.accept !== 'yes' && values.accept !== 'no')) throw refuse('INVALID_VALUE', 'accept is yes or no, while a line is asked');
+      if (values.accept === 'yes') {
+        taken[asked.part] = asked.line;
+        k.parts = k.parts.map((x, i) => (i === run!.part ? {...x, state: 'ok'} : i === run!.part + 1 ? {...x, state: 'waiting'} : x));
+        run.part++;
+      }
+      asked = null;
+      k.inputs = [];
+      run.phase = latched(wants(s, run.part)) ? 'rest' : 'armed';
+      if (run.part < s.parts.length) changed();
+      else {
+        run = null;
+        stopTimer();
+        restart(() => {
+          k.inputs = s.parts.map((x) => delayOf(x, DELAY_MAX / 2));
+          end(s, true);
+        });
+      }
+      return setup();
+    }
+    if (k.state !== 'ok') throw refuse('WRONG_METHOD', 'the delays change only at a passed assignment');
+    for (const i of k.inputs) {
+      const v = values[i.name];
+      if (v !== undefined && (typeof v !== 'number' || v < 0 || v > DELAY_MAX)) throw refuse('INVALID_VALUE', `${i.name}: 0 to ${DELAY_MAX} ms`);
+    }
+    k.inputs = k.inputs.map((i) => (i.name in values ? {...i, value: values[i.name]} : i));
+    restart(() => {
+      for (const id of Object.keys(BIT)) if (kept[id]) kept[id] = fresh(STEPS.find((x) => x.id === id)!);
+      changed();
+    });
+    return setup();
+  }
+
   function tick() {
     if (!run) return;
     const s = STEPS.find((x) => x.id === run!.id)!;
@@ -330,6 +431,14 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         k.values = k.values.map((v) => ({...v, ok: true}));
         end(s, true);
       } else said();
+    } else if (s.check === 'inputs_assign') {
+      const on = latched(wants(s, run.part));
+      if (run.phase === 'rest' && !on) run.phase = 'armed';
+      else if (run.phase === 'armed' && on && !asked) {
+        asked = {part: s.parts[run.part].id, line: `IN${run.part + 1}`, active_high: true};
+        k.inputs = [ACCEPT];
+        changed();
+      }
     } else if (BIT[s.id]) {
       // the emergency has to come after the part began: one that holds from before has to be released first
       const on = latched(BIT[s.id]);
@@ -375,7 +484,12 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       k.result = null;
       k.parts = s.parts.map((x, i) => ({...x, state: i ? 'open' : 'waiting'}));
       k.values = s.values;
-      run = {id: s.id, since: now(), part: 0, phase: BIT[s.id] && latched(BIT[s.id]) ? 'rest' : 'armed'};
+      if (s.check === 'inputs_assign') {
+        k.inputs = [];
+        asked = null;
+        taken = {};
+      }
+      run = {id: s.id, since: now(), part: 0, phase: wants(s, 0) && latched(wants(s, 0)) ? 'rest' : 'armed'};
       startTimer();
       changed();
       return setup();
@@ -385,6 +499,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (state(s) === 'locked') throw refuse('LOCKED', `${s.id} needs ${s.needs.join(', ')} first`);
       const values = (p as {values?: Record<string, unknown>}).values ?? {};
       const k = kept[s.id];
+      if (s.check === 'inputs_assign') return answerAssign(s, k, values);
       for (const input of k.inputs) {
         const v = values[input.name];
         if (v === undefined) continue;

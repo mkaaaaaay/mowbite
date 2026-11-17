@@ -477,7 +477,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // blade stand until it's reset, unless that's turned down
   let latchedBits = 0;
   // MowBite OS's setup program, its inputs seen through the stop
-  const setup = demoOn('Setup') ? demoSetup(deliver, (reason) => !!(latchedBits & bitOf(reason))) : null;
+  const setup = demoOn('Setup') ? demoSetup(deliver, (reason) => !!(latchedBits & bitOf(reason)), demoOn('Assign')) : null;
   let refusal: Record<string, unknown> | null = null;
   // mower_logic's checks: the highest voltage of the window and when it began, rain seen all through the window, when
   // the fix was last good and whether it's gone for longer than gps_timeout, the fully charged said once a stay
