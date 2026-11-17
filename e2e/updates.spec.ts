@@ -302,11 +302,14 @@ test.describe("MowBite OS in OpenMower's place", () => {
     await card.getByRole('button', {name: 'Switch to MowBite OS'}).click();
     await expect(card.getByRole('heading')).toHaveText('Switch to MowBite OS?');
     await expect(card).toContainText('make a full image of the eMMC by hand');
+    await expect(card).toContainText("from there the switch goes on on the updater's own page");
     await card.getByRole('button', {name: 'Switch', exact: true}).click();
     const run = page.locator('#update [data-update="os"]');
     await expect(run).toContainText('Switching to MowBite OS…');
     await expect(run.locator('[data-step="stop"]')).toContainText('Stopping OpenMower');
-    await expect(run.locator('[data-step="wait"]')).toBeVisible();
+    // (from OpenMower's stop on: the updater's page instead of the steps)
+    await expect(run.getByRole('link', {name: "The updater's page"})).toHaveAttribute('href', /:8083\/\?theme=/, {timeout: 15_000});
+    await expect(run.locator('[data-step]')).toHaveCount(0);
     // (afterwards: the way to its setup)
     await expect(card.getByRole('link', {name: 'To the setup'})).toHaveAttribute('href', /\/setup\/?$/, {timeout: 30_000});
     await expect(card).toContainText("It took OpenMower's map and mower_params.yaml.");
@@ -345,6 +348,27 @@ test.describe("MowBite OS in OpenMower's place", () => {
     await card.getByRole('button', {name: 'Back to OpenMower'}).click();
     await expect(page.locator('#update [data-update="os"]')).toContainText('Back to OpenMower…');
   });
+
+  // MowBite OS without the updater's status: the way back on the updater's page, only on the NX60i where it can be
+  for (const [platform, there] of [
+    ['nx60i', true],
+    ['airseekers_tron', false],
+  ] as const)
+    test(`on MowBite OS (${platform}) the way back ${there ? 'on the updater\'s page' : 'is not offered'}`, async ({page}) => {
+      await demoWith(page, 'Os', 'Setup');
+      await demoFlag(page, 'mowbiteDemoPlatform', platform);
+      await demoFlag(page, 'mowbiteDemoNoUpdater', true);
+      await demoFlag(page, 'mowbiteDemoSafetyFailed', true);
+      await page.goto('/settings/#update');
+      const card = page.locator('#update [data-part="os"]');
+      if (!there) {
+        await expect(page.locator('#update h2', {hasText: 'On the mower'})).toBeVisible();
+        await page.waitForTimeout(1500);
+        return expect(card).toHaveCount(0);
+      }
+      await expect(card.getByRole('link', {name: 'Back to OpenMower'})).toHaveAttribute('href', /:8083\/\?theme=/);
+      await expect(card.getByText("A safety step failed. OpenMower doesn't know MowBite OS's lock", {exact: false})).toBeVisible();
+    });
 });
 
 // a newer build on the server reloads the page, not while the mower is out or something unsaved would be lost: then

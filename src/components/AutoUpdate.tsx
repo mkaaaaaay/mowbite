@@ -16,6 +16,7 @@ import {
   openMowerChoices,
   osBackLeft,
   osHead,
+  osOnItsPage,
   osResult,
   osStepWords,
   osSteps,
@@ -56,6 +57,7 @@ import {
   updaterWhere,
   WEEKDAYS,
   working,
+  UPDATER_PLATFORM,
   type Availability,
   type OsWay,
   type Part,
@@ -70,7 +72,7 @@ import {CopyButton} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr} from '@/lib/i18n';
 import {isDemo, pageFromMower} from '@/lib/mowers';
-import {useOpenMower} from '@/lib/mowerOs';
+import {useOpenMower, useOsPlatform} from '@/lib/mowerOs';
 import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION, useUpdates} from '@/lib/updates';
 import local from './AutoUpdate.module.css';
@@ -291,7 +293,8 @@ function MissingNote({s}: {s: UpdateState}) {
 }
 
 // the run going on, where it was asked for: its steps, on the one it's on a bar with how far it is. tapped here (follow)
-// it stays in sight while the other cards fold to their heads above it. way: a switch to MowBite OS or back
+// it stays in sight while the other cards fold to their heads above it. way: a switch to MowBite OS or back, away: it
+// goes on on the updater's page (page)
 function Running({
   s,
   p,
@@ -300,6 +303,8 @@ function Running({
   asked,
   follow,
   way,
+  away,
+  page,
   children,
 }: {
   s: UpdateState;
@@ -309,6 +314,8 @@ function Running({
   asked: boolean;
   follow: boolean;
   way?: OsWay;
+  away?: boolean;
+  page?: string;
   children?: ReactNode;
 }) {
   const {steps, now: at, back} = way ? {...osSteps(s, p, way), back: false} : runSteps(s, p, asked);
@@ -320,13 +327,23 @@ function Running({
   return (
     <div ref={ref} className={os.run} data-update={p.part || 'all'}>
       <RunHead name={name} back={back} title={way && osHead(way)} />
-      <Steps
-        steps={steps.map((step, i) => {
-          const [label, title] = words(step);
-          return {key: step, label, title, more: i === at ? <Bar label={label} pct={p.pct} detail={stepDetail(p, now)} /> : undefined};
-        })}
-        now={at}
-      />
+      {away && page ? (
+        <OnItsPage page={page} />
+      ) : at < 0 ? (
+        // (a step of the switch not in its list)
+        <div className={os.busy}>
+          <b>{tr('The switch goes on')}</b>
+          <Bar label={tr('The switch goes on')} pct={p.pct} detail={stepDetail(p, now)} />
+        </div>
+      ) : (
+        <Steps
+          steps={steps.map((step, i) => {
+            const [label, title] = words(step);
+            return {key: step, label, title, more: i === at ? <Bar label={label} pct={p.pct} detail={stepDetail(p, now)} /> : undefined};
+          })}
+          now={at}
+        />
+      )}
       {children}
     </div>
   );
@@ -511,6 +528,19 @@ function PartCard({
   );
 }
 
+// a safety step failed and closed MowBite OS's lock (setup.get safety.why): said before going back
+const UNLOCKED = "A safety step failed. OpenMower doesn't know MowBite OS's lock and lets the mower drive by itself again.";
+
+// the switch on the updater's own page: MowBite's container is stopped with OpenMower for it
+const OnItsPage = ({page}: {page: string}) => (
+  <Note look={os.info} title={tr("It goes on on the updater's page")}>
+    {tr("OpenMower and MowBite on the mower are stopped for the switch, this page can't follow it. The updater's own page shows how it goes on.")}
+    <a className={[local.control, local.primary].join(' ')} href={page} target="_blank" rel="noreferrer">
+      {tr("The updater's page")}
+    </a>
+  </Note>
+);
+
 // MowBite OS in OpenMower's place where the updater offers it (os_switch), on two taps, and on MowBite OS the way back
 // the same. what came of the last switch, after one to MowBite OS the way to its setup until that released the mower
 function OsSwitchCard({
@@ -520,25 +550,29 @@ function OsSwitchCard({
   error,
   checkFailed,
   released,
+  page,
   onSwitch,
 }: {
   s: UpdateState;
   locked: boolean;
   off: boolean;
   error: string | null;
-  // a safety step failed and closed MowBite OS's lock (setup.get safety.why)
   checkFailed: boolean;
   released: boolean;
+  page: string;
   onSwitch: (to: 'os' | 'openmower') => void;
 }) {
-  const [ask, setAsk] = useState(false);
-  const offer = osSwitchOf(s);
+  // the question asked, of the way there or back
+  const [ask, setAsk] = useState<'os' | 'openmower' | null>(null);
+  const found = osSwitchOf(s);
   const left = osBackLeft(s);
-  if (!offer && !left) return null;
+  if (!found && !left) return null;
+  // (the way back left halfway goes on first)
+  const offer = left && found?.state === 'yes' ? null : found;
   const result = osResult(s);
   const back = offer?.state === 'on' || left;
   const answer = (to?: 'os' | 'openmower') => () => {
-    setAsk(false);
+    setAsk(null);
     if (to) onSwitch(to);
   };
   const head = (
@@ -580,12 +614,18 @@ function OsSwitchCard({
       )}
       <Warn text={error} />
       {offer?.state === 'yes' &&
-        (ask ? (
+        (ask === 'os' ? (
           <Ask title={tr('Switch to MowBite OS?')} yes={tr('Switch')} locked={locked} onYes={answer('os')} onNo={answer()}>
             <p>
               {tr(IN_DOCK)} {tr('It takes a few minutes.')}
             </p>
             <p>{tr('Before the first switch make a full image of the eMMC by hand. The updater keeps only the map and mower_params.yaml.')}</p>
+            <p>
+              {tr("Once OpenMower stops, MowBite on the mower stops too: from there the switch goes on on the updater's own page.")}{' '}
+              <a href={page} target="_blank" rel="noreferrer">
+                {page.split('/?')[0]}
+              </a>
+            </p>
             <p>
               {offer.drop
                 ? tr("There isn't room for both: OpenMower's version and what's built on it, like the planner, are deleted first. The way back downloads them again, that needs the internet.")
@@ -601,28 +641,43 @@ function OsSwitchCard({
         ) : (
           <>
             <span className={local.dim}>{tr("MowBite OS can take OpenMower's place on this mower, the way back to OpenMower is the same.")}</span>
-            <button className={local.control} disabled={locked} onClick={() => setAsk(true)}>
+            <button className={local.control} disabled={locked} onClick={() => setAsk('os')}>
               {tr('Switch to MowBite OS')}
             </button>
           </>
         ))}
       {back &&
-        (ask ? (
+        (ask === 'openmower' ? (
           <Ask title={tr('Back to OpenMower?')} yes={tr('Back to OpenMower')} locked={locked} onYes={answer('openmower')} onNo={answer()}>
-            {checkFailed && <p className={local.warn}>{tr("A safety step failed. OpenMower doesn't know MowBite OS's lock and lets the mower drive by itself again.")}</p>}
+            {checkFailed && <p className={local.warn}>{tr(UNLOCKED)}</p>}
             <p>{tr(IN_DOCK)}</p>
             <p>{tr("MowBite OS hands its map to OpenMower. What OpenMower can't take is lost, the result says so. If that doesn't work, OpenMower gets its map from before the switch.")}</p>
             {!!s.status.os_drop && <p>{tr("OpenMower's version was deleted for the switch, it's downloaded again: that needs the internet and takes a while.")}</p>}
+            <p>{tr("If MowBite OS doesn't run any more, it goes back all the same, with OpenMower's map from before the switch.")}</p>
             <p>{tr("MowBite OS's own data stays on the mower for a later switch.")}</p>
           </Ask>
         ) : (
-          <button className={local.control} disabled={locked} onClick={() => setAsk(true)}>
+          <button className={local.control} disabled={locked} onClick={() => setAsk('openmower')}>
             {tr('Back to OpenMower')}
           </button>
         ))}
     </article>
   );
 }
+
+// on MowBite OS without the updater's status, where the updater can be next to it: the way back on its own page
+const OsBackLink = ({page, checkFailed}: {page: string; checkFailed: boolean}) => (
+  <article className={local.part} data-part="os">
+    <Head name="MowBite OS" tag={{text: tr('In place of OpenMower'), look: local.badgeNew}} text={PART_TEXT.os}>
+      {null}
+    </Head>
+    <span className={local.dim}>{tr("The way back to OpenMower is on the MowBite Updater's own page, with the mower idle in the dock.")}</span>
+    {checkFailed && <span className={local.warn}>{tr(UNLOCKED)}</span>}
+    <a className={local.control} href={page} target="_blank" rel="noreferrer">
+      {tr('Back to OpenMower')}
+    </a>
+  </article>
+);
 
 // the updater itself: the commit it runs, whether there's a newer one and updating it
 function UpdaterCard({
@@ -805,7 +860,9 @@ function whereOf(word: string): string {
 // and locks the buttons until the updater is done with it
 export function AutoUpdate() {
   const om = useOpenMower();
+  const platform = useOsPlatform();
   const setup = useSetup();
+  const setupFailed = setup?.safety.why === 'CHECK_FAILED';
   const [s, setS] = useState<UpdateState | null | undefined>(undefined);
   const [error, setError] = useState<{text: string; where: string} | null>(null);
   const [asked, setAsked] = useState<Asked | null>(null);
@@ -882,8 +939,12 @@ export function AutoUpdate() {
     return () => clearInterval(tick);
   }, [on]);
 
+  // the updater's page: from MowBite's container, else next to MowBite
+  const base = where || page;
+  const pageLink = `${base}/?theme=${theme}`;
   if (s === undefined) return null;
   if (!s) {
+    if (platform === UPDATER_PLATFORM) return <OsBackLink page={pageLink} checkFailed={setupFailed} />;
     if (isDemo()) return null;
     return container ? <AddUpdater /> : om ? <span className={local.dim}>{tr('Only when MowBite runs as its container on the mower.')}</span> : null;
   }
@@ -972,14 +1033,23 @@ export function AutoUpdate() {
       (way ? osHead(way) : back ? tr('{name} goes back', {name: nameOf(current.part)}) : tr('{name} is being updated', {name: nameOf(current.part)}))
     : null;
   const run = current && (
-    <Running s={st} p={current} name={nameOf(current.part)} now={now} asked={askedBack} follow={asked !== null} way={way}>
+    <Running
+      s={st}
+      p={current}
+      name={nameOf(current.part)}
+      now={now}
+      asked={askedBack}
+      follow={asked !== null}
+      way={way}
+      away={!!way && (lost || osOnItsPage(st, current, way))}
+      page={pageLink}
+    >
       {current.part === 'updater' && self?.restarting && (
         <Note look={os.info} title={tr('Restarting the updater, this comes back by itself')}>
           {tr("For a few seconds nothing arrives here. That's no error, the mower drives and mows on as usual.")}
         </Note>
       )}
       {lost && current.part === 'mowbite' && <span className={local.dim}>{tr('MowBite does not answer for a moment, it may be restarting.')}</span>}
-      {lost && way && <span className={local.dim}>{tr("No answer from the updater right now: MowBite's container on the mower stops with OpenMower for the switch.")}</span>}
     </Running>
   );
   const roomWord = words.find((w) => w === 'room' || w.startsWith('free:'));
@@ -991,7 +1061,6 @@ export function AutoUpdate() {
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
   // (only the mower this page comes from: another one picked can run another version for good)
   const reload = pageFromMower() && !isDemo() && !running && /^\d/.test(onMower) && onMower !== APP_VERSION;
-  const base = where || page;
   const since = silentSince(st);
   const waited = !current && !running && runResult(st);
 
@@ -1054,8 +1123,9 @@ export function AutoUpdate() {
             locked={busy}
             off={!!current}
             error={errorAt('os')}
-            checkFailed={setup?.safety.why === 'CHECK_FAILED'}
+            checkFailed={setupFailed || st.status.os_safety === 'check_failed'}
             released={!!setup?.safety.open}
+            page={pageLink}
             onSwitch={(to) => ask(`switch:${to}`, () => requestSwitch(to))}
           />
         )}
@@ -1129,7 +1199,7 @@ export function AutoUpdate() {
       {base && !isDemo() && (
         <span className={local.dim}>
           {tr('More on its own page, like adding apps, their logs and putting data back:')}{' '}
-          <a href={`${base}/?theme=${theme}`} target="_blank" rel="noreferrer">
+          <a href={pageLink} target="_blank" rel="noreferrer">
             {base}
           </a>
         </span>

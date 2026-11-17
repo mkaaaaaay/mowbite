@@ -244,9 +244,14 @@ function demoProgress(status: Record<string, string>, now: number) {
         // (the updater updates itself after the others, on a bar of its own)
         status.run_parts = p === 'updater' ? p : demoRun.parts.filter((x) => x !== 'updater').map(part).join(' ');
         status.result = 'running';
-        // (where a switch is, as the updater notes it once it's under way: a rollback stays at its wait)
+        // (where a switch is, as the updater notes it once it's under way)
         if (p.startsWith('os') && step !== 'prepare')
-          status.switch_os = p === 'osBack' ? `openmower ${step}` : `os ${step === 'back' ? 'wait' : step === 'download' || step === 'extract' ? 'pull' : step}`;
+          status.switch_os =
+            p === 'osBack'
+              ? `openmower ${step}`
+              : step === 'back'
+                ? `os back rolled_back ${demoFlags().mowbiteDemoOsFails}`
+                : `os ${step === 'download' || step === 'extract' ? 'pull' : step}`;
         return;
       }
       t -= secs;
@@ -257,7 +262,8 @@ function demoProgress(status: Record<string, string>, now: number) {
 }
 
 // MowBite OS in OpenMower's place, offered with window.mowbiteDemoOsSwitch ('on': it runs already, since an hour); the
-// way there doesn't run as it should with window.mowbiteDemoOsFails (a reason of the updater's rolled_back)
+// way there doesn't run as it should with window.mowbiteDemoOsFails (a reason of the updater's rolled_back). with
+// window.mowbiteDemoNoUpdater there's none, as on MowBite OS
 let demoOs: {on: number | null; result: string | null; at: number} | null = null;
 function demoOsSwitch(status: Record<string, string>, now: number) {
   const flag = demoFlags().mowbiteDemoOsSwitch;
@@ -472,7 +478,7 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
         demoRun = {t: Date.now() / 1000 + TAKE, parts: [to === 'openmower' ? 'osBack' : demoFlags().mowbiteDemoOsFails ? 'osFails' : 'osThere']};
       }
       if (post) return text('ok');
-      return json(demoUpdate());
+      return json(demoFlags().mowbiteDemoNoUpdater ? {} : demoUpdate());
     case '/cgi-bin/sensors':
       return text(sensorHistory());
     case '/cgi-bin/battery':

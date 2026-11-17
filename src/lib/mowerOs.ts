@@ -93,6 +93,11 @@ export function usePlatform(): 'os' | 'om' | null {
 }
 
 export const useMowbiteOs = (): boolean => usePlatform() === 'os';
+// the platform MowBite OS runs on (system.info), null on OpenMower and until it's known
+export function useOsPlatform(): string | null {
+  const i = useSystemInfo();
+  return isMowbiteOs(i) ? (i!.platform ?? null) : null;
+}
 // for what only OpenMower has: false until it's known
 export const useOpenMower = (): boolean => usePlatform() === 'om';
 

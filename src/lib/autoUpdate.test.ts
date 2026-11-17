@@ -1,9 +1,12 @@
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
 import {
-  OS_REASONS,
   OS_TEXTS,
   osBackLeft,
+  osOnItsPage,
   osResult,
   osStepWords,
   osSteps,
@@ -264,13 +267,34 @@ describe('the updater on the mower', () => {
   });
 });
 
-// MowBite OS in OpenMower's place: the updater's os_switch, switch_os, progress os and os as its "# form:" lines say
+// the MowBite Updater's contract as it has it (test/contract.txt), copied from the commit below. a newer one: copy it
+// over updater-contract.txt and put its commit and checksum here, the tests then say which texts are missing
+const PINNED = {
+  repo: 'mkaaaaaay/mowbite-updater',
+  path: 'test/contract.txt',
+  commit: '48f01c695d6fd238fae9690f97c438cd23de5913',
+  sha256: '89cab312ffea857b75c2ca0a371472c560ec51c56fafb98a6a9f8f194663059c',
+};
+const contract = readFileSync(join(__dirname, 'updater-contract.txt'));
+const form = (key: string) => contract.toString().split('\n').filter((l) => l.startsWith(`form status ${key} `)).map((l) => l.slice(`form status ${key} `.length));
+// the words of "a|b <value>|c": a, b and c
+const words = (alternatives: string) => alternatives.split('|').map((x) => x.split(' ')[0]);
+
+// MowBite OS in OpenMower's place: the updater's os_switch, switch_os, progress os and os as its form lines say
 describe("MowBite OS in OpenMower's place", () => {
+  it('is the copy of the commit pinned', () => {
+    expect(createHash('sha256').update(contract).digest('hex'), `${PINNED.repo} ${PINNED.path} @ ${PINNED.commit}`).toBe(PINNED.sha256);
+  });
+
   it('has a text in english and german for every reason of the form lines', () => {
-    for (const [kind, reasons] of Object.entries(OS_REASONS) as [keyof typeof OS_REASONS, readonly string[]][]) {
-      expect(reasons.filter((r) => !OS_TEXTS[kind][r]), kind).toEqual([]);
-      expect(reasons.filter((r) => !de[OS_TEXTS[kind][r]]), kind).toEqual([]);
-      expect(Object.keys(OS_TEXTS[kind]).filter((r) => !reasons.includes(r)), kind).toEqual([]);
+    const no = form('os_switch').find((f) => f.startsWith('no '))!.slice(3);
+    const os = form('os');
+    const rolledBack = os.map((f) => f.match(/rolled_back ((?:[a-z_]+\|)*[a-z_]+)\|back /)?.[1]).find(Boolean)!;
+    const error = os.find((f) => f.startsWith('error '))!.slice(6);
+    const reasons = {no: words(no), rolled_back: words(rolledBack), error: words(error)};
+    for (const [kind, list] of Object.entries(reasons) as [keyof typeof OS_TEXTS, string[]][]) {
+      expect(list.length, kind).toBeGreaterThan(2);
+      expect(list.filter((r) => !OS_TEXTS[kind][r] || !de[OS_TEXTS[kind][r]]), kind).toEqual([]);
     }
   });
 
@@ -295,11 +319,18 @@ describe("MowBite OS in OpenMower's place", () => {
       steps: ['prepare', 'stop', 'drop', 'download', 'extract', 'start', 'wait'],
       now: 2,
     });
-    // (a stop after MowBite OS started is its own, going back)
+    // (going back from the way there, as the updater notes it: from OpenMower's stop on on the updater's page)
     expect(osWayOf(run({switch_os: 'os stop'}), p('stop'))).toBe('there');
-    expect(osWayOf(run({switch_os: 'os wait'}), p('stop'))).toBe('undo');
-    expect(osWayOf(run({switch_os: 'os wait'}), p('back'))).toBe('undo');
-    expect(osSteps(run({switch_os: 'os wait'}), p('stop'), 'undo')).toEqual({steps: ['back'], now: 0});
+    expect(osWayOf(run({switch_os: 'os back rolled_back health'}), p('stop'))).toBe('undo');
+    expect(osWayOf(run({switch_os: 'os back error broker'}), p('download'))).toBe('undo');
+    expect(osSteps(run({}), p('stop'), 'undo')).toEqual({steps: ['back'], now: 0});
+    expect(osOnItsPage(run({switch_os: 'os pull'}), p('download'), 'there')).toBe(false);
+    expect(osOnItsPage(run({switch_os: 'os stop'}), p('stop'), 'there')).toBe(true);
+    expect(osOnItsPage(run({switch_os: 'os stop', os_drop: 'x@sha256:1 x:edge'}), p('stop'), 'there')).toBe(true);
+    expect(osOnItsPage(run({}), p('back'), 'undo')).toBe(true);
+    // (OpenMower downloaded again on the way back after drop: a step not in the list)
+    expect(osSteps(run({switch_os: 'openmower om map'}), p('download'), 'back').now).toBe(-1);
+    expect(osOnItsPage(run({switch_os: 'openmower om map'}), p('download'), 'back')).toBe(false);
     expect(osWayOf(run({switch_os: 'openmower export'}), p('export'))).toBe('back');
     expect(osWayOf(run({os_switch: 'on 1'}), null, 'switch:openmower')).toBe('back');
     expect(osSteps(run({switch_os: 'openmower om map'}), p('back'), 'back')).toEqual({steps: ['export', 'stop', 'back'], now: 2});

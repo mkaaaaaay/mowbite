@@ -1177,9 +1177,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
-    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for
+    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for, on the platform
+    // window.mowbiteDemoPlatform names
     ...(demoOn('Os') && {
-      [RPC.systemInfo]: () => ({name: MOWBITE_OS, version: '0.0.0', platform: 'demo', api: JSON.parse(process.env.APP_OS_API ?? 'null')?.max}),
+      [RPC.systemInfo]: () => ({
+        name: MOWBITE_OS,
+        version: '0.0.0',
+        platform: (demoFlags().mowbiteDemoPlatform as string | undefined) ?? 'demo',
+        api: JSON.parse(process.env.APP_OS_API ?? 'null')?.max,
+      }),
     }),
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),

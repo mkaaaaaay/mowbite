@@ -3602,7 +3602,6 @@ const de: Record<string, string> = {
   "MowBite OS hands its map to OpenMower. What OpenMower can't take is lost, the result says so. If that doesn't work, OpenMower gets its map from before the switch.": "MowBite OS gibt seine Karte an OpenMower. Was OpenMower nicht übernehmen kann, geht verloren, das Ergebnis sagt es. Klappt das nicht, bekommt OpenMower seine Karte von vor dem Umstieg.",
   "OpenMower's version was deleted for the switch, it's downloaded again: that needs the internet and takes a while.": "OpenMowers Version wurde für den Umstieg gelöscht und wird neu geladen: Dafür braucht es Internet, und es dauert eine Weile.",
   "MowBite OS's own data stays on the mower for a later switch.": "Die Daten von MowBite OS bleiben für einen späteren Umstieg auf dem Mäher.",
-  "No answer from the updater right now: MowBite's container on the mower stops with OpenMower for the switch.": "Gerade keine Antwort vom Updater: Der MowBite-Container auf dem Mäher stoppt für den Umstieg mit OpenMower.",
   "Waiting until MowBite OS answers": "Warten, bis MowBite OS antwortet",
   "Stopping OpenMower": "OpenMower wird gestoppt",
   "Deleting OpenMower's version": "OpenMowers Version wird gelöscht",
@@ -3617,7 +3616,7 @@ const de: Record<string, string> = {
   "its registry doesn't answer, the size of the download isn't known": "seine Registry antwortet nicht, die Größe des Downloads ist unbekannt",
   "OpenMower's folders for the map and mower_params.yaml aren't found": "OpenMowers Ordner für die Karte und mower_params.yaml sind nicht zu finden",
   "mower_params.yaml has no datum (ll/services/gps/datum_*)": "mower_params.yaml hat keinen Bezugspunkt (ll/services/gps/datum_*)",
-  "this image of MowBite OS can't take OpenMower's map yet": "dieses Image von MowBite OS kann OpenMowers Karte noch nicht übernehmen",
+  "this image of MowBite OS can't take OpenMower's data as it should": "dieses Image von MowBite OS kann OpenMowers Daten nicht wie vorgesehen übernehmen",
   "the files of its stack are missing in its image": "die Dateien seines Stacks fehlen im Image",
   "OpenMower doesn't run from its compose file right now": "OpenMower läuft gerade nicht aus seiner Compose-Datei",
   "OpenMower's update without a copy isn't finished": "OpenMowers Update ohne Kopie ist nicht fertig",
@@ -3665,6 +3664,13 @@ const de: Record<string, string> = {
   "MowBite OS didn't run as it should ({why}), OpenMower runs again as before.": "MowBite OS lief nicht wie es soll ({why}), OpenMower läuft wieder wie vorher.",
   "From OpenMower": "Von OpenMower",
   "Where the MowBite Updater offers it, a mower with OpenMower switches to MowBite OS: Settings › Software and data › Updates, the card MowBite OS. Make a full image of the eMMC by hand before the first switch. With the mower idle in the dock tap Switch to MowBite OS and confirm: the updater keeps OpenMower's map and mower_params.yaml, downloads MowBite OS, stops OpenMower and starts MowBite OS, which takes the map. If it doesn't run as it should, OpenMower comes back by itself. Then the mower drives only by remote control until this setup is done. Back to OpenMower on the same card takes the map along, what OpenMower can't take is lost and the result says so.": "Wo der MowBite Updater es anbietet, steigt ein Mäher mit OpenMower auf MowBite OS um: Einstellungen › Software und Daten › Updates, die Karte MowBite OS. Vor dem ersten Umstieg von Hand ein volles Abbild des eMMC machen. Mit dem Mäher bereit im Dock auf Auf MowBite OS umsteigen tippen und bestätigen: Der Updater sichert OpenMowers Karte und mower_params.yaml, lädt MowBite OS, stoppt OpenMower und startet MowBite OS, das die Karte übernimmt. Läuft es nicht wie es soll, kommt OpenMower von selbst zurück. Danach fährt der Mäher nur ferngesteuert, bis diese Einrichtung durch ist. Zurück zu OpenMower auf derselben Karte nimmt die Karte mit, was OpenMower nicht übernehmen kann, geht verloren, und das Ergebnis sagt es.",
+  "If MowBite OS doesn't run any more, it goes back all the same, with OpenMower's map from before the switch.": "Läuft MowBite OS nicht mehr, geht es trotzdem zurück, mit OpenMowers Karte von vor dem Umstieg.",
+  "The switch goes on": "Der Umstieg läuft weiter",
+  "It goes on on the updater's page": "Weiter geht es auf der Seite des Updaters",
+  "OpenMower and MowBite on the mower are stopped for the switch, this page can't follow it. The updater's own page shows how it goes on.": "OpenMower und MowBite auf dem Mäher sind für den Umstieg gestoppt, diese Seite kann ihm nicht folgen. Die eigene Seite des Updaters zeigt, wie es weitergeht.",
+  "The updater's page": "Seite des Updaters",
+  "Once OpenMower stops, MowBite on the mower stops too: from there the switch goes on on the updater's own page.": "Sobald OpenMower stoppt, stoppt auch MowBite auf dem Mäher: Ab da geht der Umstieg auf der eigenen Seite des Updaters weiter.",
+  "The way back to OpenMower is on the MowBite Updater's own page, with the mower idle in the dock.": "Der Weg zurück zu OpenMower liegt auf der eigenen Seite des MowBite Updaters, mit dem Mäher bereit im Dock.",
 };
 
 export default de;
