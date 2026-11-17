@@ -331,15 +331,67 @@ function MoveArt() {
   );
 }
 
+// a wheel of the mower seen from behind, its tread running and an arrow over it while it turns (between fractions of the loop)
+const TIRE = {y: 84, h: 42, w: 16};
+function Tire({x, turns}: {x: number; turns: [number, number][]}) {
+  const clip = useId();
+  const {y, h, w} = TIRE;
+  const tread = (moving: boolean) => (
+    <g clipPath={`url(#${clip})`}>
+      <g>
+        {moving && <animateTransform attributeName="transform" type="translate" dur="0.4s" repeatCount="indefinite" values="0 0;0 6" />}
+        {Array.from({length: 9}, (_, i) => (
+          <path key={i} d={`M${x + 2} ${y - 6 + i * 6} h${w - 4}`} stroke="var(--background)" strokeOpacity={0.45} strokeWidth={1.5} />
+        ))}
+      </g>
+    </g>
+  );
+  return (
+    <>
+      <defs>
+        <clipPath id={clip}>
+          <rect x={x} y={y} width={w} height={h} rx={5} />
+        </clipPath>
+      </defs>
+      <rect x={x} y={y} width={w} height={h} rx={5} fill="var(--foreground)" fillOpacity={0.75} />
+      {tread(false)}
+      {turns.map(([from, to], i) => (
+        <Shown key={i} from={from} to={to}>
+          <rect x={x} y={y} width={w} height={h} rx={5} fill="var(--accent)" />
+          {tread(true)}
+          <path d={`M${x - 1} ${y - 6} q${w / 2 + 1} -9 ${w + 2} 0`} fill="none" strokeWidth={1.6} strokeLinecap="round" style={{stroke: 'var(--accent)'}} />
+          <path d={`M${x + w - 3} ${y - 9} l4 3 l-4 2`} fill="none" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" style={{stroke: 'var(--accent)'}} />
+        </Shown>
+      ))}
+    </>
+  );
+}
+
 function WheelsArt() {
-  // the mower jacked up turns its wheels part by part, then asks which single wheel turns: the right one, and it passes
+  // the mower on a stand, seen from behind: both wheels turn, then only one, the step asks which: the right one, it passes
+  const edge = {stroke: 'var(--text-secondary)'};
   return (
     <Scene label={tr('Wheels in the air')}>
       <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      <path d="M80 118 h28 l7 32 h-42 z" fill="var(--text-secondary)" fillOpacity={0.45} />
+      <path d="M30 150 h128" strokeWidth={1.6} strokeLinecap="round" style={edge} />
+      <rect x={52} y={110} width={84} height={10} rx={3} fill="var(--foreground)" fillOpacity={0.35} />
+      <path d="M42 112 V90 Q42 68 94 64 Q146 68 146 90 V112 Z" fill="var(--track)" strokeWidth={1.4} style={edge} />
+      <path d="M74 66 Q94 46 114 66" fill="none" strokeWidth={3.5} strokeLinecap="round" style={edge} />
+      <rect x={84} y={72} width={20} height={7} rx={3} fill="var(--error)" />
+      <rect x={42} y={102} width={104} height={10} rx={4} fill="var(--text-secondary)" fillOpacity={0.55} />
+      <Tire x={26} turns={[[0, 0.15]]} />
+      <Tire x={146} turns={[[0, 0.15], [0.15, 0.6]]} />
+      <path d="M34 132 v12 M154 132 v12" strokeWidth={1.2} strokeDasharray="2 2.5" style={edge} />
+      {['L', 'R'].map((side, i) => (
+        <text key={side} x={34 + i * 120} y={166} fontSize={10} fontWeight={600} textAnchor="middle" style={dim}>
+          {side}
+        </text>
+      ))}
       <Row
-        x={30}
+        x={166}
         y={18}
-        w={260}
+        w={126}
         name={tr('Forwards')}
         states={[
           {from: 0, state: 'waiting'},
@@ -347,9 +399,9 @@ function WheelsArt() {
         ]}
       />
       <Row
-        x={30}
+        x={166}
         y={56}
-        w={260}
+        w={126}
         name={tr('One wheel only')}
         states={[
           {from: 0, state: 'open'},
@@ -358,24 +410,24 @@ function WheelsArt() {
         ]}
       />
       <Shown from={0.25} to={0.75}>
-        <rect x={30} y={96} width={260} height={88} rx={10} fill="var(--tint-accent)" />
-        <text x={42} y={114} fontSize={12} fontWeight={600} style={text}>
+        <rect x={166} y={94} width={126} height={92} rx={10} fill="var(--tint-accent)" />
+        <text x={176} y={111} fontSize={11} fontWeight={600} style={text}>
           {tr('Which wheel turns?')}
         </text>
         {[tr('Left wheel'), tr('Right wheel')].map((label, i) => (
           <g key={i}>
-            <circle cx={49} cy={130 + i * 20} r={6} fill="var(--background)" stroke="var(--card-border)" />
+            <circle cx={182} cy={126 + i * 18} r={6} fill="var(--background)" stroke="var(--card-border)" />
             {i === 1 && (
               <Shown from={0.45}>
-                <circle cx={49} cy={130 + i * 20} r={3.5} style={accent} />
+                <circle cx={182} cy={126 + i * 18} r={3.5} style={accent} />
               </Shown>
             )}
-            <text x={62} y={134 + i * 20} fontSize={11} style={text}>
+            <text x={194} y={130 + i * 18} fontSize={11} style={text}>
               {label}
             </text>
           </g>
         ))}
-        <Button x={206} y={150} w={74} h={24} size={11} label={tr('Save')} main at={0.6} />
+        <Button x={176} y={156} w={106} h={22} size={11} label={tr('Save')} main at={0.6} />
       </Shown>
     </Scene>
   );

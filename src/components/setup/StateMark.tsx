@@ -38,13 +38,23 @@ export function stateWord(s: MarkState): string {
   return words[s] ?? '';
 }
 
+// true once the value changed after the first render: only a change moves, not every mark of a page just opened
+export function useMoved<T>(value: T): boolean {
+  const [last, setLast] = useState(value);
+  const [moved, setMoved] = useState(false);
+  if (value !== last) {
+    setLast(value);
+    setMoved(true);
+  }
+  return moved;
+}
+
 // the state as a round sign: tick, cross, arrow on, clock, lock; a ring while open, running or waiting
 export function StateMark({state, size}: {state: MarkState; size?: 'small' | 'big'}) {
   const sign = SIGNS[state];
-  // only a change moves, not every mark of a page just opened
-  const [first] = useState(state);
+  const moved = useMoved(state);
   return (
-    <span className={styles.mark} data-state={state} data-size={size} data-moved={state !== first || undefined} aria-hidden="true">
+    <span className={styles.mark} data-state={state} data-size={size} data-moved={moved || undefined} aria-hidden="true">
       {sign && (
         <svg viewBox="0 0 24 24" {...line} strokeWidth={2.5}>
           {sign}

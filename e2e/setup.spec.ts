@@ -205,6 +205,29 @@ test.describe('setup', () => {
     await expect(page.locator('[data-cause="NOT_SEEN"]')).toContainText('Driving on the ground: The mower didn');
   });
 
+  test('a mark moves when its state changes, not when it is shown', async ({page, isMobile}) => {
+    test.skip(isMobile, 'the overview beside the step on a desktop');
+    await demoWith(page, 'Setup');
+    await page.goto('/setup/?step=board');
+    const mark = page.locator('[aria-current] [data-state]');
+    await expect(page.locator('[data-moved]')).toHaveCount(0);
+    await expect(page.locator('button[aria-expanded]', {hasText: 'Wheels'})).toContainText(/1 step$/);
+    await step(page, 'board').getByRole('button', {name: 'Start'}).click();
+    await expect(mark).toHaveAttribute('data-state', 'ok');
+    await expect(mark).toHaveAttribute('data-moved', 'true');
+
+    // shown again already passed it stands still, passed again by a repeat it moves
+    const stage = page.getByRole('button', {name: /^Device/});
+    await stage.click();
+    await stage.click();
+    await expect(mark).toHaveAttribute('data-state', 'ok');
+    await expect(mark).not.toHaveAttribute('data-moved');
+    await step(page, 'board').getByRole('button', {name: 'Repeat'}).click();
+    await expect(mark).toHaveAttribute('data-state', 'running');
+    await expect(mark).toHaveAttribute('data-state', 'ok');
+    await expect(mark).toHaveAttribute('data-moved', 'true');
+  });
+
   test('the image of a step from the mower, as a mask', async ({page}) => {
     await demoWith(page, 'Setup');
     await page.goto('/setup/?step=stop');
