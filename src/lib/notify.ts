@@ -106,8 +106,8 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
   return c;
 }
 
-// what notify.cgi takes: it drops anything that doesn't fit, quotes and backslashes in the name too. none picked is "-",
-// a token "-" drops the one there is
+// what notify.cgi takes, a setting that doesn't fit turns the whole save down. none picked is "-", a token "-" drops
+// the one there is
 export function serializeNotify(c: NotifyConfig): string {
   const o = toOs(c);
   return [
@@ -135,6 +135,15 @@ export function randomTopic(): string {
 
 export const validTopic = (t: string) => /^[A-Za-z0-9_-]{1,64}$/.test(t);
 export const validServer = (s: string) => /^https?:\/\/[A-Za-z0-9.:/_-]{1,200}$/.test(s.trim());
+// a bearer token as notify.cgi takes it, ntfy's own are tk_ and letters
+export const validToken = (t: string) => /^[A-Za-z0-9._~+/=-]{1,200}$/.test(t.trim());
+
+// a setting notify.cgi turned down (400): its key, e.g. token or url
+export class NotifyRejected extends Error {
+  constructor(readonly key: string) {
+    super(`notify: bad ${key}`);
+  }
+}
 
 const endpoint = (base = apiBase()) => base + '/cgi-bin/notify';
 
@@ -211,6 +220,7 @@ export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig |
 export async function saveNotify(c: NotifyConfig): Promise<NotifyConfig> {
   if (await notifyOnOs()) return fromOs(await callRpc<OsNotify>(RPC.notifySet, toOs(c)), c);
   const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeNotify(c)});
+  if (res.status === 400) throw new NotifyRejected((await res.text()).trim().replace(/^bad /, ''));
   if (!res.ok) throw new Error(`notify ${res.status}`);
   return parseNotify(await res.text(), c);
 }

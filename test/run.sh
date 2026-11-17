@@ -573,6 +573,15 @@ grep -q secret <<< "$got" && bad "notify: the token isn't handed out" "$got" || 
 grep -q '^token set$' <<< "$got" && ok "notify: it says there is one" || bad "notify: it says there is one" "$got"
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\nenabled 1' "$N"
 expect "notify: a save without the token keeps it" "$(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" secret-token-1
+expect "notify: a token that doesn't fit is turned down, the saved one stays" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\ntoken a b' "$N" | tr -d '\n') $(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" \
+  'bad token 400 secret-token-1'
+curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken tk_a.b~c+d/e=\nurl http://[fd12::1]:8082\nnew_thing 1' "$N"
+expect "notify: a bearer token, an IPv6 address and a setting it doesn't know (left out)" \
+  "$(docker exec mbt-web sh -c 'sed -n "s/^token //p; s/^url //p" /data/notify.conf; grep -c new_thing /data/notify.conf')" \
+  $'http://[fd12::1]:8082\ntk_a.b~c+d/e=\n0'
+expect "notify: an address with a query is turned down" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\nurl http://mower:8082/?a=1' "$N" | tr -d '\n')" 'bad url 400'
 curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken -' "$N"
 expect "notify: token - drops it" "$(docker exec mbt-web grep -c '^token' /data/notify.conf)" 0
 docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/notify.conf'

@@ -3,7 +3,7 @@ import {mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it, vi} from 'vitest';
-import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validTopic, withMowerUrl, type OsNotify} from './notify';
+import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validToken, validTopic, withMowerUrl, type OsNotify} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
@@ -88,6 +88,10 @@ describe('push message settings', () => {
     expect(validTopic('my topic')).toBe(false);
     expect(validServer('https://ntfy.sh')).toBe(true);
     expect(validServer('ntfy.sh')).toBe(false);
+    expect(validToken('tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2')).toBe(true);
+    expect(validToken('a.b-c~d+e/f==')).toBe(true);
+    expect(validToken('two words')).toBe(false);
+    expect(validToken('a"b')).toBe(false);
   });
 });
 
