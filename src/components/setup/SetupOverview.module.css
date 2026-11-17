@@ -42,6 +42,13 @@
   line-height: 1.4;
 }
 
+/* each cause on its own, set off by a line */
+.lock [data-cause] {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+}
+
 .card {
   display: flex;
   flex-direction: column;

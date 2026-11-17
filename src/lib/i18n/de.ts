@@ -3450,7 +3450,6 @@ const de: Record<string, string> = {
   "{done} of {of} steps done": "{done} von {of} Schritten erledigt",
   "next: {step}": "als Nächstes: {step}",
   "Go on with the setup": "Mit der Einrichtung weitermachen",
-  "Safety measured on {date}": "Sicherheit gemessen am {date}",
   "No safety measurement yet: the mower drives only while you watch": "Noch keine Sicherheitsmessung: Der Mäher fährt nur unter Aufsicht",
   "Skipped: {why}": "Übersprungen: {why}",
   "First: {steps}": "Zuerst: {steps}",

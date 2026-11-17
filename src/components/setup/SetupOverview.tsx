@@ -1,12 +1,19 @@
 'use client';
 
 import {ChevronIcon, LockIcon} from '@/components/icons';
+import {numericDay} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
 import {causeText, isDone, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord, useMoved} from './StateMark';
 import styles from './SetupOverview.module.css';
+
+// the day of the measurement as the app writes days, as it came when it isn't a date
+function measuredDay(date: string): string {
+  const t = new Date(`${date}T00:00`).getTime();
+  return Number.isNaN(t) ? date : numericDay(t / 1000);
+}
 
 // the line under a stage: what keeps it locked, how far it got, or its state
 function stageLine(state: StepState, steps: SetupStep[], all: SetupStep[], lang: string): string {
@@ -39,8 +46,13 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
         {safety.open ? (
           <span>
             <b>{tr('Safety measured')}</b>
-            {safety.date && <span>{tr('Safety measured on {date}', {date: safety.date})}</span>}
-            {safety.source && <span>{tr(safety.source === 'program' ? 'With the setup program' : 'Entered by hand')}</span>}
+            {(safety.date || safety.source) && (
+              <span>
+                {[safety.date && measuredDay(safety.date), safety.source && tr(safety.source === 'program' ? 'With the setup program' : 'Entered by hand')]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            )}
           </span>
         ) : (
           <span>
