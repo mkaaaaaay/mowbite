@@ -166,3 +166,25 @@
   box-shadow: none;
   color: color-mix(in srgb, var(--foreground) 45%, transparent);
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .backdrop {
+    animation: fade 0.2s ease-out;
+  }
+
+  .sheet {
+    animation: rise var(--dur-move) var(--ease-out);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}

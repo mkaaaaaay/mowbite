@@ -82,29 +82,47 @@
 }
 
 .segments i {
+  position: relative;
+  overflow: hidden;
   height: 6px;
   border-radius: 3px;
   background: var(--track);
 }
 
+/* the color of a segment, grown from the left */
+.segments i::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--seg, transparent);
+  content: '';
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left;
+}
+
 .segments i[data-state='ok'] {
-  background: var(--success);
+  --seg: var(--success);
+  --fill: 1;
 }
 
 .segments i[data-state='skipped'] {
-  background: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+  --seg: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+  --fill: 1;
 }
 
 .segments i[data-state='running'] {
-  background: var(--accent);
+  --seg: var(--accent);
+  --fill: 1;
 }
 
 .segments i[data-state='failed'] {
-  background: var(--error);
+  --seg: var(--error);
+  --fill: 1;
 }
 
 .segments i[data-state='stale'] {
-  background: var(--warning);
+  --seg: var(--warning);
+  --fill: 1;
 }
 
 .next {
@@ -204,4 +222,31 @@ li[data-state='locked'] > .step .name {
   color: var(--text-secondary);
   font-size: 12.5px;
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .segments i::after {
+    transition:
+      transform 0.5s var(--ease-out),
+      background-color var(--dur-move) ease;
+  }
+
+  .lock {
+    transition:
+      background-color 0.4s ease,
+      color 0.4s ease;
+  }
+
+  /* the shackle swings open */
+  .lock[data-open='true'] path {
+    transform-box: fill-box;
+    transform-origin: 0 100%;
+    animation: unlock 0.5s var(--ease-out);
+  }
+}
+
+@keyframes unlock {
+  from {
+    transform: rotate(12deg) translateY(2px);
+  }
 }

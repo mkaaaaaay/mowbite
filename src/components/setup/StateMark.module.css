@@ -88,6 +88,71 @@
   .mark[data-state='waiting'] {
     animation: turn 4s linear infinite;
   }
+
+  .mark[data-state='running']::after {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  /* passed: the mark pops up, the tick draws itself */
+  .mark[data-moved][data-state='ok'] {
+    animation: pop var(--dur-move) var(--ease-out);
+  }
+
+  .mark[data-moved][data-state='ok'] path {
+    stroke-dasharray: 22;
+    animation: draw var(--dur-move) 0.1s ease-out backwards;
+  }
+
+  /* failed: pops up and shakes once */
+  .mark[data-moved][data-state='failed'] {
+    animation:
+      pop var(--dur-move) var(--ease-out),
+      shake 0.36s var(--dur-move) ease-in-out;
+  }
+
+  .mark[data-moved][data-state='skipped'] svg {
+    animation: nudge var(--dur-move) var(--ease-out);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+  }
+
+  60% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-3px);
+  }
+
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes nudge {
+  from {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.6;
+    transform: scale(0.7);
+  }
 }
 
 @keyframes turn {

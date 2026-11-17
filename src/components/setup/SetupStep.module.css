@@ -227,3 +227,28 @@
     align-items: start;
   }
 }
+
+/* a step fades in when it opens, a verdict or a seen line slides in when it comes */
+@media (prefers-reduced-motion: no-preference) {
+  .step {
+    animation: show var(--dur-move) ease-out;
+  }
+
+  .result,
+  .note[data-asked-line] {
+    animation: enter var(--dur-move) var(--ease-out);
+  }
+}
+
+@keyframes show {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

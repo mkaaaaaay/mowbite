@@ -67,3 +67,24 @@ li[data-active] .state {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* a line that switches lights up with a ring */
+@media (prefers-reduced-motion: no-preference) {
+  .lines li {
+    transition: background-color 0.2s ease;
+  }
+
+  li[data-active] .dot {
+    animation: ping 0.9s ease-out;
+  }
+}
+
+@keyframes ping {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}

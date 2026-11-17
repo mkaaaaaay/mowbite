@@ -1,6 +1,7 @@
 import {line} from '@/components/icons';
 import {tr} from '@/lib/i18n';
 import type {PartState, StepState} from '@/lib/setup';
+import {useState} from 'react';
 import styles from './StateMark.module.css';
 
 type State = StepState | PartState;
@@ -40,8 +41,10 @@ export function stateWord(s: State): string {
 // the state as a round sign: tick, cross, arrow on, clock, lock; a ring while open, running or waiting
 export function StateMark({state, size}: {state: State; size?: 'small' | 'big'}) {
   const sign = SIGNS[state];
+  // only a change moves, not every mark of a page just opened
+  const [first] = useState(state);
   return (
-    <span className={styles.mark} data-state={state} data-size={size} aria-hidden="true">
+    <span className={styles.mark} data-state={state} data-size={size} data-moved={state !== first || undefined} aria-hidden="true">
       {sign && (
         <svg viewBox="0 0 24 24" {...line} strokeWidth={2.5}>
           {sign}

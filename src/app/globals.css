@@ -44,6 +44,8 @@
   --text-l: 16px;
   --tap: 44px;
   --dur-fast: 0.12s;
+  --dur-move: 0.3s;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   /* tinted surfaces, from each theme's own colors */
   --tile: color-mix(in srgb, var(--text-secondary) 10%, transparent);
   --track: color-mix(in srgb, var(--text-secondary) 20%, transparent);
