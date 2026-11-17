@@ -66,6 +66,16 @@ describe('sameContent', () => {
     expect(sameContent(off, map())).toBe(false);
   });
 
+  it('takes a map an older openmower wrote back without the newer area settings as the same, not one set otherwise', () => {
+    const sent = map();
+    sent.areas[0].properties = {...sent.areas[0].properties, mowable: false, angle_min: 0.1, angle_max: 0.5, drawn: true};
+    sent.areas[1].properties.drawn = true;
+    expect(sameContent(map(), sent)).toBe(true);
+    const back = map();
+    back.areas[0].properties.angle_min = 0.2;
+    expect(sameContent(back, sent)).toBe(false);
+  });
+
   it('still spots a real change', () => {
     const back = map();
     back.areas[0].outline[1] = {x: 1.01, y: 0};

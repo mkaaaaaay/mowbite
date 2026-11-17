@@ -9,9 +9,6 @@ export type AreaProperties = Area['properties'];
 // change the selected area's properties, undoable = one undo step for this change
 export type UpdateArea = (patch: Partial<AreaProperties>, undoable?: boolean) => void;
 
-// area settings only newer openmower versions keep, older ones drop them when saving (pin too, its square says it then)
-export const NEW_AREA_SETTINGS = ['mowable', 'angle_min', 'angle_max', 'drawn'] as const;
-
 // the same points, also when they came back from the mower after a save
 export const sameOutline = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y));
 
