@@ -2,43 +2,62 @@
 # on a computer at home, the app on a phone), programs without a browser (Home Assistant, the mower's own scripts) and
 # the addresses in MOWBITE_ORIGINS. a page from anywhere else gets nothing to read and can't change anything
 
-# the browser's Origin: none (a program, or the page itself asking), this page, the app, the home network or one listed
-from_mowbite() {
-  o=${HTTP_ORIGIN:-}
-  case $o in
-  "" | "http://$HTTP_HOST" | "https://$HTTP_HOST" | capacitor://localhost) return 0 ;;
-  *[!][A-Za-z0-9.:/-]*) return 1 ;;
-  http://* | https://*) ;;
-  *) return 1 ;;
+# a host[:port] without its port, an ipv6 address without its brackets
+bare() {
+  case $1 in
+  \[*) _b=${1#\[} && echo "${_b%%]*}" ;;
+  *) echo "${1%%:*}" ;;
   esac
-  if [ -n "${MOWBITE_ORIGINS:-}" ]; then
-    old=$IFS
-    # (a space after the comma too)
-    IFS=', '
-    set -f
-    for x in $MOWBITE_ORIGINS; do [ "$o" = "${x%/}" ] && IFS=$old && set +f && return 0; done
-    IFS=$old
-    set +f
-  fi
-  # the home network, by the page's host without its port: localhost, private addresses (tailscale's too), names
-  # without a dot or with a home network's ending
-  h=${o#*://}
-  case $h in
-  \[*) h=${h#\[} && h=${h%%]*} ;;
-  *) h=${h%%:*} ;;
-  esac
-  case $h in
+}
+
+# a host of the home network ($1, its port may come with it): localhost, private addresses (tailscale's too), names
+# without a dot or with a home network's ending
+home_host() {
+  _h=$(bare "$1")
+  case $_h in
   '' | *[!0-9.]*) ;;
   127.* | 10.* | 192.168.* | 169.254.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].*) return 0 ;;
   100.6[4-9].* | 100.[7-9][0-9].* | 100.1[01][0-9].* | 100.12[0-7].*) return 0 ;;
   *) return 1 ;;
   esac
-  case $h in
+  case $_h in
   localhost | ::1 | [fF][cCdD]*:* | [fF][eE][89aAbB]*:*) return 0 ;;
   *.local | *.lan | *.home | *.home.arpa | *.internal | *.localdomain | *.fritz.box) return 0 ;;
   '' | *.* | *:*) return 1 ;;
   esac
   return 0
+}
+
+# MOWBITE_ORIGINS lists the origin $1, or with host: one with the host of $1 (ports left out)
+listed() {
+  [ -n "${MOWBITE_ORIGINS:-}" ] || return 1
+  _old=$IFS
+  # (a space after the comma too)
+  IFS=', '
+  set -f
+  _r=1
+  for _x in $MOWBITE_ORIGINS; do
+    _x=${_x%/}
+    if [ "${2:-}" = host ]; then [ "$(bare "${_x#*://}")" = "$(bare "$1")" ] && _r=0; else [ "$1" = "$_x" ] && _r=0; fi
+  done
+  IFS=$_old
+  set +f
+  return $_r
+}
+
+# asked at a host of the home network or one listed (a name from the internet bound to this mower's address, dns
+# rebinding, isn't), and the browser's Origin: none (a program, or the page itself asking), this page, the app, the
+# home network or one listed
+from_mowbite() {
+  [ -z "${HTTP_HOST:-}" ] || home_host "$HTTP_HOST" || listed "$HTTP_HOST" host || return 1
+  _o=${HTTP_ORIGIN:-}
+  case $_o in
+  "" | "http://$HTTP_HOST" | "https://$HTTP_HOST" | capacitor://localhost) return 0 ;;
+  *[!][A-Za-z0-9.:/-]*) return 1 ;;
+  http://* | https://*) ;;
+  *) return 1 ;;
+  esac
+  listed "$_o" || home_host "${_o#*://}"
 }
 
 # the header that hands the answer over to MowBite's page on another origin (the app, another mower's page)

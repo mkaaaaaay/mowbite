@@ -477,6 +477,14 @@ for o in http://evil.example https://10.evil.com http://192.168.1.5.evil.com nul
   expect "origin $o turned down" "$(code -H "Origin: $o" "$W/version")" 403
 done
 expect "no origin (the page itself, curl) asks" "$(code "$W/version")" 200
+# asked at a name from the internet bound to the mower's address (dns rebinding): neither its page nor its reads count
+for h in openmower:8082 mower.local:8082 192.168.178.20:8082 '[fd12::1]:8082' garden.example.org; do
+  expect "host $h asks" "$(code -H "Host: $h" "$W/version")" 200
+done
+for h in evil.example:8082 1.2.3.4:8082 mower.local.evil.com; do
+  expect "host $h turned down" "$(code -H "Host: $h" "$W/version")" 403
+  expect "host $h with itself as origin turned down" "$(code -X POST -H "Host: $h" -H "Origin: http://$h" "$W/update")" 403
+done
 expect "an origin that asks gets itself back for cors" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$W/version" | tr -d '\r' | sed -n 's/^access-control-allow-origin: //Ip')" \
   http://192.168.178.20:8082
