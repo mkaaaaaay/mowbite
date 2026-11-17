@@ -122,6 +122,9 @@
 .links a {
   color: inherit;
   font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
+  text-underline-offset: 2px;
 }
 
 .note[data-tone='warn'] {

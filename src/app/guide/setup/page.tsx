@@ -522,7 +522,18 @@ function SafetyArt() {
 }
 
 function ReleaseArt() {
-  // what the release writes, the tick, Release, the restart, then the lock opens
+  // the release sheet: what the mower records, the tick, Release, the restart, then the lock on top opens
+  const valueTile = (x: number, name: string, value: string) => (
+    <>
+      <rect x={x} y={118} width={122} height={32} rx={8} style={tile} />
+      <text x={x + 8} y={129} fontSize={9.5} style={dim}>
+        {name}
+      </text>
+      <text x={x + 8} y={144} fontSize={12.5} fontWeight={700} style={text}>
+        {value}
+      </text>
+    </>
+  );
   return (
     <Scene label={tr('Releasing the safety')}>
       <Shown to={0.74}>
@@ -531,37 +542,42 @@ function ReleaseArt() {
       <Shown from={0.74}>
         <LockBar open />
       </Shown>
-      <rect x={20} y={76} width={280} height={118} rx={14} style={card} />
-      {[
-        [tr('Date'), tr('Today')],
-        [tr('Stop without control'), '0.6 s'],
-      ].map(([name, value], i) => (
-        <g key={name}>
-          <text x={34} y={98 + i * 18} fontSize={11} style={dim}>
-            {name}
-          </text>
-          <text x={286} y={98 + i * 18} fontSize={11} fontWeight={600} textAnchor="end" style={text}>
-            {value}
-          </text>
-        </g>
-      ))}
-      <Tick x={34} y={128} at={0.2} />
-      <text x={56} y={139} fontSize={10} style={text}>
-        {tr('I saw every safety check myself')}
-      </text>
-      <Shown to={0.46}>
-        <Button x={34} y={156} w={252} h={26} size={11} label={tr('Release the mower')} main at={0.38} />
-      </Shown>
-      <Shown from={0.46} to={0.74}>
-        <text x={160} y={173} fontSize={11} fontWeight={600} textAnchor="middle" style={dim}>
-          {tr('MowBite OS is starting again')}
+      <g transform="translate(0 130)">
+        <animateTransform attributeName="transform" type="translate" dur={`${DUR}s`} repeatCount="indefinite" keyTimes="0;0.04;0.12;1" values="0 130;0 130;0 0;0 0" />
+        <rect x={20} y={74} width={280} height={140} rx={16} fill="var(--background)" />
+        <rect x={144} y={80} width={32} height={4} rx={2} fill="var(--track)" />
+        <text x={34} y={100} fontSize={13} fontWeight={600} style={text}>
+          {tr('Release safety')}
         </text>
-      </Shown>
-      <Shown from={0.74}>
-        <text x={160} y={173} fontSize={11} fontWeight={600} textAnchor="middle" style={{fill: 'var(--soft-good)'}}>
-          {tr('Passed')}
+        <text x={34} y={112} fontSize={10} style={dim}>
+          {tr('The mower records:')}
         </text>
-      </Shown>
+        {valueTile(34, tr('Date'), tr('Today'))}
+        {valueTile(164, tr('Stop without control'), '0.6 s')}
+        <Tick x={34} y={154} at={0.22} />
+        <text x={56} y={165} fontSize={10} style={text}>
+          {tr('I saw every safety check myself')}
+        </text>
+        <Shown to={0.46}>
+          <Button x={34} y={174} w={100} h={20} size={11} label={tr('Cancel')} />
+          <g opacity={0.4}>
+            {anim('opacity', DUR, [0, 0.24, 0.26, 1], [0.4, 0.4, 1, 1])}
+            <Button x={142} y={174} w={144} h={20} size={11} label={tr('Release the mower')} main at={0.38} />
+          </g>
+        </Shown>
+        <Shown from={0.46} to={0.74}>
+          <Mark x={92} y={184} state="waiting" r={7} />
+          <text x={104} y={188} fontSize={11} fontWeight={600} style={dim}>
+            {tr('MowBite OS is starting again')}
+          </text>
+        </Shown>
+        <Shown from={0.74}>
+          <Mark x={132} y={184} state="ok" r={7} />
+          <text x={144} y={188} fontSize={11} fontWeight={600} style={{fill: 'var(--soft-good)'}}>
+            {tr('Passed')}
+          </text>
+        </Shown>
+      </g>
     </Scene>
   );
 }
