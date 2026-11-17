@@ -388,6 +388,9 @@ export default function SettingsPage() {
                     <Link href="/setup" className={styles.pillButton}>
                       {tr('To the setup')}
                     </Link>
+                    <Link href="/guide/setup" className={styles.pillButton}>
+                      {tr('Guide')}
+                    </Link>
                   </Group>
                 )}
                 {sizes && (
@@ -685,6 +688,11 @@ export default function SettingsPage() {
                   {(lights || sounds) && (
                     <Link href="/guide/lights" className={styles.pillButton}>
                       {lights ? tr('Lights and sounds') : tr('Sounds')}
+                    </Link>
+                  )}
+                  {setup && (
+                    <Link href="/guide/setup" className={styles.pillButton}>
+                      {tr('Setup')}
                     </Link>
                   )}
                   {CALIB_SHOWN && !os && (
