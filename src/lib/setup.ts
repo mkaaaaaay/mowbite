@@ -154,6 +154,8 @@ export const SAFETY_WHY: Record<string, string> = {
   RESET: "The setup was started anew or a release didn't pass: the safety has to be released again",
   UNREADABLE: "The mower couldn't read the state of the lock: the safety has to be measured again",
 };
+// a safety step failed since the lock opened (the way back warns then)
+export const safetyFailed = (setup: Setup | null | undefined) => setup?.safety.why === 'CHECK_FAILED';
 // why the lock is closed in words, the program's reason for one it doesn't know
 export function whyText(why: string | null): string {
   if (!why) return tr('No safety measurement yet: the mower drives only while you watch');

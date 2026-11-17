@@ -204,6 +204,7 @@ let updateConf = 'mowbite beta\nmowbite_auto 1\nopenmower edge\nopenmower_auto 0
 // an update asked for: each part goes through its steps within seconds, the way the bar shows a real one. a step:
 // its name, its seconds and of unpacking or building how many
 type DemoStep = [step: string, secs: number, of?: number];
+const OS_THERE: DemoStep[] = [['prepare', 2], ['download', 4], ['extract', 2, 3], ['stop', 2], ['start', 2], ['wait', 3]];
 const DEMO_STEPS: Record<string, DemoStep[]> = {
   openmower: [['prepare', 2]],
   planner: [['prepare', 2], ['build', 12, 9], ['restart', 3], ['wait', 5]],
@@ -212,8 +213,8 @@ const DEMO_STEPS: Record<string, DemoStep[]> = {
   // the updater itself: its download, then it restarts on the new version (a few seconds without an answer)
   updater: [['prepare', 2], ['download', 5]],
   // MowBite OS in OpenMower's place, the same not running as it should, and back to OpenMower
-  osThere: [['prepare', 2], ['download', 4], ['extract', 2, 3], ['stop', 2], ['start', 2], ['wait', 3]],
-  osFails: [['prepare', 2], ['download', 4], ['extract', 2, 3], ['stop', 2], ['start', 2], ['wait', 3], ['back', 3]],
+  osThere: OS_THERE,
+  osFails: [...OS_THERE, ['back', 3]],
   osBack: [['export', 2], ['stop', 2], ['back', 3]],
 };
 let demoRun: {t: number; parts: string[]} | null = null;

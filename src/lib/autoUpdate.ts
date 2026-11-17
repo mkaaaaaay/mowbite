@@ -473,8 +473,9 @@ export function runResult(s: UpdateState): string | null {
   if (s.status.result === 'interrupted') return tr('The last run was stopped halfway (the mower or the updater restarted), what had not started yet was put back.');
   if (s.status.result === 'running') {
     const parts = runParts(s);
-    const now = progressOf(s)?.part;
-    if (parts[0] === 'os') return osHead(osWayOf(s, progressOf(s)));
+    const p = progressOf(s);
+    const now = p?.part;
+    if (parts[0] === 'os') return osHead(osWayOf(s, p));
     if (!now || !parts.includes(now)) return tr('Updating right now…');
     const name = nameOf(s, now);
     return parts.length > 1 ? tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length}) : tr('Updating {name}…', {name});
@@ -678,7 +679,8 @@ export function osHead(way: OsWay): string {
 // download. going back after the way there has one step
 export function osSteps(s: UpdateState, p: Progress, way: OsWay): {steps: Step[]; now: number} {
   if (way === 'undo') return {steps: ['back'], now: 0};
-  const drop = !!s.status.os_drop || (s.status.os_switch ?? '').split(' ')[2] === 'drop';
+  const o = osSwitchOf(s);
+  const drop = !!s.status.os_drop || (o?.state === 'yes' && o.drop);
   const steps: Step[] =
     way === 'back'
       ? ['export', 'stop', 'back']

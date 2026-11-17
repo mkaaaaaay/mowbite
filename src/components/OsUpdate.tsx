@@ -2,6 +2,7 @@
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useSetup} from '@/hooks/useSetup';
+import {safetyFailed} from '@/lib/setup';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
 import {useHostOnline} from '@/lib/hostOs';
@@ -499,7 +500,7 @@ export function OsUpdate() {
               off={!!now}
               onStart={(revision) => run(() => startUpdate(c.id, revision ? {revision} : {}))}
               onBack={(resetJobs) => run(() => rollBack(c.id, resetJobs))}
-              checkFailed={setup?.safety.why === 'CHECK_FAILED'}
+              checkFailed={safetyFailed(setup)}
             />
           ))}
       </div>

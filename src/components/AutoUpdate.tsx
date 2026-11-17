@@ -1,10 +1,12 @@
 'use client';
 
 import {useSetup} from '@/hooks/useSetup';
+import {safetyFailed} from '@/lib/setup';
 import {useSure} from '@/hooks/useSure';
 import Link from 'next/link';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {
+  elapsed,
   freeMb,
   isNew,
   lastChecked,
@@ -77,7 +79,7 @@ import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION, useUpdates} from '@/lib/updates';
 import local from './AutoUpdate.module.css';
 import os from './OsUpdate.module.css';
-import {Ask, Bar, Busy, HOUR, Head, IN_DOCK, Note, OffCard, PART_TEXT, RIGHT_AWAY, ReloadNote, RunHead, Steps, Summary, type Tag} from './updateParts';
+import {Ask, Bar, Busy, HOUR, Head, IN_DOCK, Note, OffCard, PART_TEXT, RIGHT_AWAY, ReloadNote, RunHead, runTitle, Steps, Summary, type Tag} from './updateParts';
 
 // the updater's part of compose.yaml, as in the repository's
 const UPDATER_YAML = `  updater:
@@ -315,7 +317,7 @@ function Running({
   follow: boolean;
   way?: OsWay;
   away?: boolean;
-  page?: string;
+  page: string;
   children?: ReactNode;
 }) {
   const {steps, now: at, back} = way ? {...osSteps(s, p, way), back: false} : runSteps(s, p, asked);
@@ -327,14 +329,11 @@ function Running({
   return (
     <div ref={ref} className={os.run} data-update={p.part || 'all'}>
       <RunHead name={name} back={back} title={way && osHead(way)} />
-      {away && page ? (
+      {away ? (
         <OnItsPage page={page} />
       ) : at < 0 ? (
         // (a step of the switch not in its list)
-        <div className={os.busy}>
-          <b>{tr('The switch goes on')}</b>
-          <Bar label={tr('The switch goes on')} pct={p.pct} detail={stepDetail(p, now)} />
-        </div>
+        <Busy label={tr('The switch goes on')} pct={p.pct} detail={stepDetail(p, now)} />
       ) : (
         <Steps
           steps={steps.map((step, i) => {
@@ -570,14 +569,15 @@ function OsSwitchCard({
   // (the way back left halfway goes on first)
   const offer = left && found?.state === 'yes' ? null : found;
   const result = osResult(s);
-  const back = offer?.state === 'on' || left;
+  const on = offer?.state === 'on';
+  const back = on || left;
   const answer = (to?: 'os' | 'openmower') => () => {
     setAsk(null);
     if (to) onSwitch(to);
   };
   const head = (
-    <Head name="MowBite OS" tag={offer?.state === 'on' ? {text: tr('In place of OpenMower'), look: local.badgeNew} : null} text={off ? undefined : PART_TEXT.os}>
-      {offer?.state === 'on' && (
+    <Head name="MowBite OS" tag={on ? {text: tr('In place of OpenMower'), look: local.badgeNew} : null} text={off ? undefined : PART_TEXT.os}>
+      {on && (
         <>
           <span>{tr('Runs')}</span>
           <span>{tr('since {time}', {time: offer.since})}</span>
@@ -596,7 +596,7 @@ function OsSwitchCard({
     </Head>
   );
   if (off) return <OffCard id="os">{head}</OffCard>;
-  const switched = offer?.state === 'on' && (s.status.os ?? '').startsWith('switched ') && !released;
+  const switched = on && (s.status.os ?? '').startsWith('switched ') && !released;
 
   return (
     <article className={local.part} data-part="os">
@@ -668,9 +668,7 @@ function OsSwitchCard({
 // on MowBite OS without the updater's status, where the updater can be next to it: the way back on its own page
 const OsBackLink = ({page, checkFailed}: {page: string; checkFailed: boolean}) => (
   <article className={local.part} data-part="os">
-    <Head name="MowBite OS" tag={{text: tr('In place of OpenMower'), look: local.badgeNew}} text={PART_TEXT.os}>
-      {null}
-    </Head>
+    <Head name="MowBite OS" tag={{text: tr('In place of OpenMower'), look: local.badgeNew}} text={PART_TEXT.os} />
     <span className={local.dim}>{tr("The way back to OpenMower is on the MowBite Updater's own page, with the mower idle in the dock.")}</span>
     {checkFailed && <span className={local.warn}>{tr(UNLOCKED)}</span>}
     <a className={local.control} href={page} target="_blank" rel="noreferrer">
@@ -780,7 +778,7 @@ function Room({
   const cache = s.room?.cache ?? 0;
   const free = freeMb(s);
   const at = (word: string) => doing?.word === word;
-  const busyLine = (label: string) => doing && <Busy label={label} since={doing.since} now={now} />;
+  const busyLine = (label: string) => doing && <Busy label={label} detail={elapsed(doing.since, now)} />;
   const deleting = (word: string) => at(word) && busyLine(tr('Deleting…'));
   const button = (word: string, label: string, go: () => Promise<void>) => (
     <button className={[local.control, sure === word ? local.danger : ''].join(' ')} disabled={busy} onClick={() => confirm(word, () => onAsk(word, go))}>
@@ -862,7 +860,7 @@ export function AutoUpdate() {
   const om = useOpenMower();
   const platform = useOsPlatform();
   const setup = useSetup();
-  const setupFailed = setup?.safety.why === 'CHECK_FAILED';
+  const setupFailed = safetyFailed(setup);
   const [s, setS] = useState<UpdateState | null | undefined>(undefined);
   const [error, setError] = useState<{text: string; where: string} | null>(null);
   const [asked, setAsked] = useState<Asked | null>(null);
@@ -1030,7 +1028,7 @@ export function AutoUpdate() {
   const way = current?.part === 'os' ? osWayOf(st, current, words.find((w) => w.startsWith('switch:'))) : undefined;
   const doing = current
     ? (running && runResult(st)) ||
-      (way ? osHead(way) : back ? tr('{name} goes back', {name: nameOf(current.part)}) : tr('{name} is being updated', {name: nameOf(current.part)}))
+      (way ? osHead(way) : runTitle(nameOf(current.part), back))
     : null;
   const run = current && (
     <Running
@@ -1074,7 +1072,7 @@ export function AutoUpdate() {
         checking={checking}
         onCheck={() => ask('check', requestCheck)}
       />
-      {lookSince !== null && !current && <Busy label={tr('Looking for updates')} since={lookSince} now={now} />}
+      {lookSince !== null && !current && <Busy label={tr('Looking for updates')} detail={elapsed(lookSince, now)} />}
       {busy && !current && !roomDoing && !lost && <span className={local.dim}>{tr('asked, within a minute…')}</span>}
       {waited && <Note look={local.warn}>{waited}</Note>}
       {lost && !restarting && current?.part !== 'mowbite' && !way && (

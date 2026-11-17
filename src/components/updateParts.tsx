@@ -1,6 +1,5 @@
 'use client';
 
-import {elapsed} from '@/lib/autoUpdate';
 import {tr} from '@/lib/i18n';
 import type {ReactNode} from 'react';
 import shared from './AutoUpdate.module.css';
@@ -85,11 +84,11 @@ export function Bar({label, pct, detail}: {label: string; pct: number | null; de
   );
 }
 
-// something it does that has no steps (a look for updates, for room, deleting): what, and the bar with its time
-export const Busy = ({label, since, now}: {label: string; since: number; now: number}) => (
+// something it does that has no steps (a look for updates, for room, deleting): what, and the bar with its time or detail
+export const Busy = ({label, pct = null, detail}: {label: string; pct?: number | null; detail: string}) => (
   <div className={styles.busy}>
     <b>{label}</b>
-    <Bar label={label} pct={null} detail={elapsed(since, now)} />
+    <Bar label={label} pct={pct} detail={detail} />
   </div>
 );
 
@@ -102,7 +101,7 @@ export const RIGHT_AWAY = 'Works right away, also while the mower mows.';
 export type Tag = {text: string; look: string};
 
 // a part's name, its mark and what it is, then its facts
-export function Head({name, tag, text, children}: {name: string; tag: Tag | null; text?: string; children: ReactNode}) {
+export function Head({name, tag, text, children}: {name: string; tag: Tag | null; text?: string; children?: ReactNode}) {
   return (
     <>
       <div className={shared.head}>
@@ -151,10 +150,12 @@ export function Summary({
   );
 }
 
+// the heading of an update going on
+export const runTitle = (name: string, back: boolean) => (back ? tr('{name} goes back', {name}) : tr('{name} is being updated', {name}));
 // the heading of the update going on (or its own title), and a line under it
 export const RunHead = ({name, back, sub, title}: {name: string; back: boolean; sub?: string | null; title?: string}) => (
   <div>
-    <h3>{title ?? (back ? tr('{name} goes back', {name}) : tr('{name} is being updated', {name}))}</h3>
+    <h3>{title ?? runTitle(name, back)}</h3>
     {sub && <span className={shared.dim}>{sub}</span>}
   </div>
 );
