@@ -98,7 +98,7 @@ function SetupView() {
         {setup === undefined ? (
           <p className={styles.dim}>{tr('connecting…')}</p>
         ) : setup === null ? (
-          <p className={styles.dim}>{tr("This mower has no setup program. MowBite OS brings one for the mowers it knows.")}</p>
+          <p className={styles.dim}>{tr('This mower has no setup program.')}</p>
         ) : (
           <div className={styles.split}>
             <div className={styles.overview}>

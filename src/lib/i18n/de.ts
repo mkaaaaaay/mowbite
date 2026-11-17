@@ -3390,7 +3390,7 @@ const de: Record<string, string> = {
   "Setup": "Einrichtung",
   "Check the mower step by step": "Den Mäher Schritt für Schritt prüfen",
   "To the setup": "Zur Einrichtung",
-  "This mower has no setup program. MowBite OS brings one for the mowers it knows.": "Dieser Mäher hat kein Einrichtungsprogramm. MowBite OS bringt eins für die Mäher mit, die es kennt.",
+  "This mower has no setup program.": "Dieser Mäher hat kein Einrichtungsprogramm.",
   "Overview": "Übersicht",
   "Pick a step.": "Einen Schritt wählen.",
   "Not confirmed yet: {sizes}": "Noch nicht bestätigt: {sizes}",
