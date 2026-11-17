@@ -3640,6 +3640,8 @@ const de: Record<string, string> = {
   "Not done: it isn't offered right now.": "Nicht gemacht: Er wird gerade nicht angeboten.",
   "Not done: the schedule starts the mower at {when}.": "Nicht gemacht: Der Zeitplan startet den Mäher um {when}.",
   "Not done: the mower wasn't idle in the dock.": "Nicht gemacht: Der Mäher stand nicht bereit im Dock.",
+  "Not done: the battery was below {min} %. OpenMower runs as before, try again once it has charged.": "Nicht gemacht: Der Akku hatte weniger als {min} %. OpenMower läuft wie vorher, nach dem Laden noch einmal versuchen.",
+  "Not done: the firmware of the mower's board doesn't fit this MowBite OS or couldn't be checked. OpenMower runs as before.": "Nicht gemacht: Die Firmware der Platine des Mähers passt nicht zu diesem MowBite OS oder ließ sich nicht prüfen. OpenMower läuft wie vorher.",
   "Not done: MowBite's schedule couldn't be held (mqtt). OpenMower runs as before.": "Nicht gemacht: Der Zeitplan von MowBite ließ sich nicht anhalten (MQTT). OpenMower läuft wie vorher.",
   "Nothing changed: OpenMower's data couldn't be kept first.": "Nichts geändert: OpenMowers Daten ließen sich vorher nicht sichern.",
   "Nothing changed: MowBite OS couldn't be downloaded. Does the mower have internet?": "Nichts geändert: MowBite OS ließ sich nicht laden. Hat der Mäher Internet?",
