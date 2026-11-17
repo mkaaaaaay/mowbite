@@ -1,4 +1,4 @@
-import type {Named, Setup, SetupInput, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
+import type {Named, Setup, SetupInput, SetupLine, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
 import {RPC, TOPIC} from '../openmower';
 
 // MowBite OS's setup program for the click tests (setup.*), on with window.mowbiteDemoSetup: a short step list like the
@@ -36,7 +36,7 @@ export const DEMO_IMAGES: Record<string, {svg: string; sha256: string}> = {
 const ref = (name: string) => ({name, sha256: DEMO_IMAGES[name].sha256, bytes: DEMO_IMAGES[name].svg.length});
 
 // initial: the state the demo starts the step in
-type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'restart' | 'motion'> & {initial?: StepState};
+type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'restart' | 'motion' | 'lines' | 'ask'> & {initial?: StepState};
 const step = (s: Partial<Base> & Pick<Base, 'id' | 'stage' | 'check' | 'kind' | 'texts'>): Base => ({
   needs: [],
   confirm: [],
@@ -134,6 +134,7 @@ const STEPS: Base[] = [
         name: 'correction',
         type: 'choice',
         ask: false,
+        advanced: false,
         value: null,
         texts: tx(['Source of corrections'], ['Korrekturquelle']),
         values: [named('ntrip', 'Correction service over the network (NTRIP)', 'Korrekturdienst über das Netz (NTRIP)'), named('radio', 'Own station by radio at the receiver', 'Eigene Station per Funk am Empfänger')],
@@ -218,6 +219,14 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       return BIT[s.id] && run.phase === 'rest' && latched(BIT[s.id]) ? [{reason: 'EMERGENCY', message: `The emergency ${BIT[s.id]} is still latched`}] : [];
     return run && s.start && s.kind === 'measure' ? [{reason: 'BUSY', message: `${run.id} is running`}] : [];
   };
+  // the lines of an input step, one per part as on Tron: the one of the part last pressed is on while its emergency holds
+  const linesOf = (s: Base, running: boolean): SetupLine[] => {
+    const bit = BIT[s.id];
+    if (!bit) return [];
+    const on = latched(bit);
+    const pressed = running && run!.phase === 'rest' ? run!.part - 1 : -1;
+    return s.parts.map((_, i) => ({name: `${s.id}${i + 1}`, role: s.id, reason: bit.toLowerCase(), active: on && i === pressed, assigned: true, held: on && i === pressed, delay_ms: 0}));
+  };
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
     const running = run?.id === s.id;
@@ -234,6 +243,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       ends_at: running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
       result: k.result,
       restart: false,
+      lines: linesOf(s, running),
+      ask: null,
     };
   };
   const setup = (): Setup => {

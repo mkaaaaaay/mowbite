@@ -36,6 +36,8 @@ export interface SetupInput {
   name: string;
   type: 'choice' | 'number';
   ask: boolean;
+  // a setting beside the check (the delays of inputs_assign), shown apart
+  advanced: boolean;
   value: unknown;
   texts: Texts;
   min?: number;
@@ -63,15 +65,21 @@ export interface SetupResult {
   attempt: number;
   firmware: string;
 }
-// a line of the board's inputs as the step sees it now (api 43)
+// a line of the board's inputs as the step sees it now; role and reason empty for none
 export interface SetupLine {
   name: string;
-  role: string | null;
-  reason: string | null;
+  role: string;
+  reason: string;
   active: boolean;
   assigned: boolean;
   held: boolean;
-  delay_ms: number | null;
+  delay_ms: number;
+}
+// what a running inputs_assign proposes: the line that changed for the part, answered with accept
+export interface SetupAsk {
+  part: string;
+  line: string;
+  active_high: boolean;
 }
 export interface SetupStep {
   id: string;
@@ -100,7 +108,8 @@ export interface SetupStep {
   texts: Texts;
   result: SetupResult | null;
   restart: boolean;
-  lines?: SetupLine[];
+  lines: SetupLine[];
+  ask: SetupAsk | null;
 }
 export interface Setup {
   version: number;
@@ -217,6 +226,15 @@ async function fetchImage(ref: ImageRef): Promise<string> {
 
 // The screen of the app a step asks for (open): where it is, and its link's words
 export type OpenScreen = 'ntrip' | 'geometry' | 'recording' | 'dock' | 'map' | 'dock_test' | 'mow';
+// the roles of the inputs (x-setup.roles), as a line of a step names its role
+export const ROLE_NAMES: Record<string, string> = {
+  stop: 'STOP button',
+  lift: 'Lifting',
+  bumper: 'Bumper',
+  bumper_left: 'Bumper left',
+  bumper_right: 'Bumper right',
+};
+
 export const OPEN_SCREENS: Record<OpenScreen, {href: string; label: string}> = {
   ntrip: {href: '/settings#ntrip', label: 'Enter the correction service'},
   geometry: {href: '/settings#sizes', label: 'Check the sizes'},

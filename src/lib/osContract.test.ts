@@ -12,7 +12,7 @@ import {ORIGIN_TEXT} from './osUpdate';
 import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
 import {SITUATION_NAMES} from './sound';
 import {SHAPE_KINDS, SHAPE_LIMITS} from './robotShape';
-import {IMAGE_BYTES, OPEN_SCREENS, SKIP_TEXT} from './setup';
+import {IMAGE_BYTES, OPEN_SCREENS, ROLE_NAMES, SKIP_TEXT} from './setup';
 import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
@@ -35,7 +35,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-sensors': Record<string, {name: string}>;
   'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
   'x-schedule-log': Record<string, unknown>;
-  'x-setup': {limits: Record<string, number>; open: string[]; shape_kinds: string[]};
+  'x-setup': {limits: Record<string, number>; open: string[]; shape_kinds: string[]; roles: Record<string, unknown>};
   $defs: Record<string, unknown>;
 };
 
@@ -246,6 +246,11 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     expect([...SHAPE_KINDS].sort()).toEqual([...shape_kinds].sort());
     expect(Object.keys(OPEN_SCREENS).sort()).toEqual([...open].sort());
     for (const {label} of Object.values(OPEN_SCREENS)) expect(de[label], label).toBeTruthy();
+  });
+
+  it('names every role of an input the OS knows', () => {
+    expect(Object.keys(ROLE_NAMES).sort()).toEqual(Object.keys(api['x-setup'].roles).sort());
+    for (const name of Object.values(ROLE_NAMES)) expect(de[name], name).toBeTruthy();
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

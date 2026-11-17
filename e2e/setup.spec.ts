@@ -44,6 +44,7 @@ test.describe('setup', () => {
     await expect(step(page, 'stop').locator('li[data-state="waiting"]')).toContainText('STOP button on top');
     await press(page, 'STOP');
     await expect(step(page, 'stop').locator('li[data-state="ok"]')).toContainText('STOP button on top');
+    await expect(step(page, 'stop').locator('[data-line="stop1"]')).toContainText('Held until released');
     await expect(step(page, 'stop').getByRole('alert')).toContainText('The emergency stop is still on.');
     await step(page, 'stop').getByRole('button', {name: 'Reset emergency'}).click();
     await expect(step(page, 'stop').getByRole('alert')).toHaveCount(0);

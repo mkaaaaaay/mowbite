@@ -13,6 +13,7 @@ import {SkipSheet} from './SkipSheet';
 import {StateMark} from './StateMark';
 import {StepFigure} from './StepFigure';
 import {StepInputs} from './StepInputs';
+import {StepLines} from './StepLines';
 import {StepParts} from './StepParts';
 import {StepValues} from './StepValues';
 import styles from './SetupStep.module.css';
@@ -48,6 +49,8 @@ export function SetupStep(props: {
   const r = step.result;
   const canStart = step.start && !running && step.state !== 'locked';
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
+  const advanced = step.inputs.filter((i) => i.advanced);
+  const ask = step.ask;
   return (
     <section className={styles.step} data-state={step.state} data-step={step.id} aria-labelledby={`step-${step.id}`}>
       <div className={styles.bar}>
@@ -88,14 +91,29 @@ export function SetupStep(props: {
             </div>
           )}
           <StepParts parts={step.parts} lang={lang} />
+          <StepLines lines={step.lines} />
           <StepValues values={step.values} lang={lang} />
+          {ask && (
+            <p className={styles.note} data-ask={ask.line}>
+              {tr(ask.active_high ? '{part}: seen on line {line}, it switches high' : '{part}: seen on line {line}, it switches low', {
+                part: nameById(step.parts, ask.part, lang),
+                line: ask.line,
+              })}
+            </p>
+          )}
           <StepInputs
             key={running ? 'ask' : 'all'}
-            inputs={running ? step.inputs.filter((i) => i.ask) : step.state === 'locked' ? [] : step.inputs}
+            inputs={running ? step.inputs.filter((i) => i.ask) : step.state === 'locked' ? [] : step.inputs.filter((i) => !i.advanced)}
             lang={lang}
             busy={busy}
             onAnswer={(values) => act.answer(step.id, values)}
           />
+          {step.state === 'ok' && advanced.length > 0 && (
+            <details className={styles.advanced}>
+              <summary>{tr('Advanced')}</summary>
+              <StepInputs key="advanced" inputs={advanced} lang={lang} busy={busy} onAnswer={(values) => act.answer(step.id, values)} />
+            </details>
+          )}
           {r?.skip && (
             <p className={styles.note} data-result="skipped">
               {tr('Skipped: {why}', {why: nameById(step.skip_reasons, r.skip, lang)})}
