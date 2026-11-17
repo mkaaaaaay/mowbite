@@ -105,7 +105,7 @@
   margin: 0;
   padding: 12px 14px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
   font-size: 13.5px;
   line-height: 1.45;
 }
@@ -115,13 +115,13 @@
 }
 
 .note[data-tone='warn'] {
-  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  background: var(--tint-warn);
   color: var(--soft-warn);
 }
 
 .reason,
 .note[data-tone='bad'] {
-  background: color-mix(in srgb, var(--error) 13%, transparent);
+  background: var(--tint-bad);
   color: var(--soft-bad);
 }
 

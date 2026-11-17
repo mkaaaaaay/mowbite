@@ -27,7 +27,7 @@
   width: 40px;
   height: 5px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  background: var(--track);
 }
 
 .head {
@@ -70,12 +70,12 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: var(--radius-m);
-  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  background: var(--tint-warn);
   color: var(--soft-warn);
 }
 
 .move[data-still] {
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
   color: var(--text-secondary);
 }
 
@@ -102,12 +102,12 @@
   padding: 8px 14px;
   border-radius: 14px;
   border: 2px solid transparent;
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
 }
 
 .choice:has(input:checked) {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: var(--tint-accent);
 }
 
 .check input,
