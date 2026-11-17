@@ -603,11 +603,11 @@ leftovers_after() {
   if send_start; then
     began=$(date +%s)
     echo "$began" > "$LEFT"
-    log leftovers_started "$left"
-    check_started &
     # home at the run's end time or at sunset, like a run of the schedule
     end=$(stop_time - 1 - "$stop")
     run_begin "$began" "${end% *}" "${end#* }" all
+    log leftovers_started "$left"
+    check_started &
     # shellcheck disable=SC2086
     [ -n "$end" ] && send_home_at $end "$began" &
   else
