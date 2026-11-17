@@ -394,9 +394,10 @@ sent keepos | grep -q 'params.set' && bad "params: not on MowBite OS, it keeps t
 
 # --- the leftovers after a finished mow ---
 
-# a time zone where it's about noon now: no dark in the way (6 am to 6 pm without a position)
+# a time zone where it's about noon now, posix (the image has no zone files): no dark in the way (6 am to 6 pm without
+# a position)
 o=$((12 - 10#$(date -u +%H)))
-if [ "$o" -gt 0 ]; then noon=Etc/GMT-$o; elif [ "$o" -lt 0 ]; then noon=Etc/GMT+$((-o)); else noon=Etc/UTC; fi
+if [ "$o" -ge 0 ]; then noon="NOON-$o"; else noon="NOON+$((-o))"; fi
 LEFT_SET='{"leftovers":{"auto":true,"min":0.5}}'
 LEFT_ANSWER='{"jsonrpc":"2.0","result":{"areas":[{"stats":{"leftovers":{"left_m2":2.5}}}],"armed":3},"id":"@ID@"}'
 start leftfull "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
