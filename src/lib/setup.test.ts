@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {describe, expect, it} from 'vitest';
 import {DEMO_IMAGES} from './demo/setup';
 import {derivedParts, robotShape, shapePath, words} from './setup';
+import {TRON_SHAPE} from './tronShape';
 
 describe('the setup program', () => {
   it('says each word in the language shown, a missing one in english', () => {
@@ -20,6 +21,7 @@ describe('the setup program', () => {
     expect(robotShape(Array.from({length: 33}, (_, i) => part(`p${i}`)))).toBeNull();
     expect(robotShape(Array.from({length: 6}, (_, i) => part(`p${i}`, 170)))).toBeNull();
     expect(robotShape([{...part('a'), points: [[0, 0], [0, NaN]]}])).toBeNull();
+    expect(robotShape(TRON_SHAPE)).toEqual(TRON_SHAPE);
   });
 
   it('draws from above with the front up', () => {

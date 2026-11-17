@@ -1,6 +1,8 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {containsPoint} from './geometry';
+import {derivedParts} from './setup';
+import {TRON_SHAPE, TRON_WHEELS} from './tronShape';
 import {cmMetres} from './i18n';
 import {
   autoOutlineModel,
@@ -435,7 +437,7 @@ describe('real outline', () => {
   it('finds the model of an outline grown for the planner', () => {
     for (const m of MOWER_MODELS.filter((x) => x.outline)) {
       const g = grownOutline(m.outline!, OUTLINE_LEEWAY);
-      expect(Math.max(...g.map(([a]) => a))).toBeCloseTo(m.sizes.front + OUTLINE_LEEWAY, 2);
+      expect(Math.max(...g.map(([a]) => a))).toBeCloseTo(Math.max(...m.outline!.map(([a]) => a)) + OUTLINE_LEEWAY, 2);
       expect(Math.min(...g.map(([a]) => a))).toBeCloseTo(-m.sizes.rear - OUTLINE_LEEWAY, 2);
       expect(measuredOutline(g)).toEqual(m.outline);
     }
@@ -485,7 +487,8 @@ describe('real outline', () => {
     for (const m of MOWER_MODELS.filter((x) => x.outline)) {
       const xs = m.outline!.map(([a]) => a);
       const ys = m.outline!.map(([, l]) => Math.abs(l));
-      expect(Math.max(...xs)).toBeCloseTo(m.sizes.front, 3);
+      // the Tron's bar reaches 3 mm past the front of its sizes, its outline 5 mm
+      expect(Math.max(...xs)).toBeCloseTo(m.sizes.front + (m.key === 'airseekers-tron' ? 0.005 : 0), 3);
       expect(Math.min(...xs)).toBeCloseTo(-m.sizes.rear, 3);
       expect(Math.max(...ys)).toBeLessThanOrEqual(m.sizes.width / 2 + 0.001);
       expect(modelOf({...m.sizes, outline: m.outline})).toBe(m.key);
@@ -532,12 +535,23 @@ describe('mower models', () => {
     expect(modelOf(undefined)).toBeNull();
   });
 
-  it("gives the Tron its outline measured on the mower, reaching the rectangle's sides, front and back", () => {
+  it("gives the Tron its outline measured on the mower, reaching the rectangle's sides and back, its bar 5 mm past the front", () => {
     const tron = MOWER_MODELS.find((m) => m.key === 'airseekers-tron')!;
     expect(autoOutlineModel(tron.sizes)).toBe(tron);
     const xs = tron.outline!.map(([x]) => x);
     const ys = tron.outline!.map(([, y]) => y);
-    expect([Math.max(...xs), -Math.min(...xs), Math.max(...ys) - Math.min(...ys)]).toEqual([tron.sizes.front, tron.sizes.rear, tron.sizes.width]);
+    expect([Math.max(...xs), -Math.min(...xs), Math.max(...ys) - Math.min(...ys)]).toEqual([tron.sizes.front + 0.005, tron.sizes.rear, tron.sizes.width]);
+  });
+
+  it("covers every part of the Tron's shape and its drive wheels with the Tron's outline", () => {
+    const tron = MOWER_MODELS.find((m) => m.key === 'airseekers-tron')!;
+    // to half a millimetre: the hubs reach the outline's sides
+    const around = grownOutline(tron.outline!, 0.0005).map(([x, y]) => ({x, y}));
+    const {wheel_left, wheel_right} = derivedParts({settings: Object.fromEntries(Object.entries(TRON_WHEELS).map(([k, value]) => [k, {value}]))});
+    const out = [...TRON_SHAPE, {id: 'wheel_left', points: wheel_left}, {id: 'wheel_right', points: wheel_right}].flatMap((p) =>
+      p.points.filter(([x, y]) => !containsPoint(around, x, y)).map((q) => [p.id, ...q]),
+    );
+    expect(out).toEqual([]);
   });
 });
 

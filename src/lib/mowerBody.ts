@@ -581,9 +581,9 @@ export const MOWER_MODELS: {
     sizes: {width: 0.47, front: 0.6, rear: 0.12, blade: 0.281, bladeAhead: 0.23, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
-    // measured on the mower by its owner (15.11.), as in tron.yaml: the bar in front, widest from 7 cm behind it to the back.
-    // only for OpenMower, MowBite OS has its own (robot.geometry)
-    outline: [[0.6, 0.14], [0.53, 0.235], [-0.12, 0.235], [-0.12, -0.235], [0.53, -0.235], [0.6, -0.14]],
+    // as robot_outline of MowBite OS (measured on the mower, 16.11.): 4 to 5 mm outside the bar in front, which reaches 3 mm past
+    // the front above, widest from its tips to the back. only for OpenMower, MowBite OS has its own (robot.geometry)
+    outline: [[0.605, 0.15], [0.54, 0.235], [-0.12, 0.235], [-0.12, -0.235], [0.54, -0.235], [0.605, -0.15]],
     outlineOnMower: true,
   },
 ];

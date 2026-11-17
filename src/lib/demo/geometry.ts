@@ -1,11 +1,13 @@
 import type {Geometry} from '../mowerBody';
 import {RPC} from '../openmower';
+import type {ShapePart} from '../setup';
+import {TRON_SHAPE, TRON_WHEELS} from '../tronShape';
 
 // The sizes of a mower with MowBite OS for the click tests (robot.geometry.*), like mowbite_logic answers them, with the
 // Tron's platform values. The demo is an OpenMower and keeps none, a test switches them on before the page loads
 // (window.mowbiteDemoGeometry)
 
-type Key = {value: number | number[][]; min?: number; max?: number; settable?: boolean};
+type Key = {value: number | number[][] | ShapePart[]; min?: number; max?: number; settable?: boolean};
 const PLATFORM: Record<string, Key> = {
   robot_width: {value: 0.47, min: 0.1, max: 1.5},
   robot_front: {value: 0.6, min: 0, max: 1.5},
@@ -16,9 +18,10 @@ const PLATFORM: Record<string, Key> = {
   blade_offset: {value: 0, min: -0.75, max: 0.75},
   antenna_x: {value: 0, min: -0.6, max: 0.6},
   antenna_y: {value: 0, min: -0.3, max: 0.3},
-  track: {value: 0.395, min: 0.15, max: 0.8},
-  wheel_radius: {value: 0.1125, min: 0.02, max: 0.5, settable: false},
-  wheel_width: {value: 0.055, min: 0.01, max: 0.3, settable: false},
+  track: {value: TRON_WHEELS.track, min: 0.15, max: 0.8},
+  wheel_radius: {value: TRON_WHEELS.wheel_radius, min: 0.02, max: 0.5, settable: false},
+  wheel_width: {value: TRON_WHEELS.wheel_width, min: 0.01, max: 0.3, settable: false},
+  robot_shape: {value: TRON_SHAPE, settable: false},
   // made up, the Tron's file has none yet: a station the mower drives onto forwards, under its front
   dock_footprint: {value: [[0.95, 0.28], [0.3, 0.28], [0.3, -0.28], [0.95, -0.28]], settable: false},
 };
@@ -41,7 +44,7 @@ export function demoGeometry(): Record<string, (params: unknown) => unknown> {
           value: k in entries ? entries[k] : p.value,
           default: p.value,
           stored: k in entries,
-          type: Array.isArray(p.value) ? 'points' : 'number',
+          type: k === 'robot_shape' ? 'shape' : Array.isArray(p.value) ? 'points' : 'number',
           unit: 'm',
           ...(p.min !== undefined && {min: p.min, max: p.max}),
           settable: p.settable !== false,
