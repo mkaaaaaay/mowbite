@@ -1383,6 +1383,8 @@ const de: Record<string, string> = {
   "MowBite OS doesn't send push messages yet.": "MowBite OS schickt noch keine Push-Nachrichten.",
   "The topic may only hold letters, digits, - and _.": "Das Topic darf nur Buchstaben, Ziffern, - und _ enthalten.",
   "The server needs to be an address starting with http:// or https://.": "Der Server muss eine Adresse sein, die mit http:// oder https:// beginnt.",
+  "The token may only hold letters, digits and . _ - ~ + / =.": "Das Token darf nur Buchstaben, Ziffern und . _ - ~ + / = enthalten.",
+  "The mower didn't take the setting {key}, nothing was saved.": "Der Mäher hat die Einstellung {key} nicht angenommen, nichts wurde gespeichert.",
   "Saved. Send a test to see it arrives.": "Gespeichert. Schick einen Test, um zu sehen, ob er ankommt.",
   "Saved. No topic, no messages.": "Gespeichert. Ohne Topic gibt es keine Nachrichten.",
   "Sent. It should be on the phone in a moment.": "Gesendet. Gleich sollte sie auf dem Handy sein.",

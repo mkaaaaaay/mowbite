@@ -281,11 +281,13 @@ own_start() {
   t=$(cat "$OWN" 2>/dev/null)
   [ -n "$t" ] && [ $(($(date +%s) - t)) -le 10 ]
 }
-# false when the broker didn't take it
+# false when the broker didn't take it. the listener goes once the answer is there
 send_start() {
-  rm -f "$ANSWER"
-  timeout 600 mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" 2>/dev/null |
-    grep -m1 -e MOWING_REFUSED -e '"UNDOCKING_FAILED"' -e '"UNDOCKED"' > "$ANSWER" &
+  rm -f "$ANSWER" "$ANSWER.fifo"
+  mkfifo "$ANSWER.fifo"
+  timeout 600 mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" > "$ANSWER.fifo" 2>/dev/null &
+  listener=$!
+  { grep -m1 -e MOWING_REFUSED -e '"UNDOCKING_FAILED"' -e '"UNDOCKED"' < "$ANSWER.fifo" > "$ANSWER"; kill "$listener" 2>/dev/null; } &
   sleep 1
   date +%s > "$OWN"
   mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"

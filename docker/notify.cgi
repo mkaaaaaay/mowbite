@@ -107,9 +107,20 @@ POST*)
     printf 'Content-Type: text/plain\r\n\r\ntoo large\n'
     exit 0
   fi
+  # a known setting that doesn't fit turns the save down, an unknown one is left out (from a newer app).
+  # the token goes into wget's header (a bearer token: RFC 6750), the url into json and links (an IPv6 host in brackets)
+  fit='^(server https?://[A-Za-z0-9.:/_-]{1,200}|topic [A-Za-z0-9_-]{1,64}|token [A-Za-z0-9._~+/=-]{1,200}|lang (de|en)|name [^"\\]{1,160}|url https?://[][A-Za-z0-9.:/_~%-]{1,200}|events (-|[a-z_]{1,20}(,[a-z_]{1,20}){0,15})|remind [0-9]{1,3}|emergency_wait [0-9]{1,3}|enabled [01])$'
+  raw=$(head -c "$len" | tr -d '\r')
+  bad=$(printf '%s\n' "$raw" | grep -E '^(server|topic|token|lang|name|url|events|remind|emergency_wait|enabled) ' | grep -vE "$fit" | head -n1)
+  if [ -n "$bad" ]; then
+    printf 'Status: 400 Bad Request\r\n'
+    cors
+    printf 'Content-Type: text/plain\r\n\r\nbad %s\n' "${bad%% *}"
+    exit 0
+  fi
   lock
   old=$(conf token)
-  body=$(head -c "$len" | tr -d '\r' | grep -E '^(server https?://[A-Za-z0-9.:/_-]{1,200}|topic [A-Za-z0-9_-]{1,64}|token [A-Za-z0-9_-]{1,200}|lang (de|en)|name [^"\\]{1,160}|url https?://[A-Za-z0-9.:/_-]{1,200}|events (-|[a-z_]{1,20}(,[a-z_]{1,20}){0,15})|remind [0-9]{1,3}|emergency_wait [0-9]{1,3}|enabled [01])$')
+  body=$(printf '%s\n' "$raw" | grep -E "$fit")
   new=$(printf '%s\n' "$body" | sed -n 's/^token //p' | head -n1)
   {
     printf '%s\n' "$body" | grep -v '^token '

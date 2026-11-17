@@ -291,6 +291,7 @@ expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start
 logs "scheduler: a failed start after the third one" retries '^start_failed undock path_failed( at=[0-9:]+)?$' 60
 sleep 5
 expect "scheduler: three starts, not more" "$(sent retries | grep -c 'start_mowing$') $(slog retries | grep -c '^start_retry')" "3 2"
+expect "scheduler: no one left listening for the answers" "$(docker exec mbt-retries sh -c 'ps -o args | grep -c "^timeout 600"')" 0
 logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed 1( at=[0-9:]+)?$'
 logs "scheduler: not started again with the emergency stop" retrystop '^retry_skip emergency( at=[0-9:]+)?$' 40
 expect "scheduler: and the mower got one start" "$(sent retrystop | grep -c 'start_mowing$')" 1
@@ -625,6 +626,15 @@ grep -q secret <<< "$got" && bad "notify: the token isn't handed out" "$got" || 
 grep -q '^token set$' <<< "$got" && ok "notify: it says there is one" || bad "notify: it says there is one" "$got"
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\nenabled 1' "$N"
 expect "notify: a save without the token keeps it" "$(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" secret-token-1
+expect "notify: a token that doesn't fit is turned down, the saved one stays" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\ntoken a b' "$N" | tr -d '\n') $(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" \
+  'bad token 400 secret-token-1'
+curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken tk_a.b~c+d/e=\nurl http://[fd12::1]:8082\nnew_thing 1' "$N"
+expect "notify: a bearer token, an IPv6 address and a setting it doesn't know (left out)" \
+  "$(docker exec mbt-web sh -c 'sed -n "s/^token //p; s/^url //p" /data/notify.conf; grep -c new_thing /data/notify.conf')" \
+  $'http://[fd12::1]:8082\ntk_a.b~c+d/e=\n0'
+expect "notify: an address with a query is turned down" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\nurl http://mower:8082/?a=1' "$N" | tr -d '\n')" 'bad url 400'
 curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken -' "$N"
 expect "notify: token - drops it" "$(docker exec mbt-web grep -c '^token' /data/notify.conf)" 0
 docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/notify.conf'
@@ -635,6 +645,17 @@ docker exec mbt-web sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\nclean 2
   printf "blade 0\nclean 0\n" > /data/stats/reminded'
 expect "stats: a part given other hours is told about again once due by them" \
   "$(code -X POST "$W/stats?due=blade&h=100") $(docker exec mbt-web cat /data/stats/reminded)" "200 clean 0"
+
+# the recorder's broker gone: what came since its last save is kept, its sampler ends with its sleep
+for _ in $(seq 20); do docker exec mbt-web test -s /data/sensors.tsv && break; sleep 1; done
+# (the first may be saved right away, the next within a minute only at the end)
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_first/data -m 1
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_test/data -m 1.5
+sleep 1
+docker exec mbt-web pkill -f '^mosquitto_sub -h [^ ]* -p [0-9]* -t web/sensors/'
+for _ in $(seq 5); do docker exec mbt-web grep -q '^mbt_test' /data/sensors.tsv && break; sleep 1; done
+expect "recorder: the last values kept when the broker goes" "$(docker exec mbt-web grep -c '^mbt_test' /data/sensors.tsv)" 1
+expect "recorder: no sleep of its sampler left" "$(docker exec mbt-web sh -c 'ps -o ppid,args | awk "\$1 == 1 && \$2 == \"sleep\" && \$3 == 60"' | wc -l)" 0
 
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"

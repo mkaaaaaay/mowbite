@@ -10,14 +10,20 @@ while :; do
     # shellcheck disable=SC2086
     # the machine's own values (system.sh) go in as sensors too, once a minute
     {
-      while :; do
-        /system.sh | awk -v t="$(date +%s)" '
-          $1 == "mem_total" { mt = $2 } $1 == "mem_available" { ma = $2 } $1 == "disk_free" { print t, "sensors/sys_disk_free/data", $2 / 1e9 }
-          $1 == "cpu_temp" { print t, "sensors/sys_cpu_temp/data", $2 } $1 == "load" { print t, "sensors/sys_load/data", $2 }
-          $1 == "wifi_signal" { print t, "sensors/sys_wifi/data", $2 }
-          END { if (mt) print t, "sensors/sys_mem/data", (mt - ma) / mt * 100 }'
-        sleep 60
-      done &
+      # killed it ends its sleep too, that would keep the pipe open
+      {
+        trap 'kill $s 2>/dev/null; exit 0' TERM
+        while :; do
+          /system.sh | awk -v t="$(date +%s)" '
+            $1 == "mem_total" { mt = $2 } $1 == "mem_available" { ma = $2 } $1 == "disk_free" { print t, "sensors/sys_disk_free/data", $2 / 1e9 }
+            $1 == "cpu_temp" { print t, "sensors/sys_cpu_temp/data", $2 } $1 == "load" { print t, "sensors/sys_load/data", $2 }
+            $1 == "wifi_signal" { print t, "sensors/sys_wifi/data", $2 }
+            END { if (mt) print t, "sensors/sys_mem/data", (mt - ma) / mt * 100 }'
+          sleep 60 &
+          s=$!
+          wait $s
+        done
+      } &
       sampler=$!
       mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_DATA" -F '%U %t %p'
       kill "$sampler" 2>/dev/null

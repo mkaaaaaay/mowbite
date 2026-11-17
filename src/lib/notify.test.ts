@@ -1,9 +1,9 @@
 import {spawn, spawnSync} from 'node:child_process';
-import {mkdtempSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it, vi} from 'vitest';
-import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validTopic, withMowerUrl, type OsNotify} from './notify';
+import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validToken, validTopic, withMowerUrl, type OsNotify} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
@@ -88,6 +88,10 @@ describe('push message settings', () => {
     expect(validTopic('my topic')).toBe(false);
     expect(validServer('https://ntfy.sh')).toBe(true);
     expect(validServer('ntfy.sh')).toBe(false);
+    expect(validToken('tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2')).toBe(true);
+    expect(validToken('a.b-c~d+e/f==')).toBe(true);
+    expect(validToken('two words')).toBe(false);
+    expect(validToken('a"b')).toBe(false);
   });
 });
 
@@ -247,6 +251,21 @@ describe('what the container sends', {timeout: 30_000}, () => {
     await closed;
     const messages = out.split('\n').filter((l) => l.startsWith('ntfy ')).map((l) => JSON.parse(l.slice(5)).message);
     expect(messages).toEqual(['Steve has mowed 83 h since the blades were last changed.', 'Steve has mowed 111 h since the blades were last changed.']);
+  });
+
+  it("keeps a part stats.cgi dropped while it waited for the lock to mark one told", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'notify-'));
+    writeFileSync(join(dir, 'conf'), conf.replace('spinup', 'spinup,maintenance'));
+    writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
+    writeFileSync(join(dir, 'reminded'), 'clean 0\n');
+    // stats.cgi holding the lock while it drops clean
+    const cgi = spawn('flock', ['/tmp/stats.lock', 'sh', '-c', 'touch "$1.held"; sleep 1; : > "$1"', '-', join(dir, 'reminded')]);
+    const done = new Promise((ok) => cgi.on('close', ok));
+    await vi.waitFor(() => expect(existsSync(join(dir, 'reminded.held'))).toBe(true));
+    spawnSync('sh', AWK_SH, {input: state(1000, 0), env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: '', STATS: dir}});
+    await done;
+    expect(readFileSync(join(dir, 'reminded'), 'utf8')).toBe('blade 0\n');
   });
 
   it('tells once when it stands still for ten minutes and is not charging, until it moves or charges again', () => {
