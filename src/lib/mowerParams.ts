@@ -117,7 +117,7 @@ export const PARAM_FIELDS: ParamField[] = [
     label: 'Keep a photo of each',
     help: 'With each new entry a photo of the whole camera picture, kept on the mower only. It can show people.',
     type: 'bool',
-    def: false,
+    def: true,
     reported: true,
   },
 ];

@@ -595,6 +595,15 @@
           "$ref": "#/$defs/event.CAMERA_CHANGED"
         },
         {
+          "$ref": "#/$defs/event.OBSTACLE_SEEN"
+        },
+        {
+          "$ref": "#/$defs/event.OBSTACLES_CLEARED"
+        },
+        {
+          "$ref": "#/$defs/event.OBSTACLE_SIGHT"
+        },
+        {
           "$ref": "#/$defs/event.METHODS_CHANGED"
         },
         {
@@ -4784,6 +4793,222 @@
       "type": "object",
       "x-emitter": "logic"
     },
+    "event.OBSTACLES_CLEARED": {
+      "additionalProperties": false,
+      "description": "vision.obstacles.clear removed one entry or all",
+      "properties": {
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "obstacle_id": {
+          "description": "The entry, null for all",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "OBSTACLES_CLEARED",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "obstacle_id",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "obstacles"
+    },
+    "event.OBSTACLE_SEEN": {
+      "additionalProperties": false,
+      "description": "A new entry in vision.obstacles.list; once per entry, after its photo or without one when none came. Shown only while obstacle_mode is show or more",
+      "properties": {
+        "action": {
+          "description": "What the mower did",
+          "enum": [
+            "seen",
+            "slowed",
+            "stopped",
+            "avoided"
+          ],
+          "type": "string"
+        },
+        "camera_id": {
+          "description": "The sensor that saw it",
+          "type": "string"
+        },
+        "class": {
+          "description": "As the model names it, empty for UNKNOWN",
+          "type": "string"
+        },
+        "confidence": {
+          "description": "Score of the model, 0 to 1",
+          "type": "number"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "image": {
+          "description": "It has a photo",
+          "type": "boolean"
+        },
+        "kind": {
+          "description": "What it is",
+          "enum": [
+            "PERSON",
+            "ANIMAL",
+            "OBJECT",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
+        "obstacle_id": {
+          "description": "Its id in vision.obstacles.list",
+          "type": "integer"
+        },
+        "r": {
+          "description": "Radius on the ground",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "OBSTACLE_SEEN",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Middle in the map frame",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Middle in the map frame",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "obstacle_id",
+        "kind",
+        "action",
+        "image",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "obstacles"
+    },
+    "event.OBSTACLE_SIGHT": {
+      "additionalProperties": false,
+      "description": "The obstacle sensors see again, or no longer and why, after 2 s in the new state; only while obstacle_mode is show or more",
+      "properties": {
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "ok": {
+          "description": "All of them see",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "Why not, only without ok (x-reasons)",
+          "enum": [
+            "NOT_SET_UP",
+            "TOO_DARK",
+            "TOO_BRIGHT",
+            "COVERED",
+            "NO_SIGNAL",
+            "TOO_HOT",
+            "SELF_TEST",
+            "LOCKED_AFTER_CRASH"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "The sensor without sight, only without ok",
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "OBSTACLE_SIGHT",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "ok",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "obstacles"
+    },
     "event.POSITION_JUMP": {
       "additionalProperties": false,
       "description": "The position jumped back onto GPS",
@@ -6220,6 +6445,9 @@
               "MAP_DATUM",
               "CORRECTIONS",
               "CAMERA_CHANGED",
+              "OBSTACLE_SEEN",
+              "OBSTACLES_CLEARED",
+              "OBSTACLE_SIGHT",
               "METHODS_CHANGED",
               "SETUP_STEP",
               "SETUP"
@@ -15692,13 +15920,367 @@
         "last"
       ],
       "type": "object"
+    },
+    "vision.obstacles.clear.params": {
+      "additionalProperties": false,
+      "description": "The params of vision.obstacles.clear: Which",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "The entry; all without",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "vision.obstacles.clear.result": {
+      "additionalProperties": false,
+      "description": "The result of vision.obstacles.clear: What went",
+      "properties": {
+        "removed": {
+          "description": "Entries removed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "removed"
+      ],
+      "type": "object"
+    },
+    "vision.obstacles.image.params": {
+      "additionalProperties": false,
+      "description": "The params of vision.obstacles.image: The piece",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "name": {
+          "description": "image.name of an entry",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Where the piece begins, 0 without",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "size": {
+          "description": "Its size at most, the most without",
+          "maximum": 65536.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "B"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "vision.obstacles.image.result": {
+      "additionalProperties": false,
+      "description": "The result of vision.obstacles.image: The piece",
+      "properties": {
+        "data": {
+          "description": "The piece in base64, empty at the end",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Where the piece begins",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "sha256": {
+          "description": "sha256 of the whole photo",
+          "type": "string"
+        },
+        "size": {
+          "description": "Size of the whole photo",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "type": {
+          "description": "Always image/jpeg",
+          "enum": [
+            "image/jpeg"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "data",
+        "sha256",
+        "type"
+      ],
+      "type": "object"
+    },
+    "vision.obstacles.list.params": {
+      "additionalProperties": false,
+      "description": "The params of vision.obstacles.list: Which",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "since": {
+          "description": "Only the entries last seen after this unix time; all without",
+          "type": "number",
+          "x-unit": "s"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "vision.obstacles.list.result": {
+      "additionalProperties": false,
+      "description": "The result of vision.obstacles.list: The list",
+      "properties": {
+        "limit": {
+          "additionalProperties": false,
+          "description": "What the mower keeps",
+          "properties": {
+            "bytes": {
+              "description": "Bytes with the photos at most",
+              "type": "integer"
+            },
+            "days": {
+              "description": "Days since last seen at most",
+              "type": "number",
+              "x-unit": "d"
+            },
+            "entries": {
+              "description": "Entries at most",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "entries",
+            "bytes",
+            "days"
+          ],
+          "type": "object"
+        },
+        "mode": {
+          "description": "obstacle_mode now",
+          "enum": [
+            "off",
+            "show",
+            "stop",
+            "avoid"
+          ],
+          "type": "string"
+        },
+        "obstacles": {
+          "description": "The obstacles seen, last seen first",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "action": {
+                "description": "What the mower did",
+                "enum": [
+                  "seen",
+                  "slowed",
+                  "stopped",
+                  "avoided"
+                ],
+                "type": "string"
+              },
+              "camera_id": {
+                "description": "The sensor that saw it, an id of camera.list for a camera",
+                "type": "string"
+              },
+              "class": {
+                "description": "As the model of the platform names it, for the app only; empty for UNKNOWN",
+                "type": "string"
+              },
+              "confidence": {
+                "description": "Best score of the model, 0 to 1; 1 for UNKNOWN",
+                "type": "number"
+              },
+              "count": {
+                "description": "How often it was seen anew",
+                "type": "integer"
+              },
+              "id": {
+                "description": "Its id, stable while it is in the list",
+                "type": "integer"
+              },
+              "image": {
+                "additionalProperties": false,
+                "description": "Its photo, null without one",
+                "properties": {
+                  "box": {
+                    "additionalProperties": false,
+                    "description": "Where it is in the photo, pixels from the top left",
+                    "properties": {
+                      "h": {
+                        "description": "Height",
+                        "type": "number",
+                        "x-unit": "px"
+                      },
+                      "w": {
+                        "description": "Width",
+                        "type": "number",
+                        "x-unit": "px"
+                      },
+                      "x": {
+                        "description": "Left edge",
+                        "type": "number",
+                        "x-unit": "px"
+                      },
+                      "y": {
+                        "description": "Upper edge",
+                        "type": "number",
+                        "x-unit": "px"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "w",
+                      "h"
+                    ],
+                    "type": "object"
+                  },
+                  "bytes": {
+                    "description": "Size of the JPEG",
+                    "type": "integer"
+                  },
+                  "height": {
+                    "description": "Height in pixels",
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "For vision.obstacles.image; stays while the entry stays",
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "description": "sha256 of the JPEG",
+                    "type": "string"
+                  },
+                  "width": {
+                    "description": "Width in pixels",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "name",
+                  "sha256",
+                  "bytes",
+                  "width",
+                  "height",
+                  "box"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "kind": {
+                "description": "What it is",
+                "enum": [
+                  "PERSON",
+                  "ANIMAL",
+                  "OBJECT",
+                  "UNKNOWN"
+                ],
+                "type": "string"
+              },
+              "last_t": {
+                "description": "When it was last seen",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "r": {
+                "description": "Radius on the ground",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "t": {
+                "description": "When it was first seen",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "x": {
+                "description": "Middle in the map frame",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "y": {
+                "description": "Middle in the map frame",
+                "type": "number",
+                "x-unit": "m"
+              }
+            },
+            "required": [
+              "id",
+              "t",
+              "last_t",
+              "count",
+              "x",
+              "y",
+              "r",
+              "kind",
+              "class",
+              "confidence",
+              "camera_id",
+              "action",
+              "image"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "photos": {
+          "description": "obstacle_photos now: whether new entries get a photo",
+          "type": "boolean"
+        },
+        "sight": {
+          "additionalProperties": false,
+          "description": "Whether the sensors see now",
+          "properties": {
+            "ok": {
+              "description": "All of them see",
+              "type": "boolean"
+            },
+            "reason": {
+              "description": "Why not, null with ok: a reason of OBSTACLE_SIGHT in x-reasons",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "ok",
+            "reason"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "mode",
+        "photos",
+        "sight",
+        "limit",
+        "obstacles"
+      ],
+      "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:49",
+  "$id": "urn:mowbite-os:api:50",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 49,
+  "x-api": 50,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -16992,6 +17574,27 @@
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.status.params",
       "result": "#/$defs/update.status.result"
+    },
+    "vision.obstacles.clear": {
+      "description": "Removes an entry with its photo, or all without id; OBSTACLES_CLEARED tells the other clients. -32602 for an id the list does not have",
+      "node": "mowbite_obstacles",
+      "offered": "where the platform has an obstacle sensor (obstacle_sources of hw/capabilities)",
+      "params": "#/$defs/vision.obstacles.clear.params",
+      "result": "#/$defs/vision.obstacles.clear.result"
+    },
+    "vision.obstacles.image": {
+      "description": "The photo of an entry in pieces of at most 65536 bytes; -32602 for a name the list does not have",
+      "node": "mowbite_obstacles",
+      "offered": "where the platform has an obstacle sensor (obstacle_sources of hw/capabilities)",
+      "params": "#/$defs/vision.obstacles.image.params",
+      "result": "#/$defs/vision.obstacles.image.result"
+    },
+    "vision.obstacles.list": {
+      "description": "The obstacles the sensors of the mower saw, kept on the mower only: at most limit.entries, limit.bytes with the photos and limit.days since last seen, the least recently seen go first. Things of one place (objects within 0.5 m) or of one kind within 30 s are one entry; OBSTACLE_SEEN tells of a new one",
+      "node": "mowbite_obstacles",
+      "offered": "where the platform has an obstacle sensor (obstacle_sources of hw/capabilities)",
+      "params": "#/$defs/vision.obstacles.list.params",
+      "result": "#/$defs/vision.obstacles.list.result"
     }
   },
   "x-owner": "mowbite-os",
@@ -18910,6 +19513,116 @@
             "fix": "Restart the mower. If it stays, the storage is full or broken: keep the log for a report.",
             "help": "The storage of the mower cannot be written. Starting is blocked until writing works again.",
             "name": "Storage not writable"
+          }
+        }
+      }
+    },
+    "OBSTACLE_SIGHT": {
+      "COVERED": {
+        "description": "The lens of the sensor is covered or dirty",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "LOCKED_AFTER_CRASH": {
+        "description": "The camera stays off after a kernel crash while it ran, until its lock on the mower is removed",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Das Protokoll für eine Meldung sichern. Die Sperre nur nach der Anleitung löschen.",
+            "help": "Das Betriebssystem des Mähers ist abgestürzt, während diese Kamera lief. Sie bleibt aus, bis die Sperre auf dem Mäher gelöscht ist.",
+            "name": "Kamera gesperrt"
+          },
+          "en": {
+            "fix": "Keep the log for a report. Delete the lock only as the guide says.",
+            "help": "The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.",
+            "name": "Camera locked"
+          }
+        }
+      },
+      "NOT_SET_UP": {
+        "description": "Something the camera needs is not set up on the mower: a model, an encoder or the stream server",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Kamera nach der Anleitung einrichten.",
+            "help": "Auf dem Mäher fehlt etwas, das diese Kamera braucht, zum Beispiel ein Modell oder der Dienst für das Livebild.",
+            "name": "Kamera nicht eingerichtet"
+          },
+          "en": {
+            "fix": "Set the camera up as the guide says.",
+            "help": "Something this camera needs is missing on the mower, for example a model or the service for the live picture.",
+            "name": "Camera not set up"
+          }
+        }
+      },
+      "NO_SIGNAL": {
+        "description": "The camera gives no picture, or its process ended",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Die Kamera liefert gerade kein Bild.",
+            "name": "Kein Bild"
+          },
+          "en": {
+            "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+            "help": "The camera gives no picture right now.",
+            "name": "No picture"
+          }
+        }
+      },
+      "SELF_TEST": {
+        "description": "The test of the camera after the start is pending or running; it passes on its own",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis der Test durch ist.",
+            "help": "Die Kamera prüft sich nach dem Start einmal selbst. Das geht nur, wenn der Mäher steht und das Messer aus ist.",
+            "name": "Selbsttest"
+          },
+          "en": {
+            "fix": "Wait until the test is done.",
+            "help": "The camera tests itself once after the start. That only works while the mower stands with the blade off.",
+            "name": "Self-test"
+          }
+        }
+      },
+      "TOO_BRIGHT": {
+        "description": "The image of the sensor is too bright: glare, a low sun",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "TOO_DARK": {
+        "description": "The image of the sensor is too dark to see",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "TOO_HOT": {
+        "description": "The computer of the mower is too hot, the camera pauses",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis er abgekühlt ist.",
+            "help": "Der Rechner des Mähers ist zu warm, die Kamera macht eine Pause.",
+            "name": "Zu warm"
+          },
+          "en": {
+            "fix": "Wait until it has cooled down.",
+            "help": "The computer of the mower is too hot, so the camera pauses.",
+            "name": "Too hot"
           }
         }
       }
@@ -21951,6 +22664,28 @@
       "min": 0.0,
       "type": "integer",
       "unit": "mm"
+    },
+    "obstacle_mode": {
+      "default": 0.0,
+      "description": "What obstacles the sensors see do: off, or show them in the list and on the map without any effect on driving; stop and avoid follow",
+      "max": 1.0,
+      "min": 0.0,
+      "type": "integer",
+      "unit": "",
+      "values": [
+        "off",
+        "show",
+        "stop",
+        "avoid"
+      ]
+    },
+    "obstacle_photos": {
+      "default": 1.0,
+      "description": "Whether a new entry of the obstacles gets a photo of the whole image, kept on the mower only",
+      "max": 1.0,
+      "min": 0.0,
+      "type": "integer",
+      "unit": ""
     },
     "rain_check_seconds": {
       "default": 20.0,
