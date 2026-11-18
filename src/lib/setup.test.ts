@@ -3,7 +3,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {DEMO_IMAGES, demoSetup} from './demo/setup';
 import {RPC} from './openmower';
 import {robotShape, shapePath} from './robotShape';
-import {derivedParts, loadSetup, setupNow, startStep, summaryPreview, words, type Setup, type SetupStep} from './setup';
+import {asked, derivedParts, held, loadSetup, ownInputs, safetyDue, setupNow, startStep, summaryPreview, words, type Setup, type SetupStep} from './setup';
 import {TRON_SHAPE} from './tronShape';
 
 // each call answers when the test lets it
@@ -63,6 +63,38 @@ describe('the setup program', () => {
     demo.methods[RPC.setupSkip]({step: 'wheels', version: get().version, reason: 'later'});
     expect(summary().blocked[0]).toMatchObject({steps: all, skipped: ['wheels']});
     expect(() => demo.methods[RPC.setupStart]({step: 'summary', version: get().version, confirm: ['seen_myself']})).toThrow('Safety steps are not ok');
+  });
+
+  it('offers a question only while the running step asks it, and a value only at a step without a start', () => {
+    const demo = demoSetup(() => {}, () => false, () => {});
+    const get = (id: string) => (demo.methods[RPC.setupGet]({}) as Setup).steps.find((s) => s.id === id)!;
+    // the program lists the questions all the time
+    expect(get('wheels').inputs.map((i) => [i.name, i.ask])).toEqual([['wheel', false]]);
+    expect(get('stop').inputs.map((i) => [i.name, i.ask])).toEqual([['pressed', false]]);
+    for (const id of ['wheels', 'stop', 'ground', 'blade']) expect([asked(get(id)), ownInputs(get(id))], id).toEqual([[], []]);
+    expect(ownInputs(get('correction')).map((i) => i.name)).toEqual(['correction']);
+    expect(() => demo.methods[RPC.setupAnswer]({step: 'stop', version: 1, values: {pressed: 'yes'}})).toThrow('asks nothing right now');
+    const step = (over: Partial<SetupStep>) => ({state: 'running', start: true, inputs: [{name: 'wheel', ask: true}, {name: 'pressed', ask: false}], ...over}) as SetupStep;
+    expect(asked(step({})).map((i) => i.name)).toEqual(['wheel']);
+    expect(asked(step({state: 'ok'}))).toEqual([]);
+    expect(ownInputs(step({state: 'ok'}))).toEqual([]);
+  });
+
+  it('holds the start back while the program names what blocks the step, the release for safety steps by name', () => {
+    const demo = demoSetup(() => {}, () => false, () => {});
+    const get = (id: string) => (demo.methods[RPC.setupGet]({}) as Setup).steps.find((s) => s.id === id)!;
+    expect([held(get('summary')), safetyDue(get('summary'))]).toEqual([true, true]);
+    expect([held(get('wheels')), safetyDue(get('wheels'))]).toEqual([true, false]);
+    expect(held(get('board'))).toBe(false);
+    const step = (over: Partial<SetupStep>) => ({check: 'summary', state: 'open', blocked: [], ...over}) as unknown as SetupStep;
+    expect([held(step({})), safetyDue(step({}))]).toEqual([false, false]);
+    expect([held(step({blocked: [{reason: 'CLOCK_UNSAFE', message: ''}]})), safetyDue(step({blocked: [{reason: 'CLOCK_UNSAFE', message: ''}]}))]).toEqual([true, false]);
+    // a step that waits for its data itself starts without it, any other doesn't
+    const noData = [{reason: 'NO_DATA', message: ''}];
+    expect(['position', 'imu', 'wheels'].map((check) => held(step({check, blocked: noData})))).toEqual([false, false, true]);
+    expect(held(step({check: 'position', blocked: [...noData, {reason: 'BUSY', message: ''}]}))).toBe(true);
+    // what a running step waits for is no reason against a start
+    expect(held(step({state: 'running', blocked: [{reason: 'EMERGENCY', message: ''}]}))).toBe(false);
   });
 
   it('shows what the release writes: the day in UTC and the longest stand time of the passed step silence', () => {

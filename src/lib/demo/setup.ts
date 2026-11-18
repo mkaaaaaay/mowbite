@@ -244,8 +244,8 @@ const TRON_STEPS: Base[] = [
     confirm: [named('seen_myself', 'I saw every safety check on this mower myself', 'Ich habe jede Sicherheitsprüfung an diesem Mäher selbst gesehen')],
     values: [value('date', 'Date', 'Datum', ''), value('failsafe', 'Stop without control', 'Halt ohne Steuerung', 's')],
     texts: tx(
-      ['Release safety', 'All safety checks passed. With one tap the mower allows driving and mowing on its own. MowBite OS restarts once for it.', 'If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.'],
-      ['Sicherheit freigeben', 'Alle Sicherheitsprüfungen sind bestanden. Mit einem Tipp gibt der Mäher das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.', 'Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.'],
+      ['Release safety', 'Once every safety check passed, one tap lets the mower drive and mow on its own. MowBite OS restarts once for it.', 'If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.'],
+      ['Sicherheit freigeben', 'Sind alle Sicherheitsprüfungen bestanden, gibt der Mäher mit einem Tipp das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.', 'Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.'],
     ),
   }),
   step({
@@ -327,7 +327,7 @@ const KEEP_S = 1;
 // the question of a part the step saw nothing of (s), and the reasons a failed safety step closes the lock with
 const PRESSED_S = 30;
 const CLOSES = ['LIMIT', 'STARTED_AGAIN', 'NO_EMERGENCY', 'WRONG_DIRECTION', 'WRONG_WHEEL', 'NOT_SEEN', 'NO_STANDSTILL'];
-const question = (name: string, en: string[], de: string[], values: Named[]): SetupInput => ({name, type: 'choice', ask: true, advanced: false, value: null, texts: tx(en, de), values});
+const question = (name: string, en: string[], de: string[], values: Named[]): SetupInput => ({name, type: 'choice', ask: false, advanced: false, value: null, texts: tx(en, de), values});
 const WHEEL = question('wheel', ['Which wheel turns?', 'Only one wheel should turn now. Tell which one turns.'], ['Welches Rad dreht?', 'Jetzt sollte sich nur ein Rad drehen. Angeben, welches sich dreht.'], [
   named('left', 'Left wheel', 'Linkes Rad'),
   named('right', 'Right wheel', 'Rechtes Rad'),
@@ -338,6 +338,8 @@ const PRESSED = question('pressed', ['Did you do it?', 'The mower noticed nothin
   named('yes', 'Yes, I did', 'Ja, gemacht'),
   named('no', 'No, not yet', 'Nein, noch nicht'),
 ]);
+// the checks that ask pressed
+const ASKS_PRESSED = ['input', 'imu', 'stop_moving', 'ground', 'blade'];
 const FIRMWARE = '1.4.2';
 // the stand time without control the demo's summary writes (s): it has no step silence to take it from
 const FAILSAFE = 0.6;
@@ -408,7 +410,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // since: when the step or its current part began
   // asked: the line the assignment proposes for the running part
   // asking: the question of the running step (which wheel, or whether the action was done) until its answer is due; kept: the last setup.keep
-  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: {input: SetupInput; until: number}; kept?: number} | null =
+  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: {input: SetupInput; until: number; stood?: boolean}; kept?: number} | null =
     null;
   // what keeps the lock of the safety closed, and the day it opened
   let closed: SafetyCause[] = demoFlags().mowbiteDemoSafetyFailed ? [{step: 'stop', part: null, reason: 'NOT_SEEN', t: now()}] : [];
@@ -478,6 +480,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // how long the running part waits for its input before it asks (s): an input step's part, a press of a step by parts
   const waitS = (s: Base, r: NonNullable<typeof run>) =>
     BIT[s.id] ? PART_S : byParts(s) && r.phase === 'armed' && wants(s, r.part) ? PRESS_S : null;
+  const questions = (s: Base) => [s.check === 'inputs_assign' && ACCEPT, s.check === 'wheels' && WHEEL, ASKS_PRESSED.includes(s.check) && PRESSED].filter((q) => !!q);
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
     const running = run?.id === s.id;
@@ -490,8 +493,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       restart: s.restart || releasing(s),
       parts: k.parts,
       values: k.values,
-      // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
-      inputs: r?.asking ? [r.asking.input] : r && s.check === 'inputs_assign' ? (r.asked ? [ACCEPT] : []) : k.inputs,
+      // the questions of its check stand there all the time, ask only while one waits for its answer
+      inputs: [...k.inputs, ...questions(s).map((q) => ({...q, ask: q === (r?.asked ? ACCEPT : r?.asking?.input)}))],
       progress: r && s.parts.length ? {n: Math.min(r.part + 1, s.parts.length), of: s.parts.length} : null,
       ends_at: r?.asking ? Math.floor(r.asking.until) : r && waitS(s, r) ? Math.floor(r.since + waitS(s, r)!) : null,
       result: k.result,
@@ -712,7 +715,12 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     } else if (s.motion && t - run.kept! > KEEP_S) {
       end(s, false, 'RELEASED', 'setup.keep stayed away', s.parts[run.part]?.id ?? null);
     } else if (run.asking) {
-      if (t > run.asking.until) reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
+      if (t <= run.asking.until) return;
+      // the wheel stands after its time, the answer is taken for as long again as one to nothing seen
+      if (run.asking.input === WHEEL && !run.asking.stood) {
+        run.asking = {input: WHEEL, until: t + PRESSED_S, stood: true};
+        changed();
+      } else reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
     } else if (byParts(s)) {
       partByPart(s, k, t);
     } else if (s.check === 'wheels') {
@@ -832,6 +840,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         answerAsked(s, k, values);
         return setup();
       }
+      if (s.check !== 'choice' && s.check !== 'number') throw refuse('WRONG_METHOD', `${s.id} asks nothing right now`);
       check(k.inputs, values);
       k.inputs = k.inputs.map((i) => (i.name in values ? {...i, value: values[i.name]} : i));
       k.attempt++;

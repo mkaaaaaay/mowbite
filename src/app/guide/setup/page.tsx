@@ -212,7 +212,7 @@ function StepArt() {
 }
 
 function LinesArt() {
-  // the STOP button is pressed: its line lights up, the step asks to take it, Save gives the line its role, the next waits
+  // the STOP button is pressed: its line lights up, the step asks to take it, a tap gives the line its role, the next waits
   const lines = ['IN1', 'IN2', 'IN3'];
   return (
     <Scene label={tr('Sensors on their lines')}>
@@ -266,14 +266,8 @@ function LinesArt() {
         <text x={42} y={124} fontSize={10} style={accent}>
           {tr('{part}: seen on line {line}', {part: tr('STOP button'), line: 'IN1'})}
         </text>
-        <Tick x={42} y={133} at={0.48} />
-        <text x={62} y={144} fontSize={12} style={text}>
-          {tr('Take it')}
-        </text>
-        <g opacity={0.45}>
-          {anim('opacity', DUR, [0, 0.5, 0.52, 1], [0.45, 0.45, 1, 1])}
-          <Button x={30} y={162} w={260} h={24} label={tr('Save')} main at={0.62} />
-        </g>
+        <Button x={42} y={129} w={116} h={20} size={11} label={tr('Take it')} at={0.62} />
+        <Button x={166} y={129} w={116} h={20} size={11} label={tr('Not this one')} />
       </Shown>
       <Shown from={0.74}>
         <Row x={30} y={92} w={260} name={tr('Lifting')} states={[{from: 0, state: 'waiting'}]} />
@@ -368,7 +362,7 @@ function Tire({x, turns}: {x: number; turns: [number, number][]}) {
 }
 
 function WheelsArt() {
-  // the mower on a stand, seen from behind: both wheels turn, then only one, the step asks which: the right one, it passes
+  // the mower on a stand, seen from behind: both wheels turn, then only one, the step asks which with the time left: a tap on the right one, it passes
   const edge = {stroke: 'var(--text-secondary)'};
   return (
     <Scene label={tr('Wheels in the air')}>
@@ -414,20 +408,10 @@ function WheelsArt() {
         <text x={176} y={111} fontSize={11} fontWeight={600} style={text}>
           {tr('Which wheel turns?')}
         </text>
-        {[tr('Left wheel'), tr('Right wheel')].map((label, i) => (
-          <g key={i}>
-            <circle cx={182} cy={126 + i * 18} r={6} fill="var(--background)" stroke="var(--card-border)" />
-            {i === 1 && (
-              <Shown from={0.45}>
-                <circle cx={182} cy={126 + i * 18} r={3.5} style={accent} />
-              </Shown>
-            )}
-            <text x={194} y={130 + i * 18} fontSize={11} style={text}>
-              {label}
-            </text>
-          </g>
-        ))}
-        <Button x={176} y={156} w={106} h={22} size={11} label={tr('Save')} main at={0.6} />
+        <circle cx={280} cy={107} r={6} fill="none" stroke="var(--track)" strokeWidth={2.5} />
+        <circle cx={280} cy={107} r={6} fill="none" strokeWidth={2.5} strokeLinecap="round" pathLength={100} strokeDasharray="65 100" transform="rotate(-90 280 107)" stroke="var(--accent)" />
+        <Button x={176} y={122} w={106} h={24} size={11} label={tr('Left wheel')} />
+        <Button x={176} y={152} w={106} h={24} size={11} label={tr('Right wheel')} at={0.6} />
       </Shown>
     </Scene>
   );
@@ -619,7 +603,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'A step',
-    text: 'A step says what to do and shows it in a drawing. Tap Start: the mower checks the parts and values listed, each gets a tick or a cross. Not passed says why and how to fix it, then tap Repeat. Once a step passes, the next one opens by itself; a passed step can be repeated at any time.',
+    text: 'A step says what to do and shows it in a drawing. Tap Start: the mower checks the parts and values listed, each gets a tick or a cross. Not passed says why and how to fix it, then tap Repeat. A question a step asks while it runs comes up on top with the time left: one tap answers. Once a step passes, the next one opens by itself; a passed step can be repeated at any time.',
     Art: StepArt,
   },
   {
@@ -634,7 +618,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Wheels in the air',
-    text: 'Put the mower on a stand under its body, the front not higher than the back, and keep a hand at the STOP button. The wheels turn forwards, backwards, both ways round and then only one: tell which one turns. It takes about 15 seconds. Further steps check that the wheels stop at the STOP button and the bumpers and stay still without a command. The STOP button, lifting and bumper have to pass before any wheel turns.',
+    text: 'Put the mower on a stand under its body, the front not higher than the back, and keep a hand at the STOP button. The wheels turn forwards, backwards, both ways round and then only one: tap which one turns. It takes about 15 seconds. Further steps check that the wheels stop at the STOP button and the bumpers and stay still without a command. The STOP button, lifting and bumper have to pass before any wheel turns.',
     Art: WheelsArt,
   },
   {
@@ -654,7 +638,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Releasing the safety',
-    text: "The last safety step releases the mower. It needs every safety check passed, a skipped one doesn't count: the step names the ones missing, tap one to go there. Before the release it shows what the mower records, the date and how long it stops without control. Tick that you saw every check yourself and tap Release the mower: MowBite OS restarts once, then the lock opens. If a safety step fails later, release again once it passed.",
+    text: "The last safety step releases the mower. It needs every safety check passed, a skipped one doesn't count: the step names the ones missing, tap one to go there; Start stays off until then. Before the release it shows what the mower records, the date and how long it stops without control. Tick that you saw every check yourself and tap Release the mower: MowBite OS restarts once, then the lock opens. If a safety step fails later, release again once it passed.",
     Art: ReleaseArt,
   },
   {

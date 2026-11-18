@@ -2,7 +2,7 @@
 
 import {fmt, tr} from '@/lib/i18n';
 import {dayText} from '@/lib/dates';
-import {isSummary, moves, nameOf, releasesBlade, summaryPreview, words, type SetupStep, type SetupValue} from '@/lib/setup';
+import {held, isSummary, moves, nameOf, releasesBlade, summaryPreview, words, type SetupStep, type SetupValue} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
@@ -112,7 +112,7 @@ export function ConfirmSheet(props: {
         <button type="button" className={styles.button} onClick={onClose}>
           {tr('Cancel')}
         </button>
-        <button type="button" className={styles.button} data-primary disabled={busy || !all} onClick={() => onStart(ticked)}>
+        <button type="button" className={styles.button} data-primary disabled={busy || !all || held(step)} onClick={() => onStart(ticked)}>
           {startLabel(step)}
         </button>
       </div>

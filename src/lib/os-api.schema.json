@@ -24584,12 +24584,12 @@
         "texts": {
           "de": {
             "fix": "Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.",
-            "help": "Alle Sicherheitsprüfungen sind bestanden. Mit einem Tipp gibt der Mäher das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.",
+            "help": "Sind alle Sicherheitsprüfungen bestanden, gibt der Mäher mit einem Tipp das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.",
             "name": "Sicherheit freigeben"
           },
           "en": {
             "fix": "If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.",
-            "help": "All safety checks passed. With one tap the mower allows driving and mowing on its own. MowBite OS restarts once for it.",
+            "help": "Once every safety check passed, one tap lets the mower drive and mow on its own. MowBite OS restarts once for it.",
             "name": "Release safety"
           }
         },
@@ -24635,7 +24635,7 @@
         "params": {
           "answer_time": {
             "default": 10.0,
-            "description": "The part one_wheel waits this long for the answer",
+            "description": "The part one_wheel turns the wheel at most this long while it waits for the answer, then it stands and the answer is taken for 30 s more",
             "max": 10.0,
             "min": 3.0,
             "required": false,
