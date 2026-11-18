@@ -24,7 +24,7 @@ export function SetupCard() {
         <i style={{width: `${(done / setup.steps.length) * 100}%`}} />
       </div>
       {next && <p>{tr('next: {step}', {step: nameOf(next, lang)})}</p>}
-      <Link href={next ? stepHref(next.id) : '/setup'} className={styles.go}>
+      <Link href={next ? stepHref(next.id) : '/setup'} className={styles.pillButton}>
         {tr('Go on with the setup')}
         <ChevronIcon size={18} />
       </Link>
