@@ -1,4 +1,3 @@
-import {fromBase64, toBase64} from './base64';
 import {reasonSentence} from './events';
 import {tr} from './i18n';
 import {num, outlineOf} from './mowerBody';
@@ -6,7 +5,7 @@ import {box, wheelBoxes} from './robotShape';
 import {topicStore} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
 import {callCommand, callRpc} from './rpc';
-import {sha256Hex} from './sha256';
+import {rpcImage, type ImageRef} from './rpcImage';
 
 // MowBite OS's setup program (setup.*, api 42, wheels turning from api 44, the lock of the safety from api 45): the OS keeps the steps of the platform, their state and their texts,
 // the app shows them and passes on what the user does. Every call answers with the whole state, as setup/json
@@ -46,11 +45,6 @@ export interface SetupInput {
   max?: number;
   unit?: string;
   values?: Named[];
-}
-export interface ImageRef {
-  name: string;
-  sha256: string;
-  bytes: number;
 }
 export interface SetupImage extends ImageRef {
   type: string;
@@ -262,45 +256,8 @@ export const IMAGE_BYTES = 65536;
 // a step's text of setup.skip with other, at most (x-setup.limits.skip_text)
 export const SKIP_TEXT = 200;
 
-// an image of a step as a data url to use as a css mask, never put into the page as markup: fetched in pieces, kept by
-// its checksum, refused when the checksum or the type doesn't fit
-const images = new Map<string, Promise<string>>();
-export function setupImage(ref: ImageRef): Promise<string> {
-  let p = images.get(ref.sha256);
-  if (!p) {
-    p = fetchImage(ref);
-    images.set(ref.sha256, p);
-    p.catch(() => images.delete(ref.sha256));
-  }
-  return p;
-}
-
-async function fetchImage(ref: ImageRef): Promise<string> {
-  if (ref.bytes > IMAGE_BYTES) throw new Error(`image ${ref.name} too large`);
-  const pieces: Uint8Array[] = [];
-  let got = 0;
-  for (;;) {
-    const r = await callRpc<{size: number; offset: number; data: string; sha256: string; type: string}>(RPC.setupImage, {
-      name: ref.name,
-      offset: got,
-      size: IMAGE_BYTES,
-    });
-    if (r.type !== 'image/svg+xml' || r.size > IMAGE_BYTES || r.offset !== got) throw new Error(`image ${ref.name} unusable`);
-    const piece = fromBase64(r.data);
-    if (!piece.length) break;
-    pieces.push(piece);
-    got += piece.length;
-    if (got >= r.size) break;
-  }
-  const bytes = new Uint8Array(got);
-  let at = 0;
-  for (const piece of pieces) {
-    bytes.set(piece, at);
-    at += piece.length;
-  }
-  if ((await sha256Hex(bytes)) !== ref.sha256) throw new Error(`image ${ref.name} damaged`);
-  return `data:image/svg+xml;base64,${toBase64(bytes)}`;
-}
+// an image of a step as a data url to use as a css mask, never put into the page as markup
+export const setupImage = (ref: ImageRef) => rpcImage(RPC.setupImage, ref, 'image/svg+xml', IMAGE_BYTES, IMAGE_BYTES);
 
 // The screen of the app a step asks for (open): where it is, and its link's words
 export type OpenScreen = 'ntrip' | 'geometry' | 'recording' | 'dock' | 'map' | 'dock_test' | 'mow';
