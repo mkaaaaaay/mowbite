@@ -3,7 +3,7 @@
 import {ChevronIcon} from '@/components/icons';
 import {useSetup} from '@/hooks/useSetup';
 import {tr, useLang} from '@/lib/i18n';
-import {isDone, nameOf, stepHref} from '@/lib/setup';
+import {currentStep, isDone, nameOf, stepHref} from '@/lib/setup';
 import Link from 'next/link';
 import styles from './SetupCard.module.css';
 
@@ -13,7 +13,7 @@ export function SetupCard() {
   const setup = useSetup();
   if (!setup || setup.complete) return null;
   const done = setup.steps.filter((s) => isDone(s.state)).length;
-  const next = setup.steps.find((s) => s.id === setup.current);
+  const next = currentStep(setup);
   return (
     <section className={styles.card} data-card="setup">
       <div className={styles.head}>

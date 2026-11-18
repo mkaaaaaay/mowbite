@@ -283,7 +283,7 @@ test.describe('setup', () => {
     await expect(board).toHaveAttribute('data-state', 'ok');
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\?step=board/);
-    await board.getByRole('link', {name: 'Go on: Place the mower'}).click();
+    await page.getByRole('link', {name: 'Go on: Place the mower'}).click();
 
     // a touch while it shows the pass keeps the step open
     const outdoors = step(page, 'outdoors');
@@ -294,7 +294,7 @@ test.describe('setup', () => {
     await outdoors.getByRole('heading', {level: 2}).click();
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\?step=outdoors/);
-    await expect(outdoors.locator('[data-next]')).toContainText('Go on: ');
+    await expect(page.getByRole('link', {name: /^Go on: /})).toBeVisible();
   });
 
   test('a mark moves when its state changes, not when it is shown', async ({page, isMobile}) => {

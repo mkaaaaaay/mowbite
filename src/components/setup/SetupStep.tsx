@@ -4,6 +4,7 @@ import {BackIcon, LockIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {
+  currentStep,
   isDone,
   isSummary,
   keepStep,
@@ -70,18 +71,12 @@ function BlockedNote({b, steps, lang}: {b: Blocked; steps: Step[]; lang: string}
 }
 
 // how long a step that just passed shows it before the next one opens
-export const PASSED_MS = 1500;
+const PASSED_MS = 1500;
 
 // the step turned ok while it was shown, not when it was opened already passed
 function usePassed(state: StepState): boolean {
   const [first] = useState(state);
-  const [last, setLast] = useState(state);
-  const [passed, setPassed] = useState(false);
-  if (state !== last) {
-    setLast(state);
-    setPassed(state === 'ok' && first !== 'ok');
-  }
-  return passed;
+  return state === 'ok' && first !== 'ok';
 }
 
 // One step: where it is in its stage, what to do, its parts and values, what keeps it from going on, and its buttons
@@ -127,13 +122,13 @@ export function SetupStep(props: {
   const plain = step.inputs.filter((i) => !i.advanced);
   const answer = (values: Record<string, unknown>) => act.answer(step.id, values);
   const router = useRouter();
-  const next = done ? setup.steps.find((s) => s.id === setup.current && s.id !== step.id) : undefined;
+  const current = currentStep(setup);
+  const next = done && current?.id !== step.id ? current : undefined;
   const passed = usePassed(step.state);
-  const goes = passed && !!next && !isSummary(step);
-  const nextId = next?.id;
+  const goTo = passed && !isSummary(step) ? next?.id : undefined;
   useEffect(() => {
-    if (!goes || !nextId) return;
-    const timer = setTimeout(() => router.push(stepHref(nextId)), PASSED_MS);
+    if (!goTo) return;
+    const timer = setTimeout(() => router.push(stepHref(goTo)), PASSED_MS);
     // a touch or a key on the page keeps the step open
     const stay = () => clearTimeout(timer);
     document.addEventListener('pointerdown', stay, true);
@@ -143,7 +138,7 @@ export function SetupStep(props: {
       document.removeEventListener('pointerdown', stay, true);
       document.removeEventListener('keydown', stay, true);
     };
-  }, [goes, nextId, router]);
+  }, [goTo, router]);
   return (
     <section className={styles.step} data-state={step.state} data-step={step.id} aria-labelledby={`step-${step.id}`}>
       <div className={styles.bar}>
@@ -185,7 +180,7 @@ export function SetupStep(props: {
                 <StateMark state="ok" size="big" />
                 <p>
                   <b>{tr('Passed')}</b>
-                  {goes && next && <span>{tr('Next: {step}', {step: nameOf(next, lang)})}</span>}
+                  {goTo && next && <span>{tr('Next: {step}', {step: nameOf(next, lang)})}</span>}
                 </p>
               </div>
             </div>
