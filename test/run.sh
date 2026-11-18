@@ -291,6 +291,7 @@ expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start
 logs "scheduler: a failed start after the third one" retries '^start_failed undock path_failed( at=[0-9:]+)?$' 60
 sleep 5
 expect "scheduler: three starts, not more" "$(sent retries | grep -c 'start_mowing$') $(slog retries | grep -c '^start_retry')" "3 2"
+expect "scheduler: no one left listening for the answers" "$(docker exec mbt-retries sh -c 'ps -o args | grep -c "^timeout 600"')" 0
 logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed 1( at=[0-9:]+)?$'
 logs "scheduler: not started again with the emergency stop" retrystop '^retry_skip emergency( at=[0-9:]+)?$' 40
 expect "scheduler: and the mower got one start" "$(sent retrystop | grep -c 'start_mowing$')" 1
@@ -377,11 +378,55 @@ done
 KEEP=$'enabled 1\n/mower_logic/mow_angle_offset 7'
 start keepom "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
 start keepos "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
+# a start of the schedule turned it and the schedule was switched off meanwhile: left for scheduler.sh to set back
+start keepturned "$(state MOWING)" 'enabled 0' RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" \
+  ANGLE_NORMAL=7
+# a plan with its own direction, but none turned now (OpenMower restarted): the kept one set again
+start keepplan "$(state)" $'enabled 1\nplan 1 03:00 angle=30' RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
 gets keepom '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: what the mower lost set again" ||
   bad "params: what the mower lost set again" "$(sent keepom)"
+gets keepplan '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: the kept direction with a plan of its own" ||
+  bad "params: the kept direction with a plan of its own" "$(sent keepplan)"
+sent keepturned | grep -q 'mow_angle_offset' && bad "params: a direction a start turned left alone" "$(sent keepturned)" ||
+  ok "params: a direction a start turned left alone"
 gets keepos '"method":"system.info"' 30 && sleep 3
 sent keepos | grep -q 'params.set' && bad "params: not on MowBite OS, it keeps them itself" "$(sent keepos)" ||
   ok "params: not on MowBite OS, it keeps them itself"
+
+# --- the leftovers after a finished mow ---
+
+# a time zone where it's about noon now, posix (the image has no zone files): no dark in the way (6 am to 6 pm without
+# a position)
+o=$((12 - 10#$(date -u +%H)))
+if [ "$o" -ge 0 ]; then noon="NOON-$o"; else noon="NOON+$((-o))"; fi
+LEFT_SET='{"leftovers":{"auto":true,"min":0.5}}'
+LEFT_ANSWER='{"jsonrpc":"2.0","result":{"areas":[{"stats":{"leftovers":{"left_m2":2.5}}}],"armed":3},"id":"@ID@"}'
+start leftfull "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
+start leftoff "$(state IDLE 0 0 0.5)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
+# job_complete <case>: told again only while its scheduler doesn't listen yet (a late one would end the run it starts)
+job_complete() {
+  local i j
+  for ((i = 0; i < 5; i++)); do
+    docker exec "mbt-$1" mosquitto_pub -h mbt-mq -t "$1/events/json" -m '{"type":"JOB_COMPLETE","job_id":"j1"}'
+    for ((j = 0; j < 10; j++)); do
+      sent "$1" | grep -q planner.settings && return 0
+      sleep 1
+    done
+  done
+  return 1
+}
+job_complete leftfull
+job_complete leftoff
+logs "leftovers: started once the battery is full" leftfull '^leftovers_started 2.50$' 60
+expect "leftovers: home at sunset like a run of the schedule" \
+  "$(docker exec mbt-leftfull cat /data/run.state 2> /dev/null | sed -E 's/^[0-9]+ [0-9]+ /<began> <stop> /')" '<began> <stop> dark all'
+expect "leftovers: its stop time to come" "$(due leftfull | wc -l)" 1
+logs "leftovers: waits for the battery" leftoff '^leftovers_waiting_battery 50$' 60
+docker exec mbt-leftoff sh -c 'printf %s "$1" > /data/settings.json' _ '{"leftovers":{"auto":false,"min":0.5}}'
+restate leftoff "$(state IDLE 0 0 0.95)"
+logs "leftovers: switched off while it waited, not started" leftoff '^leftovers_skip off$' 90
+sent leftoff | grep -q start_mowing && bad "leftovers: no start once switched off" "$(sent leftoff)" ||
+  ok "leftovers: no start once switched off"
 
 # --- the log keeper ---
 
@@ -477,6 +522,14 @@ for o in http://evil.example https://10.evil.com http://192.168.1.5.evil.com nul
   expect "origin $o turned down" "$(code -H "Origin: $o" "$W/version")" 403
 done
 expect "no origin (the page itself, curl) asks" "$(code "$W/version")" 200
+# asked at a name from the internet bound to the mower's address (dns rebinding): neither its page nor its reads count
+for h in openmower:8082 mower.local:8082 192.168.178.20:8082 '[fd12::1]:8082' garden.example.org; do
+  expect "host $h asks" "$(code -H "Host: $h" "$W/version")" 200
+done
+for h in evil.example:8082 1.2.3.4:8082 mower.local.evil.com; do
+  expect "host $h turned down" "$(code -H "Host: $h" "$W/version")" 403
+  expect "host $h with itself as origin turned down" "$(code -X POST -H "Host: $h" -H "Origin: http://$h" "$W/update")" 403
+done
 expect "an origin that asks gets itself back for cors" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$W/version" | tr -d '\r' | sed -n 's/^access-control-allow-origin: //Ip')" \
   http://192.168.178.20:8082
@@ -573,6 +626,15 @@ grep -q secret <<< "$got" && bad "notify: the token isn't handed out" "$got" || 
 grep -q '^token set$' <<< "$got" && ok "notify: it says there is one" || bad "notify: it says there is one" "$got"
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\nenabled 1' "$N"
 expect "notify: a save without the token keeps it" "$(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" secret-token-1
+expect "notify: a token that doesn't fit is turned down, the saved one stays" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\ntoken a b' "$N" | tr -d '\n') $(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" \
+  'bad token 400 secret-token-1'
+curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken tk_a.b~c+d/e=\nurl http://[fd12::1]:8082\nnew_thing 1' "$N"
+expect "notify: a bearer token, an IPv6 address and a setting it doesn't know (left out)" \
+  "$(docker exec mbt-web sh -c 'sed -n "s/^token //p; s/^url //p" /data/notify.conf; grep -c new_thing /data/notify.conf')" \
+  $'http://[fd12::1]:8082\ntk_a.b~c+d/e=\n0'
+expect "notify: an address with a query is turned down" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\nurl http://mower:8082/?a=1' "$N" | tr -d '\n')" 'bad url 400'
 curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken -' "$N"
 expect "notify: token - drops it" "$(docker exec mbt-web grep -c '^token' /data/notify.conf)" 0
 docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/notify.conf'
@@ -583,6 +645,17 @@ docker exec mbt-web sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\nclean 2
   printf "blade 0\nclean 0\n" > /data/stats/reminded'
 expect "stats: a part given other hours is told about again once due by them" \
   "$(code -X POST "$W/stats?due=blade&h=100") $(docker exec mbt-web cat /data/stats/reminded)" "200 clean 0"
+
+# the recorder's broker gone: what came since its last save is kept, its sampler ends with its sleep
+for _ in $(seq 20); do docker exec mbt-web test -s /data/sensors.tsv && break; sleep 1; done
+# (the first may be saved right away, the next within a minute only at the end)
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_first/data -m 1
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_test/data -m 1.5
+sleep 1
+docker exec mbt-web pkill -f '^mosquitto_sub -h [^ ]* -p [0-9]* -t web/sensors/'
+for _ in $(seq 5); do docker exec mbt-web grep -q '^mbt_test' /data/sensors.tsv && break; sleep 1; done
+expect "recorder: the last values kept when the broker goes" "$(docker exec mbt-web grep -c '^mbt_test' /data/sensors.tsv)" 1
+expect "recorder: no sleep of its sampler left" "$(docker exec mbt-web sh -c 'ps -o ppid,args | awk "\$1 == 1 && \$2 == \"sleep\" && \$3 == 60"' | wc -l)" 0
 
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"

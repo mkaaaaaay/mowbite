@@ -465,7 +465,7 @@ export default function SettingsPage() {
                           {plannerLeftovers.settable === false && <p className={styles.dim}>{tr("Set by the mower, it can't be changed here.")}</p>}
                           {plannerLeftovers.value !== true && plannerLeftovers.settable !== false && settings.leftovers?.auto && (
                             <p className={styles.dim}>
-                              {tr('Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.', {
+                              {tr("Still done by MowBite on the mower as set before, from {m} m² and after charging, home again at the run's end time or at sunset. Switch it off and on to let the planner do it.", {
                                 m: dec(settings.leftovers.min ?? 0.5),
                               })}
                             </p>

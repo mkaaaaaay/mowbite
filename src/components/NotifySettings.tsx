@@ -16,7 +16,9 @@ import {
   saveNotify,
   snoozeNotify,
   testNotify,
+  NotifyRejected,
   validServer,
+  validToken,
   validTopic,
   withMowerUrl,
   type NotifyConfig,
@@ -117,8 +119,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         if (savedRef.current) setSaved({...savedRef.current, enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken});
         setForm((f) => (f ? {...f, enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken} : f));
         setState({done: tr('Saved.')});
-      } catch {
-        setState({error: tr('The mower did not answer.')});
+      } catch (e) {
+        setState({error: failed(e)});
         // back to what the mower has
         const c = await loadNotify(next);
         if (!c) return;
@@ -127,12 +129,21 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       }
     });
   };
+  const tokenText = () => tr('The token may only hold letters, digits and . _ - ~ + / =.');
+  // what the mower said to a save that didn't go
+  const failed = (e: unknown) =>
+    e instanceof NotifyRejected
+      ? e.key === 'token'
+        ? tokenText()
+        : tr("The mower didn't take the setting {key}, nothing was saved.", {key: e.key})
+      : tr('The mower did not answer.');
   const toggle = (e: NotifyEvent) =>
     instant({events: form.events.includes(e) ? form.events.filter((x) => x !== e) : [...form.events, e]});
 
   const save = async () => {
     if (form.topic && !validTopic(form.topic.trim())) return setState({error: tr('The topic may only hold letters, digits, - and _.')});
     if (!validServer(form.server)) return setState({error: tr('The server needs to be an address starting with http:// or https://.')});
+    if (form.token && !validToken(form.token)) return setState({error: tokenText()});
     setState({busy: true});
     try {
       const c = await saveNotify(form);
@@ -141,8 +152,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       setState({
         done: !c.enabled ? tr('Saved. Switched off, nothing is sent.') : c.topic ? tr('Saved. Send a test to see it arrives.') : tr('Saved. No topic, no messages.'),
       });
-    } catch {
-      setState({error: tr('The mower did not answer.')});
+    } catch (e) {
+      setState({error: failed(e)});
     }
   };
 

@@ -10,6 +10,7 @@ import {
   cameraReason,
   closed,
   fallbackProtocol,
+  giveBack,
   openStream,
   pickProtocol,
   pictureRatio,
@@ -159,8 +160,12 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       await afterClosed();
       if (!alive) return;
       const s = await openStream(camera.id, protocol);
-      if (!alive) return;
       const url = streamUrl(s.url, brokerHost());
+      if (!alive) {
+        // (the view went meanwhile: its place given back)
+        if (!blockedHere(url)) closed(() => giveBack(s, url));
+        return;
+      }
       if (blockedHere(url))
         return failed(tr("This page is open over https, the browser doesn't load the camera's picture over plain http. Open MowBite over http or use the app."));
       if (s.protocol === 'webrtc') {

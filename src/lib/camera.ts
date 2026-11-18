@@ -24,7 +24,7 @@ export interface Camera {
   reason?: string;
   detail?: string;
 }
-interface Stream {
+export interface Stream {
   url: string;
   protocol: string;
   // until when the url can be connected to (unix s), once connected it holds until the connection ends
@@ -294,6 +294,15 @@ export async function readPictures(body: ReadableStream<Uint8Array>, got: (pictu
     got(new Blob([buf.slice(from, from + length)], {type}));
     buf = buf.subarray(from + length);
   }
+}
+
+// a stream given out but no longer wanted (the view went before it connected): connected and closed right away, else its
+// place on the mower stays taken until its address runs out (30 s)
+export async function giveBack(s: Stream, url: string): Promise<void> {
+  if (s.protocol === 'webrtc') return (await playWhep(url, document.createElement('video'), () => {}))();
+  if (s.protocol !== 'mjpeg') return;
+  const stop = new AbortController();
+  await ask(url, {}, stop).finally(() => stop.abort());
 }
 
 // mjpeg, read by the app itself: that way it knows what the address answered and when the pictures end. each picture

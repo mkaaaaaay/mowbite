@@ -35,7 +35,9 @@ compose volume /etc/localtime
 compose volume /host/os-release
 compose volume /opt/stacks
 compose volume /var/run/docker.sock
+env HTTP_HOST
 env MOWBITE_CONTAINER
+env MOWBITE_ORIGINS
 env MOWBITE_OS_REPO
 env MQTT_HOST
 env MQTT_PASSWORD
@@ -64,7 +66,7 @@ form status nokeep_openmower rm|drop|new|back <new tag> <the one before by diges
 form status openmower_missing <tries> <next try, unix s, or -> <new|back, what it downloads> <the new version> <the one before by its digest> <the tag it ran under> <its stack's folder, or ->
 form status openmower_nokeep no prev|env|registry|holders|room <MB needed> <MB there>|box <container>|base <part>|github <part>
 form status openmower_nokeep yes <MB downloaded> <parts built again, commas, or -> <tags back afterwards, commas, or -> <tags gone for good, commas, or ->
-form status os error offer|schedule <unix s>|not_docked|hold|keep|pull|files|import|stop|broker|registry|busy|back|interrupted
+form status os error offer|schedule <unix s>|not_docked|battery <min %>|firmware|hold|keep|pull|files|import|stop|broker|registry|busy|back|interrupted
 form status os switched <unix s> import|kept|rolled_back pull|files|import|start|health|halt|info|state|emergency|back <unix s> map|old [lost]
 form status os_data <the folder of OpenMower's data kept before>
 form status os_drop <OpenMower by its digest> <its tag> <the images deleted> ...

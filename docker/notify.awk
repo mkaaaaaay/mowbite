@@ -271,8 +271,13 @@ function skipped(   w, d, at, i, why) {
   info("schedule_skipped", tx("Planned start skipped", "Geplanter Start ausgefallen"), tx(who() " didn't set off at " at ": ", who() " ist um " at " nicht losgefahren: ") why ".", "calendar")
 }
 
+# marks a part told (v: when it was last done), under stats.cgi's lock
+function mark_told(part, v) {
+  system("flock /tmp/stats.lock sh -c '{ grep -v \"^$1 \" \"$3\" 2>/dev/null; echo \"$1 $2\"; } > \"$3.tmp\" && mv \"$3.tmp\" \"$3\"' - " part " " v " '" STATS "/reminded'")
+}
+
 # the parts due for maintenance by the blade hours, each once until it's seen to again
-function maintenance(   line, p, total, h, k) {
+function maintenance(   line, p, total, h) {
   maint_t = t
   if (!STATS || !on("maintenance")) return
   if ((getline line < (STATS "/state")) <= 0) { close(STATS "/state"); return }
@@ -293,10 +298,7 @@ function maintenance(   line, p, total, h, k) {
     if (p[1] == "blade") send("maintenance_blade", "new", tx("Change the blades", "Messer wechseln"), tx(who() " has mowed " h " h since the blades were last changed.", who() " hat seit dem letzten Messerwechsel " h " h gemäht."), 3, "wrench")
     else if (p[1] == "clean") send("maintenance_clean", "new", tx("Time for a clean", "Zeit zum Reinigen"), tx(who() " has mowed " h " h since it was last cleaned: underside, wheels and charging contacts.", who() " hat seit der letzten Reinigung " h " h gemäht: Unterseite, Räder und Ladekontakte."), 3, "broom")
     else continue
-    reminded[p[1]] = p[4]
-    printf "" > (STATS "/reminded")
-    for (k in reminded) print k, reminded[k] >> (STATS "/reminded")
-    close(STATS "/reminded")
+    mark_told(p[1], p[4] + 0)
   }
   close(STATS "/maint")
 }

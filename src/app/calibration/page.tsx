@@ -76,7 +76,8 @@ function useUpdater(asked: string | null) {
       clearTimeout(t);
     };
   }, [tick, fast]);
-  return {status, again: () => setTick((n) => n + 1)};
+  // again: asked right away, then on the usual interval
+  return {status, again: () => setTick(0)};
 }
 
 // before it starts: what MowBite checks, what the user confirms (driving by hand only)

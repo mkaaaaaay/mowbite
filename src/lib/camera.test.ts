@@ -8,6 +8,7 @@ import {
   cameraReason,
   closed,
   fallbackProtocol,
+  giveBack,
   pickProtocol,
   pictureRatio,
   playMjpeg,
@@ -286,6 +287,19 @@ describe('a stream of a camera', () => {
     await vi.waitFor(() => expect(ended).toHaveBeenCalledTimes(1));
     await close();
     await expect(read(img.put[1])).rejects.toThrow();
+  });
+
+  it("gives back a place it doesn't want any more: connected once and closed right away", async () => {
+    const asked: string[] = [];
+    let stopped = false;
+    vi.stubGlobal('fetch', (u: string, init: RequestInit) => {
+      asked.push(u);
+      init.signal!.addEventListener('abort', () => (stopped = true));
+      return open()(u, init);
+    });
+    await giveBack({url, protocol: 'mjpeg', expires: 0}, url);
+    expect(asked).toEqual([url]);
+    expect(stopped).toBe(true);
   });
 
   it('draws one picture at a time, then the newest of those that came meanwhile', async () => {
