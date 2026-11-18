@@ -30,6 +30,8 @@ export interface Obstacle {
   camera_id: string;
   action: ObstacleAction;
   image: ObstacleImage | null;
+  // while the mower keeps out of a circle around it (avoided, api 52): its radius, the circle stays unmowed
+  keep_out_r?: number | null;
 }
 interface Sight {
   ok: boolean;
@@ -80,7 +82,7 @@ export const sinceOf = (list: Obstacle[]) => (list.length ? list[0].last_t - 1 :
 // nothing new to show: the same entries, each seen as often and as last as before
 export const sameObstacles = (a: Obstacle[], b: Obstacle[]) =>
   a.length === b.length &&
-  a.every((o, i) => o.id === b[i].id && o.last_t === b[i].last_t && o.count === b[i].count && o.action === b[i].action && o.image?.sha256 === b[i].image?.sha256);
+  a.every((o, i) => o.id === b[i].id && o.last_t === b[i].last_t && o.count === b[i].count && o.action === b[i].action && o.keep_out_r === b[i].keep_out_r && o.image?.sha256 === b[i].image?.sha256);
 
 export const justSeen = (o: Pick<Obstacle, 'last_t'>, now = Date.now() / 1000) => now - o.last_t < JUST_SEEN_S;
 

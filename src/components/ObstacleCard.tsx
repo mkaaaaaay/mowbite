@@ -50,6 +50,7 @@ export function ObstacleCard({obstacle: o, onClose}: {obstacle: Obstacle; onClos
           <CloseIcon size={18} />
         </button>
       </div>
+      {!!o.keep_out_r && <p className={styles.dim}>{tr('Driven around: the circle round it stays unmowed for now.')}</p>}
       {!image ? (
         <p className={styles.dim}>{tr('No photo of it.')}</p>
       ) : photo.url ? (

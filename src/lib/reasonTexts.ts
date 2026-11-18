@@ -283,6 +283,11 @@ export const EVENTS: Record<string, EventText> = {
       alone({en: 'Something seen'}),
     ],
   },
+  // driven around an entry of the list, once per circle it keeps out of (api 52)
+  OBSTACLE_AVOIDED: {
+    severity: 'info',
+    variants: [alone({when: {area_name: {present: true}}, en: 'Drove around an obstacle in "{area_name}"'}), alone({en: 'Drove around an obstacle'})],
+  },
   OBSTACLES_CLEARED: {
     severity: 'info',
     variants: [alone({when: {obstacle_id: {present: false}}, en: 'All seen obstacles deleted'}), alone({en: 'A seen obstacle deleted'})],

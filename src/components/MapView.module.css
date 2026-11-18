@@ -1122,6 +1122,14 @@
   pointer-events: auto;
 }
 
+/* driven around: the circle it keeps out of stays unmowed */
+.keptOut {
+  fill: var(--c-unmowed);
+  fill-opacity: 0.25;
+  stroke: var(--c-unmowed);
+  stroke-width: 1.5;
+}
+
 .seenGround {
   fill: color-mix(in srgb, var(--c-seen) 22%, transparent);
   stroke: var(--c-seen);

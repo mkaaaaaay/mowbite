@@ -599,6 +599,9 @@
           "$ref": "#/$defs/event.OBSTACLE_SEEN"
         },
         {
+          "$ref": "#/$defs/event.OBSTACLE_AVOIDED"
+        },
+        {
           "$ref": "#/$defs/event.OBSTACLES_CLEARED"
         },
         {
@@ -4855,6 +4858,81 @@
       "type": "object",
       "x-emitter": "obstacles"
     },
+    "event.OBSTACLE_AVOIDED": {
+      "additionalProperties": false,
+      "description": "The mower drives around an entry of vision.obstacles.list: it keeps out of the circle keep_out_r around x, y and leaves left_out m of the paths of its job unmowed; once per circle",
+      "properties": {
+        "area_id": {
+          "description": "The area of the job",
+          "type": "string"
+        },
+        "area_name": {
+          "description": "Its name",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "keep_out_r": {
+          "description": "Radius of the circle: the thing, its uncertainty and the clearance",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "left_out": {
+          "description": "The paths of the job left unmowed for it",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "obstacle_id": {
+          "description": "Its id in vision.obstacles.list",
+          "type": "integer"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "OBSTACLE_AVOIDED",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Middle of the circle in the map frame",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Middle of the circle in the map frame",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "obstacle_id",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "obstacles"
+    },
     "event.OBSTACLE_SEEN": {
       "additionalProperties": false,
       "description": "A new entry in vision.obstacles.list; once per entry, after its photo or without one when none came. Shown only while obstacle_mode is show or more",
@@ -6470,6 +6548,7 @@
               "CORRECTIONS",
               "CAMERA_CHANGED",
               "OBSTACLE_SEEN",
+              "OBSTACLE_AVOIDED",
               "OBSTACLES_CLEARED",
               "OBSTACLE_SIGHT",
               "METHODS_CHANGED",
@@ -16229,6 +16308,14 @@
                   "null"
                 ]
               },
+              "keep_out_r": {
+                "description": "While the mower keeps out of a circle around it (action avoided): its radius around x, y; null without one",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "x-unit": "m"
+              },
               "kind": {
                 "description": "What it is",
                 "enum": [
@@ -16243,6 +16330,14 @@
                 "description": "When it was last seen",
                 "type": "integer",
                 "x-unit": "unix s"
+              },
+              "left_out": {
+                "description": "With keep_out_r: m of the paths of the job left unmowed for it",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "x-unit": "m"
               },
               "r": {
                 "description": "Radius on the ground",
@@ -16278,6 +16373,8 @@
               "confidence",
               "camera_id",
               "action",
+              "keep_out_r",
+              "left_out",
               "image"
             ],
             "type": "object"
@@ -16322,11 +16419,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:51",
+  "$id": "urn:mowbite-os:api:52",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 51,
+  "x-api": 52,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -22753,7 +22850,7 @@
     },
     "obstacle_mode": {
       "default": 0.0,
-      "description": "What obstacles the sensors see do: off; show them in the list and on the map without any effect on driving; stop: the mower stands with the blade off while one is in the way; avoid acts as stop for now. Above mode_max of vision.obstacles.list it acts as that",
+      "description": "What obstacles the sensors see do: off; show them in the list and on the map without any effect on driving; stop: the mower stands with the blade off while one is in the way; avoid: as stop, but an object that stands 3 s is driven around within its area with the blade on, a person or animal never. Above mode_max of vision.obstacles.list it acts as that",
       "max": 3.0,
       "min": 0.0,
       "type": "integer",
