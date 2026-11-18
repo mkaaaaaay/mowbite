@@ -194,6 +194,15 @@ export const currentStep = (s: Setup) => s.steps.find((x) => x.id === s.current)
 // the steps of these ids not passed yet
 export const unmet = (ids: string[], steps: SetupStep[]) => ids.filter((n) => steps.find((s) => s.id === n)?.state !== 'ok');
 
+// the questions of a running step that wait for their answer now; inputs[] lists them all the time, ask only while asked
+export const asked = (s: SetupStep) => (s.state === 'running' ? s.inputs.filter((i) => i.ask) : []);
+
+// what a step without a start is done with: its value, given with setup.answer
+export const ownInputs = (s: SetupStep) => (s.start || s.state === 'locked' || s.state === 'running' ? [] : s.inputs.filter((i) => !i.ask && !i.advanced));
+
+// a step that doesn't run and can't start now: setup.start refuses while the program names what blocks it
+export const held = (s: SetupStep) => s.state !== 'running' && s.blocked.length > 0;
+
 // a step that counts as done for the progress
 export const isDone = (s: StepState) => s === 'ok' || s === 'skipped';
 
@@ -242,6 +251,8 @@ export const releasesBlade = (s: SetupStep) => s.restart && !!s.motion?.blade;
 
 // the last safety step: it writes the date of the safety measurement, restarts the OS and opens the lock once it passed
 export const isSummary = (s: SetupStep) => s.check === 'summary';
+// a summary the program holds back for safety steps not passed (SAFETY_STEPS)
+export const safetyDue = (s: SetupStep) => isSummary(s) && s.blocked.some((b) => b.reason === 'SAFETY_STEPS');
 // what a summary writes when it starts: today's date in UTC as the OS writes it, the longest stand time of the passed
 // step silence (null while unknown)
 export function summaryPreview(steps: SetupStep[], now = Date.now()): {date: string; failsafe: number | null} {

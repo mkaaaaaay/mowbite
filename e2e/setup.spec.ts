@@ -56,8 +56,7 @@ const groundPassed = async (page: Page) => {
 // the wheels turned and the right one named
 const wheelsPassed = async (page: Page) => {
   await goWheels(page);
-  await step(page, 'wheels').getByLabel('Right wheel').check({timeout: 15000});
-  await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
+  await step(page, 'wheels').getByRole('button', {name: 'Right wheel'}).click({timeout: 15000});
   await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'ok');
 };
 
@@ -78,15 +77,14 @@ test.describe('setup', () => {
     const s = step(page, 'assign');
     await s.getByRole('button', {name: 'Start'}).click();
     await expect(s.locator('li[data-state="waiting"]')).toContainText('STOP button');
+    await expect(s.getByText('Take this line?')).toHaveCount(0);
     await press(page, 'STOP');
     await expect(s.locator('[data-asked-line="IN1"]')).toContainText('STOP button: seen on line IN1');
-    await s.getByLabel('Take it').check();
-    await s.getByRole('button', {name: 'Save'}).click();
+    await s.getByRole('button', {name: 'Take it'}).click();
     await expect(s.locator('[data-line="IN1"]')).toContainText('STOP button');
     await press(page, 'LIFT');
     await expect(s.locator('[data-asked-line="IN2"]')).toBeVisible();
-    await s.getByLabel('Take it').check();
-    await s.getByRole('button', {name: 'Save'}).click();
+    await s.getByRole('button', {name: 'Take it'}).click();
     await expect(s.getByText('MowBite OS is starting again')).toBeVisible();
     await expect(s).toHaveAttribute('data-state', 'ok');
     await s.getByText('Advanced').click();
@@ -133,6 +131,10 @@ test.describe('setup', () => {
     await expect(step(page, 'stop').getByRole('alert')).toHaveCount(0);
     await press(page, 'STOP');
     await expect(step(page, 'stop')).toHaveAttribute('data-state', 'ok');
+    // a question the step didn't need stays away once it passed
+    await expect(step(page, 'stop')).toContainText('Passed');
+    await expect(step(page, 'stop').getByText('Did you do it?')).toHaveCount(0);
+    await expect(step(page, 'stop').getByRole('button', {name: 'Save'})).toHaveCount(0);
 
     // locked until its choice is made
     await page.goto('/setup/?step=fix');
@@ -157,14 +159,24 @@ test.describe('setup', () => {
     await demoWith(page, 'Setup');
     await page.goto('/setup/?step=wheels');
     await expect(step(page, 'wheels').locator('[data-blocked="SAFETY_INPUTS"]')).toContainText('STOP button, lifting and bumper');
+    // no start while the inputs block it
+    await expect(step(page, 'wheels').getByRole('button', {name: 'Start'})).toBeDisabled();
     await inputsPassed(page);
+    await expect(step(page, 'wheels').getByText('Which wheel turns?')).toHaveCount(0);
 
-    // what turns and the points to tick, then part by part until the question
+    // what turns and the points to tick, then part by part until the question: on top with the time left, a tap answers
     await goWheels(page);
     await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'running');
-    await step(page, 'wheels').getByLabel('Left wheel').check({timeout: 15000});
-    await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
+    const asks = step(page, 'wheels').locator('[data-question="wheel"]');
+    await expect(asks).toContainText('Which wheel turns?', {timeout: 15000});
+    await expect(asks).toBeInViewport();
+    await expect(asks.getByRole('img', {name: /0:\d\d left/})).toBeVisible();
+    await expect(asks.getByRole('button')).toHaveText(['Left wheel', 'Right wheel', 'Both', 'None']);
+    await expect(step(page, 'wheels').getByRole('button', {name: 'Save'})).toHaveCount(0);
+    expect((await asks.boundingBox())!.y).toBeLessThan((await step(page, 'wheels').locator('h2').boundingBox())!.y);
+    await asks.getByRole('button', {name: 'Left wheel'}).click();
     await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'failed');
+    await expect(asks).toHaveCount(0);
     await expect(step(page, 'wheels')).toContainText('Another wheel than the right one turned');
     await overview(page);
     await expect(page.locator('[data-cause="WRONG_WHEEL"]')).toContainText('Wheels: Another wheel than the right one turned');
@@ -197,9 +209,12 @@ test.describe('setup', () => {
 
     // STOP not seen in time asks, and a yes fails the step and keeps the lock closed
     await goGround(page);
-    await g.getByLabel('Yes, I did').check({timeout: 20000});
-    await g.getByRole('button', {name: 'Save'}).click();
+    const asks = g.locator('[data-question="pressed"]');
+    await expect(asks).toContainText('Did you do it?', {timeout: 20000});
+    await expect(asks.getByRole('img', {name: /0:\d\d left/})).toBeVisible();
+    await asks.getByRole('button', {name: 'Yes, I did'}).click();
     await expect(g).toHaveAttribute('data-state', 'failed');
+    await expect(asks).toHaveCount(0);
     await overview(page);
     await expect(page.locator('[data-cause="NOT_SEEN"]')).toContainText('Driving on the ground: The mower didn');
   });
@@ -213,6 +228,10 @@ test.describe('setup', () => {
     await page.goto('/setup/?step=summary');
     const due = sum.locator('[data-blocked="SAFETY_STEPS"]');
     await expect(due).toContainText('Every safety check has to pass first');
+    // nothing to tick or start until they passed, and the step doesn't say they did
+    await expect(sum.locator('[data-due]')).toHaveText('Not all checks passed yet');
+    await expect(sum).not.toContainText('All safety checks passed');
+    await expect(sum.getByRole('button', {name: 'Start'})).toBeDisabled();
     await expect(due.getByRole('link', {name: 'Wheels'})).toHaveAttribute('href', /\/setup\/?\?step=wheels/);
     await due.getByRole('link', {name: 'Blade'}).click();
     await expect(b.locator('[data-blocked="SAFETY_INPUTS"]')).toBeVisible();
@@ -246,6 +265,8 @@ test.describe('setup', () => {
     // the release: what it writes before the tick, the restart, then the lock open with the date and the firmware
     await to(page, 'Safety', 'Release safety');
     await expect(sum.locator('[data-blocked]')).toHaveCount(0);
+    await expect(sum.locator('[data-due]')).toHaveCount(0);
+    await expect(sum).toContainText('All safety checks passed');
     await sum.getByRole('button', {name: 'Start'}).click();
     const sheet = page.getByRole('dialog');
     await expect(sheet.locator('[data-summary]')).toContainText('Date');

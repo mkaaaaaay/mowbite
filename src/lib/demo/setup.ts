@@ -327,7 +327,7 @@ const KEEP_S = 1;
 // the question of a part the step saw nothing of (s), and the reasons a failed safety step closes the lock with
 const PRESSED_S = 30;
 const CLOSES = ['LIMIT', 'STARTED_AGAIN', 'NO_EMERGENCY', 'WRONG_DIRECTION', 'WRONG_WHEEL', 'NOT_SEEN', 'NO_STANDSTILL'];
-const question = (name: string, en: string[], de: string[], values: Named[]): SetupInput => ({name, type: 'choice', ask: true, advanced: false, value: null, texts: tx(en, de), values});
+const question = (name: string, en: string[], de: string[], values: Named[]): SetupInput => ({name, type: 'choice', ask: false, advanced: false, value: null, texts: tx(en, de), values});
 const WHEEL = question('wheel', ['Which wheel turns?', 'Only one wheel should turn now. Tell which one turns.'], ['Welches Rad dreht?', 'Jetzt sollte sich nur ein Rad drehen. Angeben, welches sich dreht.'], [
   named('left', 'Left wheel', 'Linkes Rad'),
   named('right', 'Right wheel', 'Rechtes Rad'),
@@ -338,6 +338,8 @@ const PRESSED = question('pressed', ['Did you do it?', 'The mower noticed nothin
   named('yes', 'Yes, I did', 'Ja, gemacht'),
   named('no', 'No, not yet', 'Nein, noch nicht'),
 ]);
+// the checks that ask pressed
+const ASKS_PRESSED = ['input', 'imu', 'stop_moving', 'ground', 'blade'];
 const FIRMWARE = '1.4.2';
 // the stand time without control the demo's summary writes (s): it has no step silence to take it from
 const FAILSAFE = 0.6;
@@ -478,6 +480,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // how long the running part waits for its input before it asks (s): an input step's part, a press of a step by parts
   const waitS = (s: Base, r: NonNullable<typeof run>) =>
     BIT[s.id] ? PART_S : byParts(s) && r.phase === 'armed' && wants(s, r.part) ? PRESS_S : null;
+  const questions = (s: Base) => [s.check === 'inputs_assign' && ACCEPT, s.check === 'wheels' && WHEEL, ASKS_PRESSED.includes(s.check) && PRESSED].filter((q) => !!q);
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
     const running = run?.id === s.id;
@@ -490,8 +493,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       restart: s.restart || releasing(s),
       parts: k.parts,
       values: k.values,
-      // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
-      inputs: r?.asking ? [r.asking.input] : r && s.check === 'inputs_assign' ? (r.asked ? [ACCEPT] : []) : k.inputs,
+      // the questions of its check stand there all the time, ask only while one waits for its answer
+      inputs: [...k.inputs, ...questions(s).map((q) => ({...q, ask: q === (r?.asked ? ACCEPT : r?.asking?.input)}))],
       progress: r && s.parts.length ? {n: Math.min(r.part + 1, s.parts.length), of: s.parts.length} : null,
       ends_at: r?.asking ? Math.floor(r.asking.until) : r && waitS(s, r) ? Math.floor(r.since + waitS(s, r)!) : null,
       result: k.result,
@@ -832,6 +835,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         answerAsked(s, k, values);
         return setup();
       }
+      if (s.check !== 'choice' && s.check !== 'number') throw refuse('WRONG_METHOD', `${s.id} asks nothing right now`);
       check(k.inputs, values);
       k.inputs = k.inputs.map((i) => (i.name in values ? {...i, value: values[i.name]} : i));
       k.attempt++;
