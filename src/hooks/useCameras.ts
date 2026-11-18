@@ -20,10 +20,13 @@ interface Cameras {
   changes: Record<string, number>;
   // the one picked last on this device for this mower
   chosen: string;
+  // the boxes of what the mower recognises in the picture, where a camera can switch them (on unless switched off here)
+  boxes: boolean;
 }
 
 const CHOSEN_KEY = 'camera';
-let now: Cameras = {changes: {}, chosen: ''};
+const BOXES_KEY = 'cameraBoxes';
+let now: Cameras = {changes: {}, chosen: '', boxes: true};
 const listeners = new Set<() => void>();
 const set = (next: Partial<Cameras>) => {
   now = {...now, ...next};
@@ -49,7 +52,7 @@ let started = false;
 function start() {
   if (started) return;
   started = true;
-  set({chosen: readMower<string>(CHOSEN_KEY) ?? ''});
+  set({chosen: readMower<string>(CHOSEN_KEY) ?? '', boxes: readMower<boolean>(BOXES_KEY) ?? true});
   onTopic(TOPIC.events, (payload) => {
     const text = payload.toString();
     if (!text.includes('CAMERA_CHANGED')) return;
@@ -78,6 +81,11 @@ export function chooseCamera(id: string) {
   writeMower(CHOSEN_KEY, id);
 }
 
+export function showBoxes(on: boolean) {
+  set({boxes: on});
+  writeMower(BOXES_KEY, on);
+}
+
 // on: the mower has cameras (camera.* in rpc.methods). camera: the one picked, else the first
 export function useCameras() {
   const methods = useRpcMethods();
@@ -91,5 +99,5 @@ export function useCameras() {
     if (on) start();
   }, [on]);
   const camera = s.list?.find((c) => c.id === s.chosen) ?? s.list?.[0];
-  return {on, list: s.list, failed: s.failed, camera, changes: s.changes};
+  return {on, list: s.list, failed: s.failed, camera, changes: s.changes, boxes: s.boxes};
 }

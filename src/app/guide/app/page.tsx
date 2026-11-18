@@ -176,7 +176,7 @@ function CameraArt() {
 
 const CAMERA_STEP: GuideStep = {
   title: 'Camera',
-  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top right of the status card, or tick Camera picture in Settings › App › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
+  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top right of the status card, or tick Camera picture in Settings › App › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. Where a camera recognises things, AI view switches the boxes around them in the picture on and off. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
   Art: CameraArt,
 };
 

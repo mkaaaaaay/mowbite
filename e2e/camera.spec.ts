@@ -38,6 +38,23 @@ test.describe('cameras', () => {
     await expect(camera).not.toContainText('No picture');
   });
 
+  test('AI view switches the boxes in the picture, only where the camera has them', async ({page}) => {
+    // (a newer MowBite OS takes the switch, the plain demo is an OpenMower)
+    await demoWith(page, 'Os', 'Cameras');
+    await page.goto('/');
+    const camera = await onDashboard(page);
+    await demoDocked(page);
+    const ai = camera.getByRole('button', {name: 'AI view'});
+    await expect(ai).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => picture(page)).toContain('leaf 0.87');
+    await ai.click();
+    await expect(ai).toHaveAttribute('aria-pressed', 'false');
+    await expect(camera.locator('img')).toBeVisible();
+    await expect.poll(() => picture(page)).not.toContain('leaf 0.87');
+    await camera.getByRole('button', {name: 'Rear camera'}).click();
+    await expect(camera.getByRole('button', {name: 'AI view'})).toHaveCount(0);
+  });
+
   test('on the dashboard once switched on: why there is none while the blade runs, then the picture, the cameras to switch', async ({page}) => {
     await demoWith(page, 'Cameras');
     await page.goto('/');

@@ -20,6 +20,8 @@ export interface Camera {
   height: number;
   protocols: string[];
   available: boolean;
+  // whether it can draw what the mower recognises into its picture (boxes), switched per stream
+  detections?: boolean;
   // why not, the names of CAMERA_REFUSED
   reason?: string;
   detail?: string;
@@ -29,10 +31,14 @@ export interface Stream {
   protocol: string;
   // until when the url can be connected to (unix s), once connected it holds until the connection ends
   expires: number;
+  // whether its picture has the boxes (MowBite OS from api 49)
+  detections?: boolean;
 }
 
 export const loadCameras = () => callRpc<Camera[]>(RPC.cameraList);
-export const openStream = (id: string, protocol: string) => callRpc<Stream>(RPC.cameraStream, {id, protocol});
+// detections: boxes in the picture or not, left out for an older MowBite OS (it turns down a parameter it doesn't know)
+export const openStream = (id: string, protocol: string, detections?: boolean) =>
+  callRpc<Stream>(RPC.cameraStream, detections === undefined ? {id, protocol} : {id, protocol, detections});
 
 const POSITIONS: Record<CameraPosition, string> = {
   front: 'Front camera',

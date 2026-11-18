@@ -1,7 +1,7 @@
 'use client';
 
-import {CameraIcon, FitIcon, ShrinkIcon} from '@/components/icons';
-import {chooseCamera, useCameras} from '@/hooks/useCameras';
+import {CameraIcon, DetectIcon, FitIcon, ShrinkIcon} from '@/components/icons';
+import {chooseCamera, showBoxes, useCameras} from '@/hooks/useCameras';
 import {
   afterClosed,
   blockedHere,
@@ -21,7 +21,9 @@ import {
   type Camera,
 } from '@/lib/camera';
 import {tr, useLang} from '@/lib/i18n';
+import {useOsApi} from '@/lib/mowerOs';
 import {brokerHost} from '@/lib/mqttClient';
+import {CAMERA_DETECTIONS_API} from '@/lib/openmower';
 import {isApp} from '@/lib/native';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
@@ -34,7 +36,10 @@ import styles from './CameraView.module.css';
 // plain: the picture alone. fill: as big as the place it's put in, else as wide as it and as high as the cameras need
 export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill?: boolean; onHide?: () => void}) {
   useLang();
-  const {on, list, failed, camera, changes} = useCameras();
+  const {on, list, failed, camera, changes, boxes} = useCameras();
+  const api = useOsApi();
+  // the boxes asked for only where the camera has them and the mower takes the switch, else as the mower sends them
+  const detections = camera?.detections && api >= CAMERA_DETECTIONS_API ? boxes : undefined;
   const shown = usePageShown();
   const [live, setLive] = useState(false);
   const [bare, setBare] = useState(false);
@@ -63,7 +68,7 @@ export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill
         ) : !camera.available ? (
           <Note title={tr('No picture')} text={cameraReason(camera.reason)} detail={camera.detail} />
         ) : (
-          shown && <Player key={`${camera.id} ${changes[camera.id] ?? 0}`} camera={camera} onLive={setLive} />
+          shown && <Player key={`${camera.id} ${changes[camera.id] ?? 0} ${detections}`} camera={camera} detections={detections} onLive={setLive} />
         )}
         {!plain && (
           <>
@@ -76,6 +81,16 @@ export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill
                 </span>
               )}
               <span className={styles.corner}>
+                {detections !== undefined && (
+                  <button
+                    aria-label={tr('AI view')}
+                    aria-pressed={detections}
+                    title={tr(detections ? 'AI view on: boxes around what the mower recognises' : 'AI view off: the plain picture')}
+                    onClick={() => showBoxes(!detections)}
+                  >
+                    <DetectIcon size={18} off={!detections} />
+                  </button>
+                )}
                 {onHide && !full && (
                   <button aria-label={tr('Hide the camera picture')} title={tr('Hide the camera picture')} onClick={onHide}>
                     <CameraIcon size={18} off />
@@ -125,7 +140,7 @@ type Shown = {phase: 'connecting' | 'playing' | 'ended'} | {phase: 'failed'; tex
 
 // one connection to a camera, closed when it goes (another camera, the page left or put away). each try asks the
 // mower for a stream anew, its address is good for one connection
-function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => void}) {
+function Player({camera, detections, onLive}: {camera: Camera; detections?: boolean; onLive: (live: boolean) => void}) {
   const [shown, setShown] = useState<Shown>({phase: 'connecting'});
   useEffect(() => onLive(shown.phase === 'playing'), [shown.phase, onLive]);
   const [tries, setTries] = useState(0);
@@ -159,7 +174,7 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       // (the last one closed first, else switching could hold both places for a moment)
       await afterClosed();
       if (!alive) return;
-      const s = await openStream(camera.id, protocol);
+      const s = await openStream(camera.id, protocol, detections);
       const url = streamUrl(s.url, brokerHost());
       if (!alive) {
         // (the view went meanwhile: its place given back)
@@ -200,7 +215,7 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       alive = false;
       shut();
     };
-  }, [camera.id, camera.protocols, protocol, tries]);
+  }, [camera.id, camera.protocols, protocol, tries, detections]);
 
   if (!protocol) return <Note text={unknownProtocol(camera.protocols.join(', '))} />;
   const again = (
