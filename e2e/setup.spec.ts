@@ -267,6 +267,36 @@ test.describe('setup', () => {
     await expect(page.getByRole('dialog').locator('[data-risky]')).toContainText('the mower stays locked until it passes again');
   });
 
+  test('opens the next step by itself once one passes while shown, not one opened passed, repeated or touched', async ({page}) => {
+    await demoWith(page, 'Setup');
+    const board = step(page, 'board');
+    await page.goto('/setup/?step=board');
+    await board.getByRole('button', {name: 'Start'}).click();
+    await expect(board.locator('[data-result="passed"]')).toContainText('Next: Place the mower');
+    await expect(page).toHaveURL(/\?step=outdoors/);
+
+    // opened again passed it stays, the way on a button; a repeat that passes stays too
+    await to(page, 'Device', 'Board and sensors');
+    await expect(board.locator('[data-result="passed"]')).toHaveCount(0);
+    await board.getByRole('button', {name: 'Repeat'}).click();
+    await expect(board).toHaveAttribute('data-state', 'running');
+    await expect(board).toHaveAttribute('data-state', 'ok');
+    await page.waitForTimeout(2000);
+    await expect(page).toHaveURL(/\?step=board/);
+    await board.getByRole('link', {name: 'Go on: Place the mower'}).click();
+
+    // a touch while it shows the pass keeps the step open
+    const outdoors = step(page, 'outdoors');
+    await outdoors.getByRole('button', {name: 'Start'}).click();
+    for (const box of await page.getByRole('dialog').getByRole('checkbox').all()) await box.check();
+    await page.getByRole('dialog').getByRole('button', {name: 'Start'}).click();
+    await expect(outdoors.locator('[data-result="passed"]')).toBeVisible();
+    await outdoors.getByRole('heading', {level: 2}).click();
+    await page.waitForTimeout(2000);
+    await expect(page).toHaveURL(/\?step=outdoors/);
+    await expect(outdoors.locator('[data-next]')).toContainText('Go on: ');
+  });
+
   test('a mark moves when its state changes, not when it is shown', async ({page, isMobile}) => {
     test.skip(isMobile, 'the overview beside the step on a desktop');
     await demoWith(page, 'Setup');

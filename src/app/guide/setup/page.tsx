@@ -619,7 +619,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'A step',
-    text: 'A step says what to do and shows it in a drawing. Tap Start: the mower checks the parts and values listed, each gets a tick or a cross. Not passed says why and how to fix it, then tap Repeat. A passed step can be repeated at any time.',
+    text: 'A step says what to do and shows it in a drawing. Tap Start: the mower checks the parts and values listed, each gets a tick or a cross. Not passed says why and how to fix it, then tap Repeat. Once a step passes, the next one opens by itself; a passed step can be repeated at any time.',
     Art: StepArt,
   },
   {
