@@ -45,7 +45,7 @@ test.describe('obstacles', () => {
     const ball = page.locator('[data-obstacle-card="2"]');
     await expect(ball).toContainText('Drove around it');
     await expect(ball).toContainText('the circle round it stays unmowed');
-    await expect(ball).not.toContainText(' m ');
+    await expect(ball).not.toContainText(/6[.,]7/);
   });
 
   test('in the settings: only the modes the mower can do, the photos, how often it would have stopped, deleting all', async ({page}) => {
