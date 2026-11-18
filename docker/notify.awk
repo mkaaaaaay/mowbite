@@ -221,9 +221,8 @@ function tell(phase, why,   m) {
     if (phase == "clear") {
       if (still_home) send(problem, phase, tx("Charging again", "Lädt wieder"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
       else send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " is moving again.", who() " bewegt sich wieder."), 2, "white_check_mark")
-    } else if (still_why ~ /^OBSTACLE/) {
-      m = substr(still_why, 10)
-      send(problem, phase, tx("Paused: obstacle in the way", "Pausiert: Hindernis im Weg"), tx(who() " has been waiting for " minutes(t - since) " min because the camera sees " kind_text(m) " in the way. It goes on by itself once the place is free.", who() " wartet seit " minutes(t - since) " min, weil die Kamera " kind_text(m) " im Weg sieht. Es geht von selbst weiter, sobald der Platz frei ist."), 4, "warning")
+    } else if (still_why == "OBSTACLE") {
+      send(problem, phase, tx("Paused: obstacle in the way", "Pausiert: Hindernis im Weg"), tx(who() " has been waiting for " minutes(t - since) " min because the camera sees " kind_text(still_kind) " in the way. It goes on by itself once the place is free.", who() " wartet seit " minutes(t - since) " min, weil die Kamera " kind_text(still_kind) " im Weg sieht. Es geht von selbst weiter, sobald der Platz frei ist."), 4, "warning")
     } else {
       m = tx(who() " has been standing still for " minutes(t - since) " min and isn't charging.", who() " steht seit " minutes(t - since) " min still und lädt nicht.")
       if (still_why == "PAUSED") m = m " " tx("Paused, waiting for GPS.", "Pausiert, weil GPS fehlt.")
@@ -241,7 +240,7 @@ function tell(phase, why,   m) {
 
 # st: robot_state's current_state, x and y its position, home: charging or on the contacts. without a charge voltage
 # idle isn't watched, a full battery in the dock wouldn't look any different. paused by hand it waits on purpose
-function standstill(st, x, y, home,   dx, dy, wait) {
+function standstill(st, x, y, home,   dx, dy, held, wait) {
   if (home || emergency || st == "" || st == "AREA_RECORDING" || (st == "IDLE" && !have_v) || (st == "PAUSED" && (has_pause ? pause_reason == "MANUAL" : manual))) {
     still_t = 0
     still_home = home
@@ -256,10 +255,11 @@ function standstill(st, x, y, home,   dx, dy, wait) {
     still_t = t; still_x = x; still_y = y
     return
   }
-  wait = STILL_WAIT
-  if (st == "PAUSED" && pause_reason == "OBSTACLE") wait = pause_kind ~ /^(PERSON|ANIMAL)$/ ? STILL_LIVING : STILL_OBSTACLE
+  held = pause_reason == "OBSTACLE"
+  wait = !held ? STILL_WAIT : pause_kind ~ /^(PERSON|ANIMAL)$/ ? STILL_LIVING : STILL_OBSTACLE
   if (t - still_t >= wait && !problem && on("standstill")) {
-    still_why = st == "PAUSED" && pause_reason == "OBSTACLE" ? "OBSTACLE " pause_kind : st
+    still_why = held ? "OBSTACLE" : st
+    still_kind = pause_kind
     open("standstill", "", still_t)
   }
 }
@@ -363,15 +363,16 @@ BEGIN {
       em_t = 0
     }
     charging = field(json, "is_charging")
-    # MowBite OS from api 51: why it's paused, the most serious one that holds it
-    has_pause = json ~ /"pause_reason"/
-    pause_reason = field(json, "pause_reason")
-    pause_kind = field(json, "pause_kind")
     # (on MowBite OS that's only the contacts, DOCKED tells)
     if (problem == "dock_failed" && !dock_os && (charging == "1" || charging == "true")) close_problem(1)
     # not out of the dock and charging there: told once, no reminders all night
     if (problem == "undock_failed" && undock_why != "no_gps" && (charging == "1" || charging == "true")) close_problem(0)
-    standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
+    cur_state = field(json, "current_state")
+    # MowBite OS from api 51: why it's paused, the most serious one that holds it
+    has_pause = cur_state == "PAUSED" && json ~ /"pause_reason"/
+    pause_reason = has_pause ? field(json, "pause_reason") : ""
+    pause_kind = pause_reason == "OBSTACLE" ? field(json, "pause_kind") : ""
+    standstill(cur_state, field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
   } else if (topic_in == T_CHARGE) {
     v_charge = json + 0
     have_v = 1

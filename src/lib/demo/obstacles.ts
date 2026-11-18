@@ -1,5 +1,5 @@
 import {fromBase64} from '../base64';
-import {RPC, TOPIC} from '../openmower';
+import {OBSTACLE_MODES, RPC, TOPIC} from '../openmower';
 import {sha256Js} from '../sha256';
 
 // What the obstacle sensors of a mower with MowBite OS saw, for the click tests (vision.obstacles.*), like MowBite OS
@@ -21,6 +21,7 @@ const photo = (name: string, box: {x: number; y: number; w: number; h: number}) 
   box,
 });
 const PIECE = 65536;
+const MODE_MAX = 'stop';
 const invalid = (field: string, message: string) => Object.assign(new Error(message), {code: -32602, data: {field, reason: 'INVALID'}});
 
 // now: the demo's clock in unix s. param: obstacle_mode and obstacle_photos as params.set has them
@@ -41,8 +42,8 @@ export function demoObstacles(deliver: (topic: string, text: string) => void, no
       [RPC.obstaclesList]: (p: unknown) => {
         const since = (p as {since?: number})?.since;
         return {
-          mode: ['off', 'show', 'stop'][Math.min(param('obstacle_mode'), 2)] ?? 'off',
-          mode_max: 'stop',
+          mode: OBSTACLE_MODES[Math.min(param('obstacle_mode'), OBSTACLE_MODES.indexOf(MODE_MAX))] ?? 'off',
+          mode_max: MODE_MAX,
           photos: !!param('obstacle_photos'),
           sight: {ok: true, reason: null},
           limit: {entries: 200, bytes: 20971520, days: 14},

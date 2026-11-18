@@ -1,6 +1,6 @@
 import {nearClock} from './dates';
 import {tr} from './i18n';
-import {RPC} from './openmower';
+import {OBSTACLE_MODES, RPC} from './openmower';
 import {callRpc} from './rpc';
 import {rpcImage, type ImageRef} from './rpcImage';
 
@@ -53,8 +53,6 @@ const PHOTO_BYTES = 1 << 20;
 // seen this recently, it's there now
 const JUST_SEEN_S = 10;
 
-// obstacle_mode as vision.obstacles.list names it
-const OBSTACLE_MODES = ['off', 'show', 'stop', 'avoid'];
 // the highest obstacle_mode to offer: show before api 51
 export const modeMax = (list: Pick<ObstacleList, 'mode_max'> | undefined) => Math.max(1, OBSTACLE_MODES.indexOf(list?.mode_max ?? 'show'));
 // the entries it would have stopped for, had it been set to stop

@@ -468,11 +468,12 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     case 'STATE':
       // MowBite OS says whether it goes on by itself
       if (e.state !== 'PAUSED' || !e.reason || !os) return undefined;
-      if (e.reason === 'OBSTACLE') return tr('It goes on by itself once the camera has seen the place free for a while.');
       if (e.resume === 'auto')
         return POSITION_PAUSE.includes(e.reason)
           ? tr('It goes on by itself once the position has been good for a moment.')
-          : tr('It goes on by itself once that is over.');
+          : e.reason === 'OBSTACLE'
+            ? tr('It goes on by itself once the camera has seen the place free for a while.')
+            : tr('It goes on by itself once that is over.');
       if (e.reason === 'SCHEDULE')
         return tr("The schedule ended mowing, but it can't go home by itself from here, so it waits where it is. Continue it or take it home, the next plan carries on with the job.");
       // a reason to go home, but it has no way there (no docking station, no contacts at the back)

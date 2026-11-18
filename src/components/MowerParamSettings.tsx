@@ -131,8 +131,8 @@ export async function setOpenMowerParam(key: string, value: number | boolean) {
   if (f) await apply(f, value);
 }
 
-// one setting: its value on the mower, changed right there. os: on MowBite OS. max: the highest choice this mower can do
-export function ParamRow({field, os, max}: {field: ParamField; os: boolean; max?: number}) {
+// one setting: its value on the mower, changed right there. os: on MowBite OS
+export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
   const f = onOs(field, os);
   const params = useMowerParams();
   const k = useKept();
@@ -192,7 +192,7 @@ export function ParamRow({field, os, max}: {field: ParamField; os: boolean; max?
           />
         ) : f.type === 'choice' ? (
           <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
-            {f.choices!.slice(0, Math.max(max ?? Infinity, value as number) + 1).map((c, i) => (
+            {f.choices!.slice(0, Math.max(f.max ?? Infinity, value as number) + 1).map((c, i) => (
               <option key={c} value={i}>
                 {tr(c)}
               </option>
@@ -296,12 +296,11 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
     case 'journal':
       return tr(v('journal_enabled') ? 'kept' : 'off');
     case 'obstacles':
-      return v('obstacle_mode')
-        ? [tr((v('obstacle_mode') as number) >= 2 ? 'stops for them' : 'on the map'), ...(v('obstacle_photos') ? [tr('with photos')] : [])].join(', ')
-        : tr('off');
+      return [tr(OBSTACLE_SHORT[v('obstacle_mode') as number] ?? 'on the map'), ...(v('obstacle_mode') && v('obstacle_photos') ? [tr('with photos')] : [])].join(', ');
   }
 }
 const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
+const OBSTACLE_SHORT = ['off', 'on the map', 'stops for them', 'drives around them'];
 
 // OpenMower's own values for mowing every area (mower_params.yaml), with the map where an area can have its own
 export function OpenMowerMowing({styles}: {styles: Styles}) {
@@ -345,11 +344,12 @@ export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Rec
 }
 
 // the values of one of OpenMower's groups that this mower has
+// max: the highest value this mower can do, where it says so itself
 export function ParamGroupRows({group, params, os, max}: {group: ParamGroup; params: Record<string, unknown>; os: boolean; max?: Record<string, number>}) {
   return (
     <div className={`${local.rows} ${local.inGroup}`}>
       {groupFields(group, params).map((f) => (
-        <ParamRow key={f.key} field={f} os={os} max={max?.[f.key]} />
+        <ParamRow key={f.key} field={max?.[f.key] === undefined ? f : {...f, max: max[f.key], osMax: max[f.key]}} os={os} />
       ))}
     </div>
   );

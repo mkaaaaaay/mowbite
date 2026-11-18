@@ -191,6 +191,9 @@ export const DOCK_TEST_RUNS_API = 37;
 // camera.stream switches the boxes of what the mower recognises on and off per stream
 export const CAMERA_DETECTIONS_API = 49;
 
+// obstacle_mode by its names in vision.obstacles.list
+export const OBSTACLE_MODES = ['off', 'show', 'stop', 'avoid'];
+
 // above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
 export const DOCKED_VOLTAGE = 5;
 

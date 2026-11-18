@@ -3712,6 +3712,7 @@ const de: Record<string, string> = {
   "Stop for them": "Anhalten",
   "Drive around them": "Umfahren",
   "stops for them": "hält an",
+  "drives around them": "umfährt sie",
   "with photos": "mit Fotos",
   "Would have stopped": "Hätte angehalten",
   "it would have stopped for 1": "hätte bei 1 angehalten",
