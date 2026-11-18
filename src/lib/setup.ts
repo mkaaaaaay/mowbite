@@ -188,6 +188,9 @@ export const nameById = (list: Named[], id: string, lang: string) => nameOf(list
 // the link to a step of the setup
 export const stepHref = (id: string) => `/setup?step=${encodeURIComponent(id)}`;
 
+// the step to do next, as the program names it
+export const currentStep = (s: Setup) => s.steps.find((x) => x.id === s.current);
+
 // the steps of these ids not passed yet
 export const unmet = (ids: string[], steps: SetupStep[]) => ids.filter((n) => steps.find((s) => s.id === n)?.state !== 'ok');
 

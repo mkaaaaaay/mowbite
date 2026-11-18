@@ -3,7 +3,7 @@
 import {ChevronIcon, LockIcon} from '@/components/icons';
 import {dayText} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
-import {causeText, isDone, isSummary, stepHref, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
+import {causeText, currentStep, isDone, isSummary, stepHref, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord, useMoved} from './StateMark';
@@ -30,7 +30,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
   const shown = open ?? chosenStage ?? setup.stage ?? setup.stages[0]?.id;
   const done = setup.steps.filter((s) => isDone(s.state)).length;
   const skipped = setup.steps.filter((s) => s.state === 'skipped').length;
-  const next = setup.steps.find((s) => s.id === setup.current);
+  const next = currentStep(setup);
   const {safety} = setup;
   const lockMoved = useMoved(safety.open);
   const releasing = setup.steps.some((s) => isSummary(s) && s.state === 'running');

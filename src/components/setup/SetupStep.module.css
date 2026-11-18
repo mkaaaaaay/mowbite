@@ -283,7 +283,9 @@
 }
 
 @media (min-width: 900px) {
-  .back {
+  /* the overview beside the step has the way back and on */
+  .back,
+  .button[data-next] {
     display: none;
   }
 
