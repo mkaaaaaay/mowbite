@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {justSeen, mergeObstacles, modeMax, obstacleName, sinceOf, withoutObstacle, wouldStop, type Obstacle} from './obstacles';
+import {justSeen, mergeObstacles, modeMax, obstacleName, sameObstacles, sinceOf, withoutObstacle, wouldStop, type Obstacle} from './obstacles';
 
 const seen = (id: number, last_t: number, more: Partial<Obstacle> = {}): Obstacle => ({
   id,
@@ -36,6 +36,12 @@ describe('obstacles', () => {
 
   it('offers the modes up to what the platform can do, show before api 51', () => {
     expect([modeMax(undefined), modeMax({}), modeMax({mode_max: 'off'}), modeMax({mode_max: 'stop'}), modeMax({mode_max: 'avoid'})]).toEqual([1, 1, 1, 2, 3]);
+  });
+
+  it('draws anew when a circle it drives around comes or ends', () => {
+    const o = (keep_out_r: number | null) => ({id: 1, last_t: 5, count: 1, action: 'avoided', image: null, keep_out_r}) as Obstacle;
+    expect(sameObstacles([o(0.5)], [o(0.5)])).toBe(true);
+    expect(sameObstacles([o(0.5)], [o(null)])).toBe(false);
   });
 
   it('counts the entries it would have stopped for', () => {

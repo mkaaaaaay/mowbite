@@ -5,7 +5,7 @@ import {sha256Js} from '../sha256';
 // What the obstacle sensors of a mower with MowBite OS saw, for the click tests (vision.obstacles.*), like MowBite OS
 // answers it. The demo is an OpenMower and has none, a test switches them on before the page loads
 // (window.mowbiteDemoObstacles). Two entries have a small photo of the garden, the person was seen with photos off.
-// The platform can stop for them, not drive around yet
+// The platform can stop for them and drive around them, the ball was driven around
 
 // a hedgehog and a ball on the lawn, 160 x 120
 const PHOTOS: Record<string, Uint8Array> = {
@@ -21,16 +21,16 @@ const photo = (name: string, box: {x: number; y: number; w: number; h: number}) 
   box,
 });
 const PIECE = 65536;
-const MODE_MAX = 'stop';
+const MODE_MAX = 'avoid';
 const invalid = (field: string, message: string) => Object.assign(new Error(message), {code: -32602, data: {field, reason: 'INVALID'}});
 
 // now: the demo's clock in unix s. param: obstacle_mode and obstacle_photos as params.set has them
 export function demoObstacles(deliver: (topic: string, text: string) => void, now: () => number, param: (name: string) => number) {
   const t = now();
   const list = [
-    {id: 3, t: t - 600, last_t: t - 300, count: 2, x: 6.5, y: 1.6, r: 0.15, kind: 'ANIMAL', class: 'hedgehog', confidence: 0.82, camera_id: 'stereo', action: 'would_stop', image: photo('hedgehog', {x: 60, y: 76, w: 52, h: 28})},
-    {id: 2, t: t - 7200, last_t: t - 7200, count: 1, x: 6.2, y: 11, r: 0.12, kind: 'OBJECT', class: 'sports ball', confidence: 0.91, camera_id: 'stereo', action: 'seen', image: photo('ball', {x: 68, y: 72, w: 30, h: 30})},
-    {id: 1, t: t - 86400, last_t: t - 86000, count: 4, x: 4.5, y: 6.6, r: 0.3, kind: 'PERSON', class: 'person', confidence: 0.95, camera_id: 'stereo', action: 'seen', image: null},
+    {id: 3, t: t - 600, last_t: t - 300, count: 2, x: 6.5, y: 1.6, r: 0.15, kind: 'ANIMAL', class: 'hedgehog', confidence: 0.82, camera_id: 'stereo', action: 'would_stop', image: photo('hedgehog', {x: 60, y: 76, w: 52, h: 28}), keep_out_r: null, left_out: null},
+    {id: 2, t: t - 7200, last_t: t - 7200, count: 1, x: 6.2, y: 11, r: 0.12, kind: 'OBJECT', class: 'sports ball', confidence: 0.91, camera_id: 'stereo', action: 'avoided', image: photo('ball', {x: 68, y: 72, w: 30, h: 30}), keep_out_r: 0.55, left_out: 6.7},
+    {id: 1, t: t - 86400, last_t: t - 86000, count: 4, x: 4.5, y: 6.6, r: 0.3, kind: 'PERSON', class: 'person', confidence: 0.95, camera_id: 'stereo', action: 'seen', image: null, keep_out_r: null, left_out: null},
   ];
   let n = 0;
   const cleared = (obstacle_id: number | null) =>

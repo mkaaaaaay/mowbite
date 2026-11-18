@@ -38,6 +38,14 @@ test.describe('obstacles', () => {
     // the person was seen with photos off
     await page.locator('[data-obstacle="1"]:visible circle').nth(1).click();
     await expect(page.locator('[data-obstacle-card="1"]')).toContainText('No photo of it.');
+
+    // the ball was driven around: the circle it keeps out of shows as unmowed, without the meters left out
+    await expect(page.locator('[data-obstacle="2"]:visible [data-kept-out]')).toBeVisible();
+    await page.locator('[data-obstacle="2"]:visible circle').nth(2).click();
+    const ball = page.locator('[data-obstacle-card="2"]');
+    await expect(ball).toContainText('Drove around it');
+    await expect(ball).toContainText('the circle round it stays unmowed');
+    await expect(ball).not.toContainText(/6[.,]7/);
   });
 
   test('in the settings: only the modes the mower can do, the photos, how often it would have stopped, deleting all', async ({page}) => {
@@ -48,7 +56,7 @@ test.describe('obstacles', () => {
     await page.locator('#obstacles summary').click();
     const group = page.locator('#obstacles');
     const mode = group.getByRole('combobox', {name: 'Obstacles the sensors see'});
-    await expect(mode.locator('option')).toHaveText(['Off', 'Show on the map', 'Stop for them']);
+    await expect(mode.locator('option')).toHaveText(['Off', 'Show on the map', 'Stop for them', 'Drive around them']);
     await expect(group.getByRole('checkbox', {name: 'Keep a photo of each'})).toBeChecked();
     await expect(group).toContainText('at most 200 entries and 20 MB, each for 14 days');
     await expect(group).toContainText('3 entries on the mower · it would have stopped for 1');

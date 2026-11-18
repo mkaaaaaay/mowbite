@@ -10,8 +10,9 @@ import {onMethodsChanged} from '@/lib/rpc';
 import {useEffect, useSyncExternalStore} from 'react';
 
 // the obstacles the mower's sensors saw, for all who show them: the whole list once, then the ones seen since at each
-// OBSTACLE_SEEN and every 10 s while the mower drives (a missed event), cleared at OBSTACLES_CLEARED. without
-// vision.obstacles.* in the methods the list goes, it's read again once they're back
+// OBSTACLE_SEEN and every 10 s while the mower drives (a missed event), cleared at OBSTACLES_CLEARED. a circle it
+// drives around ends without an event: while one is shown, at OBSTACLE_AVOIDED and when it stops driving, the whole
+// list. without vision.obstacles.* in the methods the list goes, it's read again once they're back
 type Head = Omit<ObstacleList, 'obstacles'>;
 interface State {
   obstacles?: Obstacle[];
@@ -32,7 +33,8 @@ const subscribe = (l: () => void) => {
 
 // a whole read or a clear makes older answers stale: one asked before it could bring back what's gone
 let generation = 0;
-function read(whole = !now.obstacles) {
+const circles = () => !!now.obstacles?.some((o) => o.keep_out_r);
+function read(whole = !now.obstacles || circles()) {
   const n = whole ? ++generation : generation;
   loadObstacles(whole ? undefined : sinceOf(now.obstacles!)).then(
     ({obstacles, ...head}) => {
@@ -61,6 +63,7 @@ function start() {
     if (!text.includes('OBSTACLE')) return;
     const e = parseEvent(text);
     if (e?.type === 'OBSTACLE_SEEN') read();
+    else if (e?.type === 'OBSTACLE_AVOIDED') read(true);
     else if (e?.type === 'OBSTACLES_CLEARED') forget(e.obstacle_id ?? null);
     else if (e?.type === 'OBSTACLE_SIGHT' && now.head) set({head: {...now.head, sight: {ok: !!e.ok, reason: e.ok ? null : (e.reason ?? null)}}});
   });
@@ -79,7 +82,9 @@ let timer: ReturnType<typeof setInterval> | undefined;
 function poll() {
   if (pollers++ === 0) timer = setInterval(() => read(), POLL_MS);
   return () => {
-    if (--pollers === 0) clearInterval(timer);
+    if (--pollers > 0) return;
+    clearInterval(timer);
+    if (circles()) read(true);
   };
 }
 

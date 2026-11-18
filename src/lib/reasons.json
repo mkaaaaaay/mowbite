@@ -945,6 +945,26 @@
     }
    ]
   },
+  "OBSTACLE_AVOIDED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "area_name": {
+       "present": true
+      }
+     },
+     "en": "Drove around an obstacle in \"{area_name}\"",
+     "with_reason": false,
+     "de": "Hindernis in „{area_name}“ umfahren"
+    },
+    {
+     "en": "Drove around an obstacle",
+     "with_reason": false,
+     "de": "Hindernis umfahren"
+    }
+   ]
+  },
   "OBSTACLES_CLEARED": {
    "severity": "info",
    "variants": [

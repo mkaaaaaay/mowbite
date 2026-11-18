@@ -160,7 +160,7 @@ interface MapViewProps {
   draw?: (at: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => React.ReactNode;
   // what the obstacle sensors saw: its round on the ground and a sign of what it is, pulsing while just seen. one
   // can be picked by its sign, again: none
-  obstacles?: Pick<Obstacle, 'id' | 'x' | 'y' | 'r' | 'kind' | 'last_t'>[];
+  obstacles?: Pick<Obstacle, 'id' | 'x' | 'y' | 'r' | 'kind' | 'last_t' | 'keep_out_r'>[];
   obstaclePicked?: number | null;
   onObstaclePick?: (id: number | null) => void;
 }
@@ -2273,6 +2273,7 @@ function MapView({
             data-obstacle={o.id}
             {...pickable(onObstaclePick && (() => onObstaclePick(picked ? null : o.id)))}
           >
+            {!!o.keep_out_r && <circle className={styles.keptOut} cx={x} cy={y} r={o.keep_out_r * scale} data-kept-out />}
             <circle className={styles.seenGround} cx={x} cy={y} r={Math.max(o.r * scale, 4 * k)} />
             {justSeen(o) && <circle className={styles.seenPulse} cx={x} cy={y} r={22 * k} />}
             {/* a sign is small for a finger: a bigger round to hit */}
