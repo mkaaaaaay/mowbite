@@ -344,7 +344,10 @@ test.describe("MowBite OS in OpenMower's place", () => {
     await page.goto('/settings/#update');
     const card = page.locator('#update [data-part="os"]');
     await card.getByRole('button', {name: 'Back to OpenMower'}).click();
-    await expect(card.getByText("A safety step failed. OpenMower doesn't know MowBite OS's lock", {exact: false})).toBeVisible();
+    const unlocked = card.getByText("A safety step failed. OpenMower doesn't know MowBite OS's lock", {exact: false});
+    await expect(unlocked).toBeVisible();
+    // (red like what went wrong, not yellow)
+    await expect(unlocked).toHaveClass(/error/);
     await card.getByRole('button', {name: 'Back to OpenMower'}).click();
     await expect(page.locator('#update [data-update="os"]')).toContainText('Back to OpenMower…');
   });

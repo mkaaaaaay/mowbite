@@ -649,7 +649,7 @@ function OsSwitchCard({
       {back &&
         (ask === 'openmower' ? (
           <Ask title={tr('Back to OpenMower?')} yes={tr('Back to OpenMower')} locked={locked} onYes={answer('openmower')} onNo={answer()}>
-            {checkFailed && <p className={local.warn}>{tr(UNLOCKED)}</p>}
+            {checkFailed && <p className={local.error}>{tr(UNLOCKED)}</p>}
             <p>{tr(IN_DOCK)}</p>
             <p>{tr("MowBite OS hands its map to OpenMower. What OpenMower can't take is lost, the result says so. If that doesn't work, OpenMower gets its map from before the switch.")}</p>
             {!!s.status.os_drop && <p>{tr("OpenMower's version was deleted for the switch, it's downloaded again: that needs the internet and takes a while.")}</p>}
@@ -670,7 +670,7 @@ const OsBackLink = ({page, checkFailed}: {page: string; checkFailed: boolean}) =
   <article className={local.part} data-part="os">
     <Head name="MowBite OS" tag={{text: tr('In place of OpenMower'), look: local.badgeNew}} text={PART_TEXT.os} />
     <span className={local.dim}>{tr("The way back to OpenMower is on the MowBite Updater's own page, with the mower idle in the dock.")}</span>
-    {checkFailed && <span className={local.warn}>{tr(UNLOCKED)}</span>}
+    {checkFailed && <span className={local.error}>{tr(UNLOCKED)}</span>}
     <a className={local.control} href={page} target="_blank" rel="noreferrer">
       {tr('Back to OpenMower')}
     </a>

@@ -369,7 +369,7 @@ function Part({
             >
               {c.id === 'os' && checkFailed && (
                 // an OS before the lock could be taken back (api 45) opens it again by the date kept by hand
-                <p className={shared.warn}>{tr('A safety step failed. An older MowBite OS may not know that and let the mower drive by itself again.')}</p>
+                <p className={shared.error}>{tr('A safety step failed. An older MowBite OS may not know that and let the mower drive by itself again.')}</p>
               )}
               {UPDATE_GATED.includes(c.id) && (
                 <p>
