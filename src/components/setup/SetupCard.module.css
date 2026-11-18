@@ -50,7 +50,7 @@
   background: var(--success);
 }
 
-.go {
+.pillButton {
   display: flex;
   align-items: center;
   justify-content: center;
