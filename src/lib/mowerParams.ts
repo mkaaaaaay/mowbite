@@ -10,7 +10,8 @@ import {containerFetch} from './updates';
 // their ranges and defaults are from MowerLogic.cfg, OpenMower doesn't tell. The ones that could hurt (the
 // emergency inputs, ignoring gps errors, the mow motor switch) are left out on purpose.
 
-export type ParamGroup = 'mowing' | 'auto' | 'gps' | 'docking' | 'motor' | 'journal';
+// obstacles: shown in a group of its own, only where the mower has an obstacle sensor
+export type ParamGroup = 'mowing' | 'auto' | 'gps' | 'docking' | 'motor' | 'journal' | 'obstacles';
 
 export interface ParamField {
   key: string; // under /mower_logic/
@@ -95,6 +96,26 @@ export const PARAM_FIELDS: ParamField[] = [
     group: 'journal',
     label: 'Keep a journal',
     help: 'MowBite OS keeps a journal of its processes on the mower, so an incident (an emergency stop, a failed docking, a crash) can be looked into later. A change counts from the next start.',
+    type: 'bool',
+    def: true,
+    reported: true,
+  },
+  // MowBite OS only, where the platform has an obstacle sensor; a choice offers the values up to the OS's max
+  {
+    key: 'obstacle_mode',
+    group: 'obstacles',
+    label: 'Obstacles the sensors see',
+    help: "Shown on the map with what the mower did. For now it doesn't stop or drive around them, it mows on as before.",
+    type: 'choice',
+    def: 0,
+    choices: ['Off', 'Show on the map'],
+    reported: true,
+  },
+  {
+    key: 'obstacle_photos',
+    group: 'obstacles',
+    label: 'Keep a photo of each',
+    help: 'With each new entry a photo of the whole camera picture, kept on the mower only. It can show people.',
     type: 'bool',
     def: true,
     reported: true,

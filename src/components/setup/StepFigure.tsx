@@ -2,30 +2,11 @@
 
 import {setupImage, type SetupStep, type Sizes} from '@/lib/setup';
 import {tr} from '@/lib/i18n';
+import {useRpcImage} from '@/hooks/useRpcImage';
 import {useEffect, useState} from 'react';
 import {RobotTop} from './RobotTop';
 import {hasSymbol, StepSymbol} from './StepSymbol';
 import styles from './StepFigure.module.css';
-
-// an image of the step as a data url, null while it loads or when it can't be had
-function useImage(ref: {name: string; sha256: string; bytes: number} | null | undefined): string | null {
-  const [got, setGot] = useState<{sha: string; url: string} | null>(null);
-  const sha = ref?.sha256;
-  useEffect(() => {
-    if (!ref) return;
-    let gone = false;
-    setupImage(ref).then(
-      (url) => !gone && setGot({sha: ref.sha256, url}),
-      () => {},
-    );
-    return () => {
-      gone = true;
-    };
-    // (one image per checksum)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sha]);
-  return got && got.sha === sha ? got.url : null;
-}
 
 // seconds left until the part of now gives up, again every second
 function useLeft(endsAt: number | null): number | null {
@@ -59,8 +40,8 @@ function Clock({left}: {left: number}) {
 // What the step shows: its image as a mask with the spot to press over it, else the mower from above with the parts it
 // names, else its sign; which part of how many in one corner, the time left of a running part in the other
 export function StepFigure({step, sizes}: {step: SetupStep; sizes: Sizes | null}) {
-  const image = useImage(step.image);
-  const accent = useImage(step.image?.accent);
+  const image = useRpcImage(step.image, setupImage).url;
+  const accent = useRpcImage(step.image?.accent, setupImage).url;
   const left = useLeft(step.state === 'running' ? step.ends_at : null);
   const mask = (url: string) => ({maskImage: `url(${url})`, WebkitMaskImage: `url(${url})`});
   return (

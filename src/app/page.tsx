@@ -21,7 +21,7 @@ import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
+import {DRIVING, isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
@@ -38,6 +38,8 @@ import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, reset
 import {useOsApi, usePlatform, useStopRelease} from '@/lib/mowerOs';
 import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
+import {useObstacles} from '@/hooks/useObstacles';
+import {ObstacleCard} from '@/components/ObstacleCard';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
 import {settingsStore, showDashCamera} from '@/lib/settings';
@@ -75,9 +77,6 @@ import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
 import {OsRestart} from '@/components/HostOs';
 import {ACTION, PARAM} from '@/lib/openmower';
-
-// paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
-const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
 
 // skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
 // it back
@@ -338,6 +337,10 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [out]);
   const driving = DRIVING.has(current);
+  // what the obstacle sensors saw, on the map; the one tapped with its photo over it
+  const seen = useObstacles().obstacles;
+  const [seenPicked, setSeenPicked] = useState<number | null>(null);
+  const picked = seen?.find((o) => o.id === seenPicked);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
   // so: one on the next mow leaves recording mode to the areas
   const calibrating = useCalibratingByHand(current === 'AREA_RECORDING');
@@ -695,7 +698,11 @@ export default function Home() {
               follow={driving}
               zoomable
               datum={datum}
+              obstacles={seen}
+              obstaclePicked={seenPicked}
+              onObstaclePick={setSeenPicked}
             />
+            {picked && <ObstacleCard obstacle={picked} onClose={() => setSeenPicked(null)} />}
           </section>
         )}
 

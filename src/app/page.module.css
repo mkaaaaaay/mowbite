@@ -531,6 +531,7 @@
 }
 
 .map {
+  position: relative;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid var(--card-border);

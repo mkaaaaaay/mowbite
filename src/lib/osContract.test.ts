@@ -10,6 +10,7 @@ import {DOCK_CAUSES, DOCK_DETAILS, DOCK_TEST_CAUSES, EMERGENCY_BITS, GUIDED, EME
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
 import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
+import {KIND_NAMES, PHOTO_PIECE} from './obstacles';
 import {SITUATION_NAMES} from './sound';
 import {SHAPE_KINDS, SHAPE_LIMITS} from './robotShape';
 import {IMAGE_BYTES, KEEP_LIMIT_MS, KEEP_MS, OPEN_SCREENS, ROLE_NAMES, SAFETY_WHY, SKIP_TEXT} from './setup';
@@ -20,8 +21,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '11e9603c3a6625603fe350303ea2b38bcb8d4cda',
-  sha256: '643faed69f4c2f2e1ca9b8921b7953d520f0d8f262d14ea38bbe9dd25ff6f02e',
+  commit: '047fe599bc960f32a1d7286eb3819a81b7dda572',
+  sha256: '7dc5ed37a856ec23ffa6428cb6d96b10b66d10995bd90a64d1130b2de1933581',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -232,6 +233,14 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     const defs = api.$defs as Record<string, {properties: Record<string, {maximum?: number; description: string}>}>;
     expect(defs['incidents.download.params'].properties.size.maximum).toBe(PIECE_BYTES);
     expect(defs['incidents.mark.params'].properties.note.description).toContain(`at most ${MAX_NOTE} characters`);
+  });
+
+  it("takes an obstacle's photo in pieces as large as the OS gives, and has a sign and words for each kind", () => {
+    const defs = api.$defs as Record<string, {properties: Record<string, {maximum?: number; enum?: string[]; items?: {properties: Record<string, {enum: string[]}>}}>}>;
+    expect(defs['vision.obstacles.image.params'].properties.size.maximum).toBe(PHOTO_PIECE);
+    const kinds = defs['vision.obstacles.list.result'].properties.obstacles.items!.properties.kind.enum;
+    expect([...kinds].sort()).toEqual(Object.keys(KIND_NAMES).sort());
+    for (const k of kinds) expect(de[KIND_NAMES[k as keyof typeof KIND_NAMES]], k).toBeTruthy();
   });
 
   it('offers as many dockings in a row for the docking test as the OS takes', () => {

@@ -15,6 +15,7 @@ import {demoSetup} from './setup';
 import {demoPlanner} from './planner';
 import {demoSounds} from './sound';
 import {demoIncidents} from './incidents';
+import {demoObstacles} from './obstacles';
 import {demoUpdates} from './update';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
@@ -460,6 +461,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // changed by params.set, like the ros params until the mower restarts
   const ros: Record<string, number | boolean> = {...DEMO_PARAMS, ...opts.params};
   let last = opts.now ?? Date.now();
+  // MowBite OS's obstacle sensors and what they saw, with their two settings (window.mowbiteDemoObstacles)
+  const obstacles = demoOn('Obstacles') ? demoObstacles(deliver, () => last / 1000, (name) => Number(ros[`/mower_logic/${name}`])) : null;
+  if (obstacles) Object.assign(ros, obstacles.params, opts.params);
   let around: Surroundings = {};
   const speed = opts.speed ?? SPEED;
   let job: {id: string; session: string; run: Run} | null = null;
@@ -1233,6 +1237,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     }),
     ...planner?.methods,
     ...cameras?.methods,
+    ...obstacles?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
       // go off
