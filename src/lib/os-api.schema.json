@@ -47,7 +47,8 @@
               "MOTOR_HOT",
               "NOT_DOCKED",
               "CLOCK_UNSAFE",
-              "DARK"
+              "DARK",
+              "OBSTACLE"
             ],
             "type": "string"
           }
@@ -4609,6 +4610,16 @@
           "description": "The job of mowing it belongs to",
           "type": "string"
         },
+        "kind": {
+          "description": "What held it: a person or animal before an object",
+          "enum": [
+            "PERSON",
+            "ANIMAL",
+            "OBJECT",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
         "limit": {
           "description": "The limit the value went past, in the unit of the value",
           "type": "number"
@@ -4646,7 +4657,8 @@
             "MOTOR_HOT",
             "NOT_DOCKED",
             "CLOCK_UNSAFE",
-            "DARK"
+            "DARK",
+            "OBSTACLE"
           ],
           "type": "string"
         },
@@ -4852,6 +4864,7 @@
           "enum": [
             "seen",
             "slowed",
+            "would_stop",
             "stopped",
             "avoided"
           ],
@@ -5843,6 +5856,16 @@
           "description": "The job of mowing it belongs to",
           "type": "string"
         },
+        "kind": {
+          "description": "What held it: a person or animal before an object",
+          "enum": [
+            "PERSON",
+            "ANIMAL",
+            "OBJECT",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
         "limit": {
           "description": "The limit the value went past, in the unit of the value",
           "type": "number"
@@ -5881,7 +5904,8 @@
             "MOTOR_HOT",
             "RAIN",
             "DARK",
-            "SCHEDULE"
+            "SCHEDULE",
+            "OBSTACLE"
           ],
           "type": "string"
         },
@@ -9229,6 +9253,14 @@
           "description": "1 while the mower charges on the docking station",
           "type": "integer"
         },
+        "pause_kind": {
+          "description": "With pause_reason OBSTACLE the kind that held it (PERSON, ANIMAL, OBJECT, UNKNOWN), otherwise empty",
+          "type": "string"
+        },
+        "pause_reason": {
+          "description": "In PAUSED the reason of STATE that holds the mower: an emergency, a fault, the user (MANUAL), an obstacle (OBSTACLE), then the position; otherwise empty",
+          "type": "string"
+        },
         "pose": {
           "additionalProperties": false,
           "description": "The pose of the mower in the map",
@@ -9297,6 +9329,8 @@
         "current_path_index",
         "task_index",
         "task_count",
+        "pause_reason",
+        "pause_kind",
         "emergency",
         "emergency_reason",
         "is_charging",
@@ -16077,6 +16111,16 @@
           ],
           "type": "string"
         },
+        "mode_max": {
+          "description": "The highest obstacle_mode proven on this platform; a higher setting acts as this one",
+          "enum": [
+            "off",
+            "show",
+            "stop",
+            "avoid"
+          ],
+          "type": "string"
+        },
         "obstacles": {
           "description": "The obstacles seen, last seen first",
           "items": {
@@ -16088,6 +16132,7 @@
                 "enum": [
                   "seen",
                   "slowed",
+                  "would_stop",
                   "stopped",
                   "avoided"
                 ],
@@ -16268,6 +16313,7 @@
       },
       "required": [
         "mode",
+        "mode_max",
         "photos",
         "sight",
         "limit",
@@ -16276,11 +16322,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:50",
+  "$id": "urn:mowbite-os:api:51",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 50,
+  "x-api": 51,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -19451,6 +19497,26 @@
         "resume": "user",
         "severity": "error"
       },
+      "OBSTACLE": {
+        "description": "An obstacle is in the way: the mower stands with the blade off until the way is seen free",
+        "fields": {
+          "kind": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Das Hindernis wegnehmen. Sieht die Kamera es nicht mehr, kann der Mäher mit Fortsetzen weiter.",
+            "help": "Die Kamera sieht etwas im Weg. Der Mäher steht mit Messer aus und fährt weiter, sobald der Platz frei ist.",
+            "name": "Hindernis im Weg"
+          },
+          "en": {
+            "fix": "Take the obstacle away. If the camera no longer sees it, Resume lets the mower go on.",
+            "help": "The camera sees something in the way. The mower stands with the blade off and goes on once the place is free.",
+            "name": "Obstacle in the way"
+          }
+        }
+      },
       "ON_DOCK": {
         "description": "The mower is on the docking station",
         "fields": {
@@ -21457,6 +21523,26 @@
         "resume": "user",
         "severity": "error"
       },
+      "OBSTACLE": {
+        "description": "An obstacle is in the way: the mower stands with the blade off until the way is seen free",
+        "fields": {
+          "kind": ""
+        },
+        "resume": "auto",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Das Hindernis wegnehmen. Sieht die Kamera es nicht mehr, kann der Mäher mit Fortsetzen weiter.",
+            "help": "Die Kamera sieht etwas im Weg. Der Mäher steht mit Messer aus und fährt weiter, sobald der Platz frei ist.",
+            "name": "Hindernis im Weg"
+          },
+          "en": {
+            "fix": "Take the obstacle away. If the camera no longer sees it, Resume lets the mower go on.",
+            "help": "The camera sees something in the way. The mower stands with the blade off and goes on once the place is free.",
+            "name": "Obstacle in the way"
+          }
+        }
+      },
       "OUTSIDE": {
         "description": "The mower left the allowed area",
         "fields": {},
@@ -22667,8 +22753,8 @@
     },
     "obstacle_mode": {
       "default": 0.0,
-      "description": "What obstacles the sensors see do: off, or show them in the list and on the map without any effect on driving; stop and avoid follow",
-      "max": 1.0,
+      "description": "What obstacles the sensors see do: off; show them in the list and on the map without any effect on driving; stop: the mower stands with the blade off while one is in the way; avoid acts as stop for now. Above mode_max of vision.obstacles.list it acts as that",
+      "max": 3.0,
       "min": 0.0,
       "type": "integer",
       "unit": "",

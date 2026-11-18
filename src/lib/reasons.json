@@ -2546,6 +2546,49 @@
     "de": "die Linse ist verdeckt oder schmutzig"
    }
   ],
+  "OBSTACLE": [
+   {
+    "en": "the camera still sees a person in the way",
+    "when": {
+     "type": "MOWING_REFUSED",
+     "kind": "PERSON"
+    },
+    "de": "die Kamera sieht noch eine Person im Weg"
+   },
+   {
+    "en": "the camera still sees an animal in the way",
+    "when": {
+     "type": "MOWING_REFUSED",
+     "kind": "ANIMAL"
+    },
+    "de": "die Kamera sieht noch ein Tier im Weg"
+   },
+   {
+    "en": "the camera still sees an obstacle in the way",
+    "when": {
+     "type": "MOWING_REFUSED"
+    },
+    "de": "die Kamera sieht noch ein Hindernis im Weg"
+   },
+   {
+    "en": "a person in the way",
+    "when": {
+     "kind": "PERSON"
+    },
+    "de": "eine Person im Weg"
+   },
+   {
+    "en": "an animal in the way",
+    "when": {
+     "kind": "ANIMAL"
+    },
+    "de": "ein Tier im Weg"
+   },
+   {
+    "en": "an obstacle in the way",
+    "de": "ein Hindernis im Weg"
+   }
+  ],
   "SELF_TEST": [
    {
     "en": "the camera is still testing itself after the start, for that the mower has to stand with the blade off",

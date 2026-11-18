@@ -398,6 +398,28 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(out2.map((m) => [m.title, m.message])).toEqual([["Can't go home", "Steve couldn't set off for the dock (no position) and is waiting outside."]]);
   });
 
+  it('tells a hold at an obstacle after a minute, five for a person, and a pause by hand by its reason from api 51', () => {
+    const at = (t: number, st: string, reason = '', kind = '') =>
+      `${t} robot_state/json {"emergency":0,"is_charging":0,"current_state":"${st}","pause_reason":"${reason}","pause_kind":"${kind}","pose":{"x":3,"y":2.5,"heading":0.1}}\n`;
+    // continue is offered in the hold too, it doesn't count as paused by hand there
+    const cont = `90 actions/json [{"action_id":"mower_logic:mowing/continue","action_name":"Continue Mowing","enabled":1}]\n`;
+    const still = 'topic t\nlang en\nname Steve\nevents standstill\n';
+    const object = run(cont + at(100, 'PAUSED', 'OBSTACLE', 'OBJECT') + at(159, 'PAUSED', 'OBSTACLE', 'OBJECT') + at(160, 'PAUSED', 'OBSTACLE', 'OBJECT'), still);
+    expect(object.map((m) => [m.title, m.message])).toEqual([
+      ['Paused: obstacle in the way', 'Steve has been waiting for 1 min because the camera sees an obstacle in the way. It goes on by itself once the place is free.'],
+    ]);
+    const person = (until: number) => run(at(100, 'PAUSED', 'OBSTACLE', 'PERSON') + at(until, 'PAUSED', 'OBSTACLE', 'PERSON'), still);
+    expect(person(399)).toEqual([]);
+    expect(person(400).map((m) => m.message)).toEqual(['Steve has been waiting for 5 min because the camera sees a person in the way. It goes on by itself once the place is free.']);
+    // by hand: nothing even with continue off, any other pause after ten minutes even with continue on
+    expect(run(at(100, 'PAUSED', 'MANUAL') + at(900, 'PAUSED', 'MANUAL'), still)).toEqual([]);
+    expect(run(cont + at(100, 'PAUSED', 'NO_POSITION') + at(700, 'PAUSED', 'NO_POSITION'), still).map((m) => m.title)).toEqual(['Standing still']);
+    // a start turned down while it still sees it
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"OBSTACLE","kind":"ANIMAL"}'), 'topic t\nlang de\nname Steve\nevents refused\n')[0].message).toBe(
+      'Steve hat nicht mit dem Mähen begonnen: die Kamera sieht noch ein Tier im Weg.',
+    );
+  });
+
   it('tells why MowBite OS goes home, or stays out without a way home', () => {
     const os = 'topic t\nlang en\nname Steve\nevents nav_error,rain,battery,dark\n';
     const out = run(

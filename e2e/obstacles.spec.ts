@@ -40,7 +40,7 @@ test.describe('obstacles', () => {
     await expect(page.locator('[data-obstacle-card="1"]')).toContainText('No photo of it.');
   });
 
-  test('in the settings: only the modes the mower takes, the photos, deleting all', async ({page}) => {
+  test('in the settings: only the modes the mower can do, the photos, how often it would have stopped, deleting all', async ({page}) => {
     await demoWith(page, 'Os', 'Obstacles');
     await page.goto('/');
     await expect(page.locator('[data-obstacle]:visible')).toHaveCount(3);
@@ -48,10 +48,12 @@ test.describe('obstacles', () => {
     await page.locator('#obstacles summary').click();
     const group = page.locator('#obstacles');
     const mode = group.getByRole('combobox', {name: 'Obstacles the sensors see'});
-    await expect(mode.locator('option')).toHaveText(['Off', 'Show on the map']);
+    await expect(mode.locator('option')).toHaveText(['Off', 'Show on the map', 'Stop for them']);
     await expect(group.getByRole('checkbox', {name: 'Keep a photo of each'})).toBeChecked();
     await expect(group).toContainText('at most 200 entries and 20 MB, each for 14 days');
-    await expect(group).toContainText('3 entries on the mower');
+    await expect(group).toContainText('3 entries on the mower · it would have stopped for 1');
+    await mode.selectOption('2');
+    await expect(page.locator('#obstacles summary')).toContainText('stops for them, with photos');
     await group.getByRole('button', {name: 'Delete all'}).click();
     await page.waitForTimeout(700);
     await group.getByRole('button', {name: 'Sure? Delete all 3'}).click();

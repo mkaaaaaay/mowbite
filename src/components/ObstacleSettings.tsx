@@ -5,7 +5,7 @@ import {useMowerParams} from '@/hooks/useMowerParams';
 import {useSure} from '@/hooks/useSure';
 import {describe} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {clearObstacles} from '@/lib/obstacles';
+import {clearObstacles, modeMax, wouldStop} from '@/lib/obstacles';
 import {answerError} from '@/lib/rpcText';
 import {useState} from 'react';
 import {ParamGroupRows} from './MowerParamSettings';
@@ -19,6 +19,7 @@ export function ObstacleSettings({styles}: {styles: Record<string, string>}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const n = obstacles?.length ?? 0;
+  const would = obstacles ? wouldStop(obstacles) : 0;
   const clearAll = async () => {
     setBusy(true);
     setError(null);
@@ -33,7 +34,7 @@ export function ObstacleSettings({styles}: {styles: Record<string, string>}) {
   };
   return (
     <>
-      <ParamGroupRows group="obstacles" params={params} os />
+      <ParamGroupRows group="obstacles" params={params} os max={{obstacle_mode: modeMax(head)}} />
       <p className={styles.dim}>
         {tr('The camera only looks ahead. What it sees is a help, no replacement for keeping an eye on the mower.')}
       </p>
@@ -50,7 +51,10 @@ export function ObstacleSettings({styles}: {styles: Record<string, string>}) {
       )}
       {n > 0 && (
         <>
-          <p className={styles.dim}>{n === 1 ? tr('1 entry on the mower') : tr('{n} entries on the mower', {n})}</p>
+          <p className={styles.dim}>
+            {n === 1 ? tr('1 entry on the mower') : tr('{n} entries on the mower', {n})}
+            {would > 0 && ` · ${would === 1 ? tr('it would have stopped for 1') : tr('it would have stopped for {n}', {n: would})}`}
+          </p>
           <button className={styles.pillButton} disabled={busy} onClick={() => confirm('all', () => void clearAll())}>
             {sure === 'all' ? tr('Sure? Delete all {n}', {n}) : tr('Delete all')}
           </button>

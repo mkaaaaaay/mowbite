@@ -131,8 +131,8 @@ export async function setOpenMowerParam(key: string, value: number | boolean) {
   if (f) await apply(f, value);
 }
 
-// one setting: its value on the mower, changed right there. os: on MowBite OS
-export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
+// one setting: its value on the mower, changed right there. os: on MowBite OS. max: the highest choice this mower can do
+export function ParamRow({field, os, max}: {field: ParamField; os: boolean; max?: number}) {
   const f = onOs(field, os);
   const params = useMowerParams();
   const k = useKept();
@@ -192,7 +192,7 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
           />
         ) : f.type === 'choice' ? (
           <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
-            {f.choices!.map((c, i) => (
+            {f.choices!.slice(0, Math.max(max ?? Infinity, value as number) + 1).map((c, i) => (
               <option key={c} value={i}>
                 {tr(c)}
               </option>
@@ -296,7 +296,9 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
     case 'journal':
       return tr(v('journal_enabled') ? 'kept' : 'off');
     case 'obstacles':
-      return v('obstacle_mode') ? tr(v('obstacle_photos') ? 'on the map, with photos' : 'on the map') : tr('off');
+      return v('obstacle_mode')
+        ? [tr((v('obstacle_mode') as number) >= 2 ? 'stops for them' : 'on the map'), ...(v('obstacle_photos') ? [tr('with photos')] : [])].join(', ')
+        : tr('off');
   }
 }
 const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
@@ -343,11 +345,11 @@ export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Rec
 }
 
 // the values of one of OpenMower's groups that this mower has
-export function ParamGroupRows({group, params, os}: {group: ParamGroup; params: Record<string, unknown>; os: boolean}) {
+export function ParamGroupRows({group, params, os, max}: {group: ParamGroup; params: Record<string, unknown>; os: boolean; max?: Record<string, number>}) {
   return (
     <div className={`${local.rows} ${local.inGroup}`}>
       {groupFields(group, params).map((f) => (
-        <ParamRow key={f.key} field={f} os={os} />
+        <ParamRow key={f.key} field={f} os={os} max={max?.[f.key]} />
       ))}
     </div>
   );

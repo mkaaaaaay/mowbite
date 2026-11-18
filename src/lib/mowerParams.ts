@@ -105,10 +105,10 @@ export const PARAM_FIELDS: ParamField[] = [
     key: 'obstacle_mode',
     group: 'obstacles',
     label: 'Obstacles the sensors see',
-    help: "Shown on the map with what the mower did. For now it doesn't stop or drive around them, it mows on as before.",
+    help: 'Show: on the map with what the mower did, it mows on as before. Stop: it stands with the blade off while one is in the way and goes on once the place is free. Only what this mower can do is offered.',
     type: 'choice',
     def: 0,
-    choices: ['Off', 'Show on the map'],
+    choices: ['Off', 'Show on the map', 'Stop for them', 'Drive around them'],
     reported: true,
   },
   {
