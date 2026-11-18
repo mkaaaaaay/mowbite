@@ -1,6 +1,6 @@
 import {nearClock} from './dates';
 import {tr} from './i18n';
-import {RPC} from './openmower';
+import {OBSTACLE_MODES, RPC} from './openmower';
 import {callRpc} from './rpc';
 import {rpcImage, type ImageRef} from './rpcImage';
 
@@ -8,7 +8,7 @@ import {rpcImage, type ImageRef} from './rpcImage';
 // kept on the mower, each entry with a photo where obstacle_photos is on. x, y and r in meters like map/json
 
 type ObstacleKind = 'PERSON' | 'ANIMAL' | 'OBJECT' | 'UNKNOWN';
-type ObstacleAction = 'seen' | 'slowed' | 'stopped' | 'avoided';
+type ObstacleAction = 'seen' | 'slowed' | 'would_stop' | 'stopped' | 'avoided';
 export interface ObstacleImage extends ImageRef {
   width: number;
   height: number;
@@ -36,7 +36,9 @@ interface Sight {
   reason: string | null;
 }
 export interface ObstacleList {
+  // the one in effect, and the highest this platform can do (api 51)
   mode: string;
+  mode_max?: string;
   photos: boolean;
   sight: Sight;
   limit: {entries: number; bytes: number; days: number};
@@ -50,6 +52,11 @@ export const PHOTO_PIECE = 65536;
 const PHOTO_BYTES = 1 << 20;
 // seen this recently, it's there now
 const JUST_SEEN_S = 10;
+
+// the highest obstacle_mode to offer: show before api 51
+export const modeMax = (list: Pick<ObstacleList, 'mode_max'> | undefined) => Math.max(1, OBSTACLE_MODES.indexOf(list?.mode_max ?? 'show'));
+// the entries it would have stopped for, had it been set to stop
+export const wouldStop = (list: Obstacle[]) => list.filter((o) => o.action === 'would_stop').length;
 
 export const loadObstacles = (since?: number) => callRpc<ObstacleList>(RPC.obstaclesList, since === undefined ? {} : {since});
 export const clearObstacles = (id?: number) => callRpc<{removed: number}>(RPC.obstaclesClear, id === undefined ? {} : {id});
@@ -78,7 +85,7 @@ export const sameObstacles = (a: Obstacle[], b: Obstacle[]) =>
 export const justSeen = (o: Pick<Obstacle, 'last_t'>, now = Date.now() / 1000) => now - o.last_t < JUST_SEEN_S;
 
 export const KIND_NAMES: Record<ObstacleKind, string> = {PERSON: 'Person', ANIMAL: 'Animal', OBJECT: 'Object', UNKNOWN: 'Something'};
-const ACTION_NAMES: Record<ObstacleAction, string> = {seen: 'Only seen', slowed: 'Slowed down', stopped: 'Stopped', avoided: 'Drove around it'};
+const ACTION_NAMES: Record<ObstacleAction, string> = {seen: 'Only seen', slowed: 'Slowed down', would_stop: 'Would have stopped', stopped: 'Stopped', avoided: 'Drove around it'};
 // the model's classes said in the app's language, the others as the mower names them
 const CLASS_NAMES: Record<string, string> = {person: 'Person', hedgehog: 'Hedgehog', cat: 'Cat', dog: 'Dog', 'sports ball': 'Sports ball'};
 

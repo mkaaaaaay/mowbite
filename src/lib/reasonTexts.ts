@@ -600,6 +600,15 @@ export const REASONS: Record<string, Variant[]> = {
   TOO_DARK: [r('too dark to see')],
   TOO_BRIGHT: [r('too bright, glare or a low sun')],
   COVERED: [r('the lens is covered or dirty')],
+  // STATE PAUSED and MOWING_REFUSED where obstacle_mode stops for them (api 51), kind the most serious one that holds it
+  OBSTACLE: [
+    r('the camera still sees a person in the way', {when: {type: 'MOWING_REFUSED', kind: 'PERSON'}}),
+    r('the camera still sees an animal in the way', {when: {type: 'MOWING_REFUSED', kind: 'ANIMAL'}}),
+    r('the camera still sees an obstacle in the way', {when: {type: 'MOWING_REFUSED'}}),
+    r('a person in the way', {when: {kind: 'PERSON'}}),
+    r('an animal in the way', {when: {kind: 'ANIMAL'}}),
+    r('an obstacle in the way'),
+  ],
   SELF_TEST: [r('the camera is still testing itself after the start, for that the mower has to stand with the blade off')],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],

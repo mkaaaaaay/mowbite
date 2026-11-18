@@ -15,8 +15,10 @@
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
 # follows within a few seconds.
 # standing still: not half a meter on in ten minutes and not charging (is_charging, or the charge voltage when the
-# battery is full), outside recording, an emergency stop and a pause by hand (actions/json). waiting for gps, stuck,
-# left waiting on the lawn, or in a dock without power. told once, a dock without power stays so all night
+# battery is full), outside recording, an emergency stop and a pause by hand (robot_state's pause_reason MANUAL, before
+# api 51 continue offered in actions/json). waiting for gps, stuck, left waiting on the lawn, or in a dock without power.
+# held by an obstacle (pause_reason OBSTACLE) after a minute, five for a person or an animal. told once, a dock without
+# power stays so all night
 # MowBite OS says why with a fixed name (masterplan 3.1a): a start it turns down or the map not fitting (refused), a
 # pause that waits for someone (nav_error, a blade that didn't switch on: spinup), the battery low, why it goes home.
 # a name not known here goes by the english text it comes with. a reset of the emergency stop it turns down isn't told,
@@ -72,6 +74,13 @@ function reminds(kind) {
 function tx(en, de) { return lang == "de" ? de : en }
 
 function who() { return name ? name : tx("The mower", "Der Mäher") }
+
+# what holds it in front of an obstacle (pause_kind, kind of OBSTACLE)
+function kind_text(k) {
+  if (k == "PERSON") return tx("a person", "eine Person")
+  if (k == "ANIMAL") return tx("an animal", "ein Tier")
+  return tx("an obstacle", "ein Hindernis")
+}
 
 function minutes(s) { return int(s / 60 + 0.5) }
 
@@ -133,6 +142,7 @@ function reason(j,   r, m) {
   if (r == "APPROACH_FAILED") return tx("couldn't get to the start of the lane", "kam nicht zum Anfang der Bahn")
   if (r == "BLADE_REFUSED") return tx("the blade didn't switch on", "das Messer ging nicht an")
   if (r == "BLADE_SPINUP_FAILED") return tx("the blade didn't reach its speed", "das Messer kam nicht auf Drehzahl")
+  if (r == "OBSTACLE") return tx("the camera still sees ", "die Kamera sieht noch ") kind_text(field(j, "kind")) tx(" in the way", " im Weg")
   m = field(j, "message")
   if (m != "") return m
   gsub(/_/, " ", r)
@@ -211,6 +221,8 @@ function tell(phase, why,   m) {
     if (phase == "clear") {
       if (still_home) send(problem, phase, tx("Charging again", "Lädt wieder"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
       else send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " is moving again.", who() " bewegt sich wieder."), 2, "white_check_mark")
+    } else if (still_why == "OBSTACLE") {
+      send(problem, phase, tx("Paused: obstacle in the way", "Pausiert: Hindernis im Weg"), tx(who() " has been waiting for " minutes(t - since) " min because the camera sees " kind_text(still_kind) " in the way. It goes on by itself once the place is free.", who() " wartet seit " minutes(t - since) " min, weil die Kamera " kind_text(still_kind) " im Weg sieht. Es geht von selbst weiter, sobald der Platz frei ist."), 4, "warning")
     } else {
       m = tx(who() " has been standing still for " minutes(t - since) " min and isn't charging.", who() " steht seit " minutes(t - since) " min still und lädt nicht.")
       if (still_why == "PAUSED") m = m " " tx("Paused, waiting for GPS.", "Pausiert, weil GPS fehlt.")
@@ -228,8 +240,8 @@ function tell(phase, why,   m) {
 
 # st: robot_state's current_state, x and y its position, home: charging or on the contacts. without a charge voltage
 # idle isn't watched, a full battery in the dock wouldn't look any different. paused by hand it waits on purpose
-function standstill(st, x, y, home,   dx, dy) {
-  if (home || emergency || st == "" || st == "AREA_RECORDING" || (st == "IDLE" && !have_v) || (st == "PAUSED" && manual)) {
+function standstill(st, x, y, home,   dx, dy, held, wait) {
+  if (home || emergency || st == "" || st == "AREA_RECORDING" || (st == "IDLE" && !have_v) || (st == "PAUSED" && (has_pause ? pause_reason == "MANUAL" : manual))) {
     still_t = 0
     still_home = home
     if (problem == "standstill") close_problem(home)
@@ -243,8 +255,11 @@ function standstill(st, x, y, home,   dx, dy) {
     still_t = t; still_x = x; still_y = y
     return
   }
-  if (t - still_t >= STILL_WAIT && !problem && on("standstill")) {
-    still_why = st
+  held = pause_reason == "OBSTACLE"
+  wait = !held ? STILL_WAIT : pause_kind ~ /^(PERSON|ANIMAL)$/ ? STILL_LIVING : STILL_OBSTACLE
+  if (t - still_t >= wait && !problem && on("standstill")) {
+    still_why = held ? "OBSTACLE" : st
+    still_kind = pause_kind
     open("standstill", "", still_t)
   }
 }
@@ -317,6 +332,9 @@ BEGIN {
   # standing still: not this far on in this many seconds
   STILL_M = 0.5
   STILL_WAIT = 600
+  # held by an obstacle: an object or something unknown, a person or an animal
+  STILL_OBSTACLE = 60
+  STILL_LIVING = 300
   STATS = ENVIRON["STATS"]
 }
 
@@ -349,7 +367,12 @@ BEGIN {
     if (problem == "dock_failed" && !dock_os && (charging == "1" || charging == "true")) close_problem(1)
     # not out of the dock and charging there: told once, no reminders all night
     if (problem == "undock_failed" && undock_why != "no_gps" && (charging == "1" || charging == "true")) close_problem(0)
-    standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
+    cur_state = field(json, "current_state")
+    # MowBite OS from api 51: why it's paused, the most serious one that holds it
+    has_pause = cur_state == "PAUSED" && json ~ /"pause_reason"/
+    pause_reason = has_pause ? field(json, "pause_reason") : ""
+    pause_kind = pause_reason == "OBSTACLE" ? field(json, "pause_kind") : ""
+    standstill(cur_state, field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
   } else if (topic_in == T_CHARGE) {
     v_charge = json + 0
     have_v = 1

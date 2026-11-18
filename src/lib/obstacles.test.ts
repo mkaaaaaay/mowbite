@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {justSeen, mergeObstacles, obstacleName, sinceOf, withoutObstacle, type Obstacle} from './obstacles';
+import {justSeen, mergeObstacles, modeMax, obstacleName, sinceOf, withoutObstacle, wouldStop, type Obstacle} from './obstacles';
 
 const seen = (id: number, last_t: number, more: Partial<Obstacle> = {}): Obstacle => ({
   id,
@@ -32,6 +32,15 @@ describe('obstacles', () => {
   it('asks from a second before the newest, nothing known: all', () => {
     expect(sinceOf([seen(2, 250), seen(1, 100)])).toBe(249);
     expect(sinceOf([])).toBeUndefined();
+  });
+
+  it('offers the modes up to what the platform can do, show before api 51', () => {
+    expect([modeMax(undefined), modeMax({}), modeMax({mode_max: 'off'}), modeMax({mode_max: 'stop'}), modeMax({mode_max: 'avoid'})]).toEqual([1, 1, 1, 2, 3]);
+  });
+
+  it('counts the entries it would have stopped for', () => {
+    const o = (id: number, action: Obstacle['action']) => ({id, action}) as Obstacle;
+    expect(wouldStop([o(1, 'seen'), o(2, 'would_stop'), o(3, 'stopped'), o(4, 'would_stop')])).toBe(2);
   });
 
   it('forgets one or all', () => {

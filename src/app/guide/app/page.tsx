@@ -209,7 +209,7 @@ function ObstaclesArt() {
 
 const OBSTACLES_STEP: GuideStep = {
   title: 'Obstacles',
-  text: "A mower with MowBite OS and an obstacle sensor can show on the map what it saw. Switch it on in Settings › Mower › Obstacles. Each one is a round with a sign for a person, an animal or a thing, it pulses while it's just been seen. Tap the sign: when and how often it was seen and, with photos on, its photo with a box round it, to download as well. Delete one there, or all of them in the settings. For now the mower doesn't stop or drive around them. The camera only looks ahead, it's a help and no replacement for keeping an eye on the mower. The photos stay on the mower and can show people.",
+  text: "A mower with MowBite OS and an obstacle sensor can show on the map what it saw. Switch it on in Settings › Mower › Obstacles. Each one is a round with a sign for a person, an animal or a thing, it pulses while it's just been seen. Tap the sign: when and how often it was seen and, with photos on, its photo with a box round it, to download as well. Delete one there, or all of them in the settings. Where the mower can, it also stops for them: it stands with the blade off and goes on by itself once the place is free. Set to show, the settings count how often it would have stopped. The camera only looks ahead, it's a help and no replacement for keeping an eye on the mower. The photos stay on the mower and can show people.",
   Art: ObstaclesArt,
 };
 
