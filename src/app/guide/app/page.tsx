@@ -1,8 +1,7 @@
 'use client';
 
 import {useCameras} from '@/hooks/useCameras';
-import {useObstacles} from '@/hooks/useObstacles';
-import {obstacleGlyph} from '@/components/ObstacleGlyph';
+import {obstacleMark} from '@/components/ObstacleGlyph';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {SHORT} from '@/lib/camera';
 import {useDockTestSeries} from '@/lib/mowerOs';
@@ -188,11 +187,8 @@ function ObstaclesArt() {
     <Scene label={tr('Obstacles')}>
       <rect x={24} y={12} width={272} height={165} rx={12} style={{fill: '#4f8a43'}} />
       <path d="M60 40 H260 M60 70 H260 M60 100 H260" style={{stroke: '#5d9c50', strokeWidth: 14}} />
-      <circle cx={200} cy={60} r={22} style={{fill: 'color-mix(in srgb, var(--c-seen) 25%, transparent)', stroke: 'var(--c-seen)', strokeWidth: 1.5, strokeDasharray: '4 3'}} />
-      <circle cx={200} cy={60} r={12} style={{fill: 'var(--c-seen)', stroke: '#fff', strokeWidth: 1.5}} />
-      <g transform="translate(200 60) scale(0.8)" style={{fill: '#fff'}}>
-        {obstacleGlyph('ANIMAL')}
-      </g>
+      <circle cx={200} cy={60} r={22} style={{fill: 'color-mix(in srgb, var(--c-seen) 22%, transparent)', stroke: 'var(--c-seen)', strokeWidth: 1.5, strokeDasharray: '4 3'}} />
+      <g transform="translate(200 60) scale(0.9)">{obstacleMark('ANIMAL')}</g>
       <g opacity={0}>
         {appear(0.35)}
         <rect x={40} y={100} width={240} height={68} rx={10} style={card} />
@@ -213,7 +209,7 @@ function ObstaclesArt() {
 
 const OBSTACLES_STEP: GuideStep = {
   title: 'Obstacles',
-  text: "A mower with MowBite OS and an obstacle sensor can show on the map what it saw. Switch it on in Settings › Mower › Obstacles. Each one is a round with a sign for a person, an animal or a thing, it pulses while it's just been seen. Tap the sign: when and how often it was seen and, with photos on, its photo with a box round it. Delete one there, or all of them in the settings. For now the mower doesn't stop or drive around them. The camera only looks ahead, it's a help and no replacement for keeping an eye on the mower. The photos stay on the mower and can show people.",
+  text: "A mower with MowBite OS and an obstacle sensor can show on the map what it saw. Switch it on in Settings › Mower › Obstacles. Each one is a round with a sign for a person, an animal or a thing, it pulses while it's just been seen. Tap the sign: when and how often it was seen and, with photos on, its photo with a box round it, to download as well. Delete one there, or all of them in the settings. For now the mower doesn't stop or drive around them. The camera only looks ahead, it's a help and no replacement for keeping an eye on the mower. The photos stay on the mower and can show people.",
   Art: ObstaclesArt,
 };
 
@@ -245,7 +241,7 @@ const STEPS: GuideStep[] = [
 
 export default function AppGuidePage() {
   const cameras = useCameras().on;
-  const obstacles = useObstacles().on;
+  const obstacles = !!useRpcMethods()?.has(RPC.obstaclesList);
   const dockTest = !!useRpcMethods()?.has(RPC.dockingTest);
   const series = useDockTestSeries() ? ` ${tr(DOCK_TEST_SERIES, {n: DOCK_TEST_RUNS})}` : '';
   const testStep = {...DOCK_TEST_STEP, vars: {...DOCK_TEST_REACH, series}};

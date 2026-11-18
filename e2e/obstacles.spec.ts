@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {demoDocked, demoWith, expect, SIM, tab, test} from './app';
 
 // what the obstacle sensors of a mower with MowBite OS saw: the demo is an OpenMower and has none until a test switches
@@ -22,7 +23,15 @@ test.describe('obstacles', () => {
     await expect(card.locator('img')).toBeVisible();
     await expect(card.locator('img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/);
     await expect(card.locator('rect')).toHaveAttribute('width', '52');
+    const saved = page.waitForEvent('download');
+    await card.getByRole('button', {name: 'Download'}).click();
+    const file = await saved;
+    expect(file.suggestedFilename()).toBe('mowbite-obstacle-3.jpg');
+    expect(readFileSync(await file.path()).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+    // (two taps, the first asks)
     await card.getByRole('button', {name: 'Delete'}).click();
+    await page.waitForTimeout(700);
+    await card.getByRole('button', {name: 'Sure? Delete'}).click();
     await expect(card).toHaveCount(0);
     await expect(signs).toHaveCount(2);
 
@@ -44,8 +53,8 @@ test.describe('obstacles', () => {
     await expect(group).toContainText('at most 200 entries and 20 MB, each for 14 days');
     await expect(group).toContainText('3 entries on the mower');
     await group.getByRole('button', {name: 'Delete all'}).click();
-    await expect(group).toContainText('Delete all 3 entries with their photos?');
-    await group.getByRole('button', {name: 'Delete all'}).click();
+    await page.waitForTimeout(700);
+    await group.getByRole('button', {name: 'Sure? Delete all 3'}).click();
     await expect(group).not.toContainText('entries on the mower');
     await mode.selectOption('0');
     await expect(page.locator('#obstacles summary')).toContainText('off');

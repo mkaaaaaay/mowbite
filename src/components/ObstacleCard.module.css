@@ -76,21 +76,19 @@
 .foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
 
-.delete {
+.foot > span {
+  margin-right: auto;
+}
+
+/* beside the score, as wide as their words */
+.del {
+  width: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--radius-s);
-  border: 1px solid var(--error);
-  background: transparent;
-  color: var(--error);
-  font-size: var(--text-s);
-  cursor: pointer;
 }
 
 .error {

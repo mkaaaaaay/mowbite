@@ -30,7 +30,7 @@ describe('obstacles', () => {
   });
 
   it('asks from a second before the newest, nothing known: all', () => {
-    expect(sinceOf([seen(1, 100), seen(2, 250)])).toBe(249);
+    expect(sinceOf([seen(2, 250), seen(1, 100)])).toBe(249);
     expect(sinceOf([])).toBeUndefined();
   });
 

@@ -1,5 +1,5 @@
-// what an obstacle is as a small white sign, drawn in -12..12 round its middle: on the map and on its card
-export function obstacleGlyph(kind: string) {
+// what an obstacle is as a small white sign, drawn in -12..12 round its middle
+function obstacleGlyph(kind: string) {
   switch (kind) {
     case 'PERSON':
       return (
@@ -28,12 +28,22 @@ export function obstacleGlyph(kind: string) {
   }
 }
 
-// the sign on its own, e.g. on the card of an obstacle
-export function ObstacleBadge({kind, size = 28}: {kind: string; size?: number}) {
+// the sign on its round, 13 round its middle: on the maps, its card and in the guide. ring: the white edge, wider for
+// the one picked
+export function obstacleMark(kind: string, ring = 1.5) {
   return (
-    <svg width={size} height={size} viewBox="-14 -14 28 28" aria-hidden>
-      <circle r={13} fill="var(--c-seen)" />
+    <>
+      <circle r={13} fill="var(--c-seen)" stroke="#fff" strokeWidth={ring} />
       <g fill="#fff">{obstacleGlyph(kind)}</g>
+    </>
+  );
+}
+
+// the sign on its own, on the card of an obstacle
+export function ObstacleBadge({kind}: {kind: string}) {
+  return (
+    <svg width={28} height={28} viewBox="-14 -14 28 28" aria-hidden>
+      {obstacleMark(kind)}
     </svg>
   );
 }

@@ -2,25 +2,24 @@
 
 import {forget, useObstacles} from '@/hooks/useObstacles';
 import {useMowerParams} from '@/hooks/useMowerParams';
+import {useSure} from '@/hooks/useSure';
 import {describe} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {clearObstacles} from '@/lib/obstacles';
 import {answerError} from '@/lib/rpcText';
 import {useState} from 'react';
 import {ParamGroupRows} from './MowerParamSettings';
-import local from './MowerParamSettings.module.css';
 
 // what the obstacle sensors see (MowBite OS where the platform has one): the settings, whether they see now, what the
 // mower keeps and deleting all of it
 export function ObstacleSettings({styles}: {styles: Record<string, string>}) {
   const params = useMowerParams();
   const {obstacles, head} = useObstacles();
-  const [asking, setAsking] = useState(false);
+  const {sure, confirm} = useSure();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const n = obstacles?.length ?? 0;
   const clearAll = async () => {
-    setAsking(false);
     setBusy(true);
     setError(null);
     try {
@@ -50,26 +49,14 @@ export function ObstacleSettings({styles}: {styles: Record<string, string>}) {
         </p>
       )}
       {n > 0 && (
-        <div className={local.ask}>
-          {asking ? (
-            <>
-              {tr('Delete all {n} entries with their photos?', {n})}
-              <button className={local.askOff} onClick={() => void clearAll()}>
-                {tr('Delete all')}
-              </button>
-              <button onClick={() => setAsking(false)}>{tr('Keep')}</button>
-            </>
-          ) : (
-            <>
-              {n === 1 ? tr('1 entry on the mower') : tr('{n} entries on the mower', {n})}
-              <button disabled={busy} onClick={() => setAsking(true)}>
-                {tr('Delete all')}
-              </button>
-            </>
-          )}
-        </div>
+        <>
+          <p className={styles.dim}>{n === 1 ? tr('1 entry on the mower') : tr('{n} entries on the mower', {n})}</p>
+          <button className={styles.pillButton} disabled={busy} onClick={() => confirm('all', () => void clearAll())}>
+            {sure === 'all' ? tr('Sure? Delete all {n}', {n}) : tr('Delete all')}
+          </button>
+        </>
       )}
-      {error && <span className={local.error}>{error}</span>}
+      {error && <p className={styles.error}>{error}</p>}
     </>
   );
 }

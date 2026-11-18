@@ -1096,7 +1096,8 @@
   stroke-width: 2;
 }
 
-.marker .markerPulse {
+.marker .markerPulse,
+.seenPulse {
   fill: rgba(255, 59, 59, 0.35);
   stroke: none;
   transform-box: fill-box;
@@ -1128,25 +1129,8 @@
   stroke-dasharray: 4 3;
 }
 
-.seenBadge {
-  fill: var(--c-seen);
-  stroke: #fff;
-  stroke-width: 1.5;
-}
-
-.seenPicked .seenBadge {
-  stroke-width: 3;
-}
-
-.seenGlyph {
-  fill: #fff;
-}
-
 .seenPulse {
   fill: color-mix(in srgb, var(--c-seen) 40%, transparent);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: marker-pulse 1.6s ease-out infinite;
 }
 
 @keyframes marker-pulse {

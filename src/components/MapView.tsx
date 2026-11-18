@@ -9,7 +9,8 @@ import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks} from '@
 import {bodyShape, isPin, outlineAt, pinAt, realEdges, realInsides, roundBends, useMowerBody, usePlannerSettings, type MowerBody} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {dockIcon} from './mapIcons';
-import {obstacleGlyph} from './ObstacleGlyph';
+import {obstacleMark} from './ObstacleGlyph';
+import {justSeen, type Obstacle} from '@/lib/obstacles';
 import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
@@ -159,7 +160,7 @@ interface MapViewProps {
   draw?: (at: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => React.ReactNode;
   // what the obstacle sensors saw: its round on the ground and a sign of what it is, pulsing while just seen. one
   // can be picked by its sign, again: none
-  obstacles?: {id: number; x: number; y: number; r: number; kind: string; now: boolean}[];
+  obstacles?: Pick<Obstacle, 'id' | 'x' | 'y' | 'r' | 'kind' | 'last_t'>[];
   obstaclePicked?: number | null;
   onObstaclePick?: (id: number | null) => void;
 }
@@ -2165,6 +2166,17 @@ function MapView({
       onCanvasClick(s ? s.x : local[0], s ? s.y : local[1]);
     },
   };
+  // a spot that tells what it is when tapped, like a dot of the collision check: the map doesn't pan or deselect from it
+  const pickable = (pick: (() => void) | undefined) =>
+    pick
+      ? {
+          onPointerDown: (e: React.PointerEvent) => !grabbable(e) && e.stopPropagation(),
+          onClick: (e: React.MouseEvent) => {
+            e.stopPropagation();
+            pick();
+          },
+        }
+      : {};
   // what's drawn over everything else: the check's spots and bodies, the markers
   const after = (
     <>
@@ -2257,26 +2269,15 @@ function MapView({
         return (
           <g
             key={'seen' + o.id}
-            className={[styles.seen, onObstaclePick ? styles.seenPick : '', picked ? styles.seenPicked : ''].join(' ')}
+            className={[styles.seen, onObstaclePick ? styles.seenPick : ''].join(' ')}
             data-obstacle={o.id}
-            onPointerDown={onObstaclePick ? (e) => !grabbable(e) && e.stopPropagation() : undefined}
-            onClick={
-              onObstaclePick
-                ? (e) => {
-                    e.stopPropagation();
-                    onObstaclePick(picked ? null : o.id);
-                  }
-                : undefined
-            }
+            {...pickable(onObstaclePick && (() => onObstaclePick(picked ? null : o.id)))}
           >
             <circle className={styles.seenGround} cx={x} cy={y} r={Math.max(o.r * scale, 4 * k)} />
-            {o.now && <circle className={styles.seenPulse} cx={x} cy={y} r={22 * k} />}
+            {justSeen(o) && <circle className={styles.seenPulse} cx={x} cy={y} r={22 * k} />}
             {/* a sign is small for a finger: a bigger round to hit */}
             <circle className={styles.seenHit} cx={x} cy={y} r={18 * k} />
-            <circle className={styles.seenBadge} cx={x} cy={y} r={11 * k} />
-            <g className={styles.seenGlyph} transform={`translate(${x} ${y}) scale(${0.75 * k})`}>
-              {obstacleGlyph(o.kind)}
-            </g>
+            <g transform={`translate(${x} ${y}) scale(${0.85 * k})`}>{obstacleMark(o.kind, picked ? 3.5 : 1.8)}</g>
           </g>
         );
       })}
@@ -2287,16 +2288,7 @@ function MapView({
           <g
             key={'mk' + i}
             className={[styles.marker, onMarkerPick ? styles.markerPick : ''].join(' ')}
-            // like a dot of the collision check: the map doesn't pan or deselect from it
-            onPointerDown={onMarkerPick ? (e) => !grabbable(e) && e.stopPropagation() : undefined}
-            onClick={
-              onMarkerPick
-                ? (e) => {
-                    e.stopPropagation();
-                    onMarkerPick(i);
-                  }
-                : undefined
-            }
+            {...pickable(onMarkerPick && (() => onMarkerPick(i)))}
           >
             <circle cx={mx} cy={my} r={20 * k} className={styles.markerPulse} />
             <circle cx={mx} cy={my} r={6 * k} />

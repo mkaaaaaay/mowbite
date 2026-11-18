@@ -40,7 +40,6 @@ import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
 import {useObstacles} from '@/hooks/useObstacles';
 import {ObstacleCard} from '@/components/ObstacleCard';
-import {justSeen} from '@/lib/obstacles';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
 import {settingsStore, showDashCamera} from '@/lib/settings';
@@ -78,8 +77,6 @@ import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
 import {OsRestart} from '@/components/HostOs';
 import {ACTION, PARAM} from '@/lib/openmower';
-
-// paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
 
 // skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
 // it back
@@ -701,7 +698,7 @@ export default function Home() {
               follow={driving}
               zoomable
               datum={datum}
-              obstacles={seen?.map((o) => ({...o, now: justSeen(o)}))}
+              obstacles={seen}
               obstaclePicked={seenPicked}
               onObstaclePick={setSeenPicked}
             />

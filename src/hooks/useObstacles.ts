@@ -4,10 +4,9 @@ import {DRIVING, useMowerStateValue} from '@/hooks/useMowerState';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {parseEvent} from '@/lib/events';
 import {onTopic} from '@/lib/mqttClient';
-import {loadObstacles, mergeObstacles, sinceOf, withoutObstacle, type Obstacle, type ObstacleList} from '@/lib/obstacles';
+import {loadObstacles, mergeObstacles, sameObstacles, sinceOf, withoutObstacle, type Obstacle, type ObstacleList} from '@/lib/obstacles';
 import {RPC, TOPIC} from '@/lib/openmower';
 import {onMethodsChanged} from '@/lib/rpc';
-import {rpcErrorText} from '@/lib/rpcText';
 import {useEffect, useSyncExternalStore} from 'react';
 
 // the obstacles the mower's sensors saw, for all who show them: the whole list once, then the ones seen since at each
@@ -17,7 +16,6 @@ type Head = Omit<ObstacleList, 'obstacles'>;
 interface State {
   obstacles?: Obstacle[];
   head?: Head;
-  failed?: string;
 }
 
 const POLL_MS = 10000;
@@ -36,14 +34,15 @@ const subscribe = (l: () => void) => {
 let generation = 0;
 function read(whole = !now.obstacles) {
   const n = whole ? ++generation : generation;
-  if (now.failed) set({failed: undefined});
   loadObstacles(whole ? undefined : sinceOf(now.obstacles!)).then(
     ({obstacles, ...head}) => {
       if (n !== generation) return;
-      const list = Array.isArray(obstacles) ? obstacles : [];
-      set({head, obstacles: whole ? mergeObstacles([], list) : mergeObstacles(now.obstacles ?? [], list)});
+      const list = mergeObstacles(whole ? [] : now.obstacles!, Array.isArray(obstacles) ? obstacles : []);
+      // (each answer to since has the newest again: the same list and head draw nothing anew)
+      const same = now.obstacles && sameObstacles(now.obstacles, list) && JSON.stringify(now.head) === JSON.stringify(head);
+      if (!same) set({head, obstacles: list});
     },
-    (e) => n === generation && set({failed: rpcErrorText(e)}),
+    () => {},
   );
 }
 
@@ -68,7 +67,7 @@ function start() {
   onMethodsChanged((m) => {
     if (m && !m.has(RPC.obstaclesList)) {
       generation++;
-      set({obstacles: undefined, head: undefined, failed: undefined});
+      set({obstacles: undefined, head: undefined});
     } else read(true);
   });
   read(true);
@@ -98,5 +97,5 @@ export function useObstacles() {
     if (on) start();
   }, [on]);
   useEffect(() => (on && driving ? poll() : undefined), [on, driving]);
-  return {on, obstacles: on ? s.obstacles : undefined, head: on ? s.head : undefined, failed: on ? s.failed : undefined};
+  return {on, obstacles: on ? s.obstacles : undefined, head: on ? s.head : undefined};
 }

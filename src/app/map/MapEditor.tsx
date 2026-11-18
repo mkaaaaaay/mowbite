@@ -74,7 +74,6 @@ import {useKeptState} from '@/hooks/useKeptState';
 import {tick} from '@/lib/haptics';
 import {ObstacleCard} from '@/components/ObstacleCard';
 import {useObstacles} from '@/hooks/useObstacles';
-import {justSeen} from '@/lib/obstacles';
 import {dropLooks, looksOf, restoreLooks, saveSettings, settingsStore, withLooks, type KeptLooks} from '@/lib/settings';
 
 // '0' when the map was unpinned on this device
@@ -1178,7 +1177,7 @@ function MapEditor() {
                 marginPlaces={simResult ? simResult.touches : marginPlaces.length ? marginPlaces : undefined}
                 jumpPlaces={realPlan?.checks ? [...realPlan.checks.jumps, ...realPlan.checks.unchecked] : undefined}
                 focus={spot ?? undefined}
-                obstacles={seenShown?.map((o) => ({...o, now: justSeen(o)}))}
+                obstacles={seenShown}
                 obstaclePicked={seenCard?.id ?? null}
                 onObstaclePick={(id) => {
                   setSeenPicked(id);

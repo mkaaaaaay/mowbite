@@ -151,5 +151,6 @@ export function useIdle(): boolean {
 
 // connected and the state is current: only then is what's shown real and a command goes out right away
 export const isLive = (l: MowerLink) => l.connected && !l.stale;
-// the states in which the mower is out driving
+// the states in which the mower is out: paused counts too, it's standing somewhere on the lawn then. recording drives
+// with gps as well
 export const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
