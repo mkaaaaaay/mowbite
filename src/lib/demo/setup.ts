@@ -244,8 +244,8 @@ const TRON_STEPS: Base[] = [
     confirm: [named('seen_myself', 'I saw every safety check on this mower myself', 'Ich habe jede Sicherheitsprüfung an diesem Mäher selbst gesehen')],
     values: [value('date', 'Date', 'Datum', ''), value('failsafe', 'Stop without control', 'Halt ohne Steuerung', 's')],
     texts: tx(
-      ['Release safety', 'All safety checks passed. With one tap the mower allows driving and mowing on its own. MowBite OS restarts once for it.', 'If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.'],
-      ['Sicherheit freigeben', 'Alle Sicherheitsprüfungen sind bestanden. Mit einem Tipp gibt der Mäher das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.', 'Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.'],
+      ['Release safety', 'Once every safety check passed, one tap lets the mower drive and mow on its own. MowBite OS restarts once for it.', 'If a check is missing, finish it first. If the tick does not come after the restart, check the device file kept by hand.'],
+      ['Sicherheit freigeben', 'Sind alle Sicherheitsprüfungen bestanden, gibt der Mäher mit einem Tipp das selbstständige Fahren und Mähen frei. Dafür startet MowBite OS einmal neu.', 'Fehlt eine Prüfung, zuerst sie abschließen. Kommt der Haken nach dem Neustart nicht: die von Hand gepflegte Gerätedatei prüfen.'],
     ),
   }),
   step({
@@ -410,7 +410,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // since: when the step or its current part began
   // asked: the line the assignment proposes for the running part
   // asking: the question of the running step (which wheel, or whether the action was done) until its answer is due; kept: the last setup.keep
-  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: {input: SetupInput; until: number}; kept?: number} | null =
+  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: {input: SetupInput; until: number; stood?: boolean}; kept?: number} | null =
     null;
   // what keeps the lock of the safety closed, and the day it opened
   let closed: SafetyCause[] = demoFlags().mowbiteDemoSafetyFailed ? [{step: 'stop', part: null, reason: 'NOT_SEEN', t: now()}] : [];
@@ -715,7 +715,12 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     } else if (s.motion && t - run.kept! > KEEP_S) {
       end(s, false, 'RELEASED', 'setup.keep stayed away', s.parts[run.part]?.id ?? null);
     } else if (run.asking) {
-      if (t > run.asking.until) reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
+      if (t <= run.asking.until) return;
+      // the wheel stands after its time, the answer is taken for as long again as one to nothing seen
+      if (run.asking.input === WHEEL && !run.asking.stood) {
+        run.asking = {input: WHEEL, until: t + PRESSED_S, stood: true};
+        changed();
+      } else reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
     } else if (byParts(s)) {
       partByPart(s, k, t);
     } else if (s.check === 'wheels') {

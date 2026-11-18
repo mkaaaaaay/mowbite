@@ -200,8 +200,11 @@ export const asked = (s: SetupStep) => (s.state === 'running' ? s.inputs.filter(
 // what a step without a start is done with: its value, given with setup.answer
 export const ownInputs = (s: SetupStep) => (s.start || s.state === 'locked' || s.state === 'running' ? [] : s.inputs.filter((i) => !i.ask && !i.advanced));
 
-// a step that doesn't run and can't start now: setup.start refuses while the program names what blocks it
-export const held = (s: SetupStep) => s.state !== 'running' && s.blocked.length > 0;
+// a step that doesn't run and can't start now: setup.start refuses for all the program names as blocking it, but for
+// data still missing at a step imu or position, which starts and waits for it
+const WAITS_FOR_DATA = ['imu', 'position'];
+export const held = (s: SetupStep) =>
+  s.state !== 'running' && s.blocked.some((b) => b.reason !== 'NO_DATA' || !WAITS_FOR_DATA.includes(s.check));
 
 // a step that counts as done for the progress
 export const isDone = (s: StepState) => s === 'ok' || s === 'skipped';

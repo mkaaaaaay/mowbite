@@ -230,7 +230,7 @@ test.describe('setup', () => {
     await expect(due).toContainText('Every safety check has to pass first');
     // nothing to tick or start until they passed, and the step doesn't say they did
     await expect(sum.locator('[data-due]')).toHaveText('Not all checks passed yet');
-    await expect(sum).not.toContainText('All safety checks passed');
+    await expect(sum).not.toContainText('one tap lets the mower drive');
     await expect(sum.getByRole('button', {name: 'Start'})).toBeDisabled();
     await expect(due.getByRole('link', {name: 'Wheels'})).toHaveAttribute('href', /\/setup\/?\?step=wheels/);
     await due.getByRole('link', {name: 'Blade'}).click();
@@ -266,7 +266,7 @@ test.describe('setup', () => {
     await to(page, 'Safety', 'Release safety');
     await expect(sum.locator('[data-blocked]')).toHaveCount(0);
     await expect(sum.locator('[data-due]')).toHaveCount(0);
-    await expect(sum).toContainText('All safety checks passed');
+    await expect(sum).toContainText('Once every safety check passed, one tap lets the mower drive');
     await sum.getByRole('button', {name: 'Start'}).click();
     const sheet = page.getByRole('dialog');
     await expect(sheet.locator('[data-summary]')).toContainText('Date');

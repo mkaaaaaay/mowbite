@@ -89,6 +89,10 @@ describe('the setup program', () => {
     const step = (over: Partial<SetupStep>) => ({check: 'summary', state: 'open', blocked: [], ...over}) as unknown as SetupStep;
     expect([held(step({})), safetyDue(step({}))]).toEqual([false, false]);
     expect([held(step({blocked: [{reason: 'CLOCK_UNSAFE', message: ''}]})), safetyDue(step({blocked: [{reason: 'CLOCK_UNSAFE', message: ''}]}))]).toEqual([true, false]);
+    // a step that waits for its data itself starts without it, any other doesn't
+    const noData = [{reason: 'NO_DATA', message: ''}];
+    expect(['position', 'imu', 'wheels'].map((check) => held(step({check, blocked: noData})))).toEqual([false, false, true]);
+    expect(held(step({check: 'position', blocked: [...noData, {reason: 'BUSY', message: ''}]}))).toBe(true);
     // what a running step waits for is no reason against a start
     expect(held(step({state: 'running', blocked: [{reason: 'EMERGENCY', message: ''}]}))).toBe(false);
   });
