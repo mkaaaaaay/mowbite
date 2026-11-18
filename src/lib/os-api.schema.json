@@ -263,6 +263,10 @@
       "additionalProperties": false,
       "description": "The params of camera.stream: The camera",
       "properties": {
+        "detections": {
+          "description": "For this stream: true with the boxes of the camera AI, false without; without, the boxes are there when camera.list has detections true",
+          "type": "boolean"
+        },
         "id": {
           "description": "An id of camera.list",
           "type": "string"
@@ -285,6 +289,10 @@
       "additionalProperties": false,
       "description": "The result of camera.stream: The stream",
       "properties": {
+        "detections": {
+          "description": "Whether the boxes of the camera AI are in the picture",
+          "type": "boolean"
+        },
         "expires": {
           "description": "The connection has to begin before this",
           "type": "integer",
@@ -306,7 +314,8 @@
       "required": [
         "url",
         "protocol",
-        "expires"
+        "expires",
+        "detections"
       ],
       "type": "object"
     },
@@ -6277,7 +6286,7 @@
       "type": "object"
     },
     "events.history.result": {
-      "description": "The result of events.history: Events, oldest first; none for an unknown day",
+      "description": "The result of events.history: Events, oldest first; none for an unknown day; over 900000 bytes the oldest of the day are left out",
       "items": {
         "description": "One item",
         "type": "object"
@@ -7857,7 +7866,7 @@
           "type": "string"
         },
         "token": {
-          "description": "New token for the ntfy server; empty drops it",
+          "description": "New token for the ntfy server; empty drops it, so does a server of another scheme, host or port without a new token",
           "type": "string"
         },
         "topic": {
@@ -8436,6 +8445,10 @@
             "type": "object"
           },
           "type": "array"
+        },
+        "thinned": {
+          "description": "true when only every n-th point is in the answer (first and last of each stretch stay), so it stays below 900000 bytes",
+          "type": "boolean"
         }
       },
       "required": [],
@@ -15681,11 +15694,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:48",
+  "$id": "urn:mowbite-os:api:49",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 48,
+  "x-api": 49,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -16330,7 +16343,7 @@
       "result": "#/$defs/camera.list.result"
     },
     "camera.stream": {
-      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace, every part one JPEG with its own Content-Length, and every answer to that GET, also a refusal, carries Access-Control-Allow-Origin: *; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have",
+      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace, every part one JPEG with its own Content-Length, and every answer to that GET, also a refusal, carries Access-Control-Allow-Origin: *; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have and for detections true at a camera without",
       "node": "mowbite_camera",
       "offered": "with at least one camera",
       "params": "#/$defs/camera.stream.params",
