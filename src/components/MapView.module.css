@@ -1104,6 +1104,51 @@
   animation: marker-pulse 1.6s ease-out infinite;
 }
 
+/* what the obstacle sensors saw: its round on the ground, a sign of what it is on it */
+.seen {
+  pointer-events: none;
+}
+
+.seen.seenPick {
+  cursor: pointer;
+}
+
+.seenHit {
+  fill: transparent;
+}
+
+.seenPick .seenHit {
+  pointer-events: auto;
+}
+
+.seenGround {
+  fill: color-mix(in srgb, var(--c-seen) 22%, transparent);
+  stroke: var(--c-seen);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.seenBadge {
+  fill: var(--c-seen);
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.seenPicked .seenBadge {
+  stroke-width: 3;
+}
+
+.seenGlyph {
+  fill: #fff;
+}
+
+.seenPulse {
+  fill: color-mix(in srgb, var(--c-seen) 40%, transparent);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: marker-pulse 1.6s ease-out infinite;
+}
+
 @keyframes marker-pulse {
   0% {
     transform: scale(0.4);

@@ -35,6 +35,8 @@ export interface MowerEvent {
   state?: string;
   available?: boolean;
   camera_id?: string;
+  // OBSTACLE_SEEN, OBSTACLES_CLEARED: the entry of vision.obstacles.list, null for all of them
+  obstacle_id?: number | null;
   // CAMERA_CHANGED: what it streams with now and at which size
   protocols?: string[];
   width?: number;

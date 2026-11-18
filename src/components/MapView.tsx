@@ -9,6 +9,7 @@ import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks} from '@
 import {bodyShape, isPin, outlineAt, pinAt, realEdges, realInsides, roundBends, useMowerBody, usePlannerSettings, type MowerBody} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {dockIcon} from './mapIcons';
+import {obstacleGlyph} from './ObstacleGlyph';
 import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
@@ -156,6 +157,11 @@ interface MapViewProps {
   // a layer of the page's own over the map and under the mower, in the map's meters (the calibration's lane and turns):
   // toScreen the point on the svg, scale its units per meter, k one unit at the zoom shown
   draw?: (at: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => React.ReactNode;
+  // what the obstacle sensors saw: its round on the ground and a sign of what it is, pulsing while just seen. one
+  // can be picked by its sign, again: none
+  obstacles?: {id: number; x: number; y: number; r: number; kind: string; now: boolean}[];
+  obstaclePicked?: number | null;
+  onObstaclePick?: (id: number | null) => void;
 }
 
 const MAX_ZOOM = 40;
@@ -274,6 +280,9 @@ function MapView({
   leftPieces,
   navErrors,
   draw,
+  obstacles,
+  obstaclePicked,
+  onObstaclePick,
   markers,
   onMarkerPick,
   bodySpots,
@@ -2242,6 +2251,35 @@ function MapView({
             />
           );
         })}
+      {obstacles?.map((o) => {
+        const [x, y] = toScreen(o.x, o.y);
+        const picked = o.id === obstaclePicked;
+        return (
+          <g
+            key={'seen' + o.id}
+            className={[styles.seen, onObstaclePick ? styles.seenPick : '', picked ? styles.seenPicked : ''].join(' ')}
+            data-obstacle={o.id}
+            onPointerDown={onObstaclePick ? (e) => !grabbable(e) && e.stopPropagation() : undefined}
+            onClick={
+              onObstaclePick
+                ? (e) => {
+                    e.stopPropagation();
+                    onObstaclePick(picked ? null : o.id);
+                  }
+                : undefined
+            }
+          >
+            <circle className={styles.seenGround} cx={x} cy={y} r={Math.max(o.r * scale, 4 * k)} />
+            {o.now && <circle className={styles.seenPulse} cx={x} cy={y} r={22 * k} />}
+            {/* a sign is small for a finger: a bigger round to hit */}
+            <circle className={styles.seenHit} cx={x} cy={y} r={18 * k} />
+            <circle className={styles.seenBadge} cx={x} cy={y} r={11 * k} />
+            <g className={styles.seenGlyph} transform={`translate(${x} ${y}) scale(${0.75 * k})`}>
+              {obstacleGlyph(o.kind)}
+            </g>
+          </g>
+        );
+      })}
       {/* last, so a spot at the dock isn't hidden under the mower */}
       {markers?.map((m, i) => {
         const [mx, my] = toScreen(m.x, m.y);

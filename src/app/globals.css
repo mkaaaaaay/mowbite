@@ -370,6 +370,7 @@ textarea {
   --c-selected: #ff1fa3;
   --c-vertex: #2196f3;
   --c-stripes: #ff1fa3;
+  --c-seen: #ff8a00;
 }
 
 /* buttons give way under the finger like a real one */

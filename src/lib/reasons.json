@@ -911,6 +911,77 @@
     }
    ]
   },
+  "OBSTACLE_SEEN": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "kind": "PERSON"
+     },
+     "en": "Person seen",
+     "with_reason": false,
+     "de": "Person gesehen"
+    },
+    {
+     "when": {
+      "kind": "ANIMAL"
+     },
+     "en": "Animal seen",
+     "with_reason": false,
+     "de": "Tier gesehen"
+    },
+    {
+     "when": {
+      "kind": "OBJECT"
+     },
+     "en": "Obstacle seen",
+     "with_reason": false,
+     "de": "Hindernis gesehen"
+    },
+    {
+     "en": "Something seen",
+     "with_reason": false,
+     "de": "Etwas gesehen"
+    }
+   ]
+  },
+  "OBSTACLES_CLEARED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "obstacle_id": {
+       "present": false
+      }
+     },
+     "en": "All seen obstacles deleted",
+     "with_reason": false,
+     "de": "Alle gesehenen Hindernisse gelöscht"
+    },
+    {
+     "en": "A seen obstacle deleted",
+     "with_reason": false,
+     "de": "Ein gesehenes Hindernis gelöscht"
+    }
+   ]
+  },
+  "OBSTACLE_SIGHT": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "ok": true
+     },
+     "en": "Obstacle detection sees again",
+     "with_reason": false,
+     "de": "Hinderniserkennung sieht wieder"
+    },
+    {
+     "en": "Obstacle detection can't see",
+     "de": "Hinderniserkennung sieht nichts"
+    }
+   ]
+  },
   "METHODS_CHANGED": {
    "severity": "info",
    "variants": [
@@ -2455,6 +2526,24 @@
    {
     "en": "the camera gives no picture right now",
     "de": "die Kamera liefert gerade kein Bild"
+   }
+  ],
+  "TOO_DARK": [
+   {
+    "en": "too dark to see",
+    "de": "zu dunkel zum Sehen"
+   }
+  ],
+  "TOO_BRIGHT": [
+   {
+    "en": "too bright, glare or a low sun",
+    "de": "zu hell, Blendung oder tiefe Sonne"
+   }
+  ],
+  "COVERED": [
+   {
+    "en": "the lens is covered or dirty",
+    "de": "die Linse ist verdeckt oder schmutzig"
    }
   ],
   "SELF_TEST": [

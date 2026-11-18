@@ -66,6 +66,10 @@ export const RPC = {
   // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
   cameraList: 'camera.list',
   cameraStream: 'camera.stream',
+  // what the obstacle sensors saw, kept on the mower with a photo each, where the platform has such a sensor (lib/obstacles)
+  obstaclesList: 'vision.obstacles.list',
+  obstaclesImage: 'vision.obstacles.image',
+  obstaclesClear: 'vision.obstacles.clear',
   // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
   geometry: 'robot.geometry.get',
   geometrySet: 'robot.geometry.set',

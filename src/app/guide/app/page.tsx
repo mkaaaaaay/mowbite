@@ -1,6 +1,8 @@
 'use client';
 
 import {useCameras} from '@/hooks/useCameras';
+import {useObstacles} from '@/hooks/useObstacles';
+import {obstacleGlyph} from '@/components/ObstacleGlyph';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {SHORT} from '@/lib/camera';
 import {useDockTestSeries} from '@/lib/mowerOs';
@@ -9,7 +11,7 @@ import {fmt, tr} from '@/lib/i18n';
 import {anim, appear, DockTestArt, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
-// the dashboard's values, the cameras of a mower that has them and more than one mower, step by step with a drawing for each
+// the dashboard's values, the cameras and what the obstacle sensors saw on a mower that has them and more than one mower, step by step with a drawing for each
 
 const DUR = SCREEN_LOOP;
 const {card, field, well, text, dim, accent, onAccent} = PAINT;
@@ -180,6 +182,41 @@ const CAMERA_STEP: GuideStep = {
   Art: CameraArt,
 };
 
+// the map with a hedgehog seen on the lawn, its card with the photo coming up as it's tapped
+function ObstaclesArt() {
+  return (
+    <Scene label={tr('Obstacles')}>
+      <rect x={24} y={12} width={272} height={165} rx={12} style={{fill: '#4f8a43'}} />
+      <path d="M60 40 H260 M60 70 H260 M60 100 H260" style={{stroke: '#5d9c50', strokeWidth: 14}} />
+      <circle cx={200} cy={60} r={22} style={{fill: 'color-mix(in srgb, var(--c-seen) 25%, transparent)', stroke: 'var(--c-seen)', strokeWidth: 1.5, strokeDasharray: '4 3'}} />
+      <circle cx={200} cy={60} r={12} style={{fill: 'var(--c-seen)', stroke: '#fff', strokeWidth: 1.5}} />
+      <g transform="translate(200 60) scale(0.8)" style={{fill: '#fff'}}>
+        {obstacleGlyph('ANIMAL')}
+      </g>
+      <g opacity={0}>
+        {appear(0.35)}
+        <rect x={40} y={100} width={240} height={68} rx={10} style={card} />
+        <rect x={50} y={108} width={68} height={52} rx={6} style={{fill: '#9cc9e8'}} />
+        <rect x={50} y={130} width={68} height={30} style={{fill: '#4f8a43'}} />
+        <ellipse cx={84} cy={144} rx={13} ry={7} style={{fill: '#5c4630'}} />
+        <rect x={68} y={134} width={32} height={18} style={{fill: 'none', stroke: '#ffd400', strokeWidth: 2}} />
+        <text x={130} y={126} fontSize={13} fontWeight={600} style={text}>
+          {tr('Hedgehog')}
+        </text>
+        <text x={130} y={146} fontSize={11} style={dim}>
+          {tr('Only seen')}
+        </text>
+      </g>
+    </Scene>
+  );
+}
+
+const OBSTACLES_STEP: GuideStep = {
+  title: 'Obstacles',
+  text: "A mower with MowBite OS and an obstacle sensor can show on the map what it saw. Switch it on in Settings › Mower › Obstacles. Each one is a round with a sign for a person, an animal or a thing, it pulses while it's just been seen. Tap the sign: when and how often it was seen and, with photos on, its photo with a box round it. Delete one there, or all of them in the settings. For now the mower doesn't stop or drive around them. The camera only looks ahead, it's a help and no replacement for keeping an eye on the mower. The photos stay on the mower and can show people.",
+  Art: ObstaclesArt,
+};
+
 const DOCK_TEST_STEP: GuideStep = {
   title: 'Docking test',
   text: "A mower with MowBite OS and a dock camera can test docking by the camera alone. Put it in front of the station: at most {cm} cm beside the line straight out of it and less than {deg}° skewed. Then tap Test docking by camera on the dashboard and confirm.{series} It drives off by itself, slowly and with the blade off, without map or GPS: stay at the STOP button. Stop docking on the dashboard or STOP at the mower ends it. If it doesn't get onto the contacts, the activity says why.",
@@ -208,9 +245,10 @@ const STEPS: GuideStep[] = [
 
 export default function AppGuidePage() {
   const cameras = useCameras().on;
+  const obstacles = useObstacles().on;
   const dockTest = !!useRpcMethods()?.has(RPC.dockingTest);
   const series = useDockTestSeries() ? ` ${tr(DOCK_TEST_SERIES, {n: DOCK_TEST_RUNS})}` : '';
   const testStep = {...DOCK_TEST_STEP, vars: {...DOCK_TEST_REACH, series}};
-  const steps = [...STEPS.slice(0, 1), ...(cameras ? [CAMERA_STEP] : []), ...(dockTest ? [testStep] : []), ...STEPS.slice(1)];
+  const steps = [...STEPS.slice(0, 1), ...(cameras ? [CAMERA_STEP] : []), ...(obstacles ? [OBSTACLES_STEP] : []), ...(dockTest ? [testStep] : []), ...STEPS.slice(1)];
   return <Guide steps={steps} done={{label: 'To the dashboard', href: '/'}} />;
 }

@@ -273,6 +273,22 @@ export const EVENTS: Record<string, EventText> = {
   CAMERA_REFUSED: one('No camera picture'),
   // a camera can show a picture again or no longer, camera.list then says why
   CAMERA_CHANGED: {severity: 'info', variants: [alone({when: {available: true}, en: 'Camera picture available'}), {en: 'No camera picture'}]},
+  // a new entry in the list of what the obstacle sensors saw (vision.obstacles.list), by what it is
+  OBSTACLE_SEEN: {
+    severity: 'info',
+    variants: [
+      alone({when: {kind: 'PERSON'}, en: 'Person seen'}),
+      alone({when: {kind: 'ANIMAL'}, en: 'Animal seen'}),
+      alone({when: {kind: 'OBJECT'}, en: 'Obstacle seen'}),
+      alone({en: 'Something seen'}),
+    ],
+  },
+  OBSTACLES_CLEARED: {
+    severity: 'info',
+    variants: [alone({when: {obstacle_id: {present: false}}, en: 'All seen obstacles deleted'}), alone({en: 'A seen obstacle deleted'})],
+  },
+  // the obstacle sensors see again, or no longer and why
+  OBSTACLE_SIGHT: {severity: 'info', variants: [alone({when: {ok: true}, en: 'Obstacle detection sees again'}), {en: "Obstacle detection can't see"}]},
   // the methods MowBite OS offers changed (a camera came up or its process ended), the app asks for them again
   METHODS_CHANGED: one("The mower's functions changed"),
   DRIVE: {
@@ -580,6 +596,10 @@ export const REASONS: Record<string, Variant[]> = {
   BLADE_RUNNING: [r('not while the blade is running')],
   TOO_HOT: [r("the mower's computer is too hot, the camera pauses")],
   NO_SIGNAL: [r('the camera gives no picture right now')],
+  // OBSTACLE_SIGHT, also the camera reasons above
+  TOO_DARK: [r('too dark to see')],
+  TOO_BRIGHT: [r('too bright, glare or a low sun')],
+  COVERED: [r('the lens is covered or dirty')],
   SELF_TEST: [r('the camera is still testing itself after the start, for that the mower has to stand with the blade off')],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],

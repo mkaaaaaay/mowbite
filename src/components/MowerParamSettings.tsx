@@ -295,6 +295,8 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
       return tr('pauses at {hot} °C, on again at {cold} °C', {hot: n('motor_hot_temperature'), cold: n('motor_cold_temperature')});
     case 'journal':
       return tr(v('journal_enabled') ? 'kept' : 'off');
+    case 'obstacles':
+      return v('obstacle_mode') ? tr(v('obstacle_photos') ? 'on the map, with photos' : 'on the map') : tr('off');
   }
 }
 const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
