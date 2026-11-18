@@ -125,8 +125,6 @@ export function SetupStep(props: {
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
   const advanced = step.inputs.filter((i) => i.advanced);
   const questions = asked(step);
-  // a choice is answered with one tap, anything else typed and saved
-  const tapped = questions.filter((i) => i.type === 'choice');
   const answer = (values: Record<string, unknown>) => act.answer(step.id, values);
   const router = useRouter();
   const current = currentStep(setup);
@@ -168,7 +166,7 @@ export function SetupStep(props: {
                 })}
               </p>
             )}
-            {tapped.map((i) => (
+            {questions.map((i) => (
               <StepQuestion key={i.name} input={i} endsAt={step.ends_at} lang={lang} busy={busy} onAnswer={answer} />
             ))}
           </div>
@@ -227,13 +225,7 @@ export function SetupStep(props: {
           )}
           <StepParts parts={step.parts} lang={lang} />
           <StepValues values={step.values} lang={lang} />
-          <StepInputs
-            key={running ? 'ask' : 'all'}
-            inputs={running ? questions.filter((i) => !tapped.includes(i)) : ownInputs(step)}
-            lang={lang}
-            busy={busy}
-            onAnswer={answer}
-          />
+          <StepInputs inputs={ownInputs(step)} lang={lang} busy={busy} onAnswer={answer} />
           <StepLines lines={step.lines} />
           {step.state === 'ok' && advanced.length > 0 && (
             <details className={styles.advanced}>

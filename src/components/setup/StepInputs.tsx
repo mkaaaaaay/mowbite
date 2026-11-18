@@ -5,7 +5,7 @@ import {nameOf, words, type SetupInput} from '@/lib/setup';
 import {useState} from 'react';
 import styles from './StepInputs.module.css';
 
-// What a step takes with setup.answer: a choice, a number, or the question of a running step (ask), all in one answer
+// What a step takes with setup.answer besides the questions it asks while it runs: a choice or a number, all in one answer
 export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]; lang: string; busy: boolean; onAnswer: (values: Record<string, unknown>) => void}) {
   const [given, setGiven] = useState<Record<string, unknown>>({});
   if (!inputs.length) return null;
@@ -22,7 +22,7 @@ export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]
       {inputs.map((i) => {
         const w = words(i.texts, lang);
         return (
-          <fieldset key={i.name} className={styles.input} data-ask={i.ask || undefined}>
+          <fieldset key={i.name} className={styles.input}>
             <legend>{w.name || i.name}</legend>
             {w.help && <p className={styles.help}>{w.help}</p>}
             {i.type === 'choice' ? (
