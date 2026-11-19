@@ -8,7 +8,7 @@ import {isMowbiteOs, providerGone, runsMowbiteOs, systemInfo} from './mowerOs';
 import {tr} from './i18n';
 import {askPlan} from './plannerProgress';
 import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, onMethodsChanged, RpcError, rpcMethods} from './rpc';
-import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
+import {saveSettings, settingsStore, sharedSettings, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
 // the point the path is for (OpenMower's base_link, the middle between the rear drive wheels), robot_front ahead of
@@ -306,6 +306,11 @@ export async function giveOutline() {
   if (isMowbiteOs(info)) return;
   try {
     await syncSettings();
+    // only with the settings read from the mower: a rectangle kept there would be passed over (next time then)
+    if (!sharedSettings()) {
+      outlineChecked = false;
+      return;
+    }
     if (!current || outlineOf(current.settings.robot_outline?.value)) return;
     const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
     if (!m?.outline) return;
