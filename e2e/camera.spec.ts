@@ -1,5 +1,5 @@
 import type {Page} from '@playwright/test';
-import {demoCameras, demoDocked, demoWith, expect, SIM, tab, test} from './app';
+import {bladeOn, demoCameras, demoDocked, demoWith, expect, SIM, tab, test} from './app';
 
 // the picture the camera view shows right now, as text: the demo draws the camera's name into each one of its stream
 const picture = (page: Page) =>
@@ -156,7 +156,7 @@ test.describe('cameras', () => {
     await expect(page.locator('[data-camera]')).toBeVisible();
 
     // the blade by hand: no picture, and why
-    await page.locator('button:visible', {hasText: 'Blade on'}).click();
+    await bladeOn(page);
     await expect(page.locator('[data-camera]')).toContainText('Not while the blade is running');
     await page.locator('button:visible', {hasText: 'Blade off'}).click();
     await expect(page.locator('[data-camera] img')).toBeVisible();

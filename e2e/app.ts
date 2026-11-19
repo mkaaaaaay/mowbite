@@ -48,6 +48,15 @@ export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
 // the demo mower's state now
 export const demoState = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
 // it's out mowing when the demo opens: sent home, and the way there driven at once
+// the blade by hand in recording mode: on takes two taps, the second counts after a moment
+export async function bladeOn(page: Page) {
+  const on = page.locator('button:visible', {hasText: 'Blade on'});
+  await on.click();
+  await expect(on).toHaveText('Sure? Blade on');
+  await page.waitForTimeout(700);
+  await on.click();
+}
+
 export async function demoDocked(page: Page) {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   await page.evaluate(() => {

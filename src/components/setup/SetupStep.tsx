@@ -276,7 +276,7 @@ export function SetupStep(props: {
           </button>
         )}
         {running && !restarting && (
-          <button type="button" className={styles.button} disabled={busy} onClick={() => act.abort(step.id)}>
+          <button type="button" className={styles.button} onClick={() => act.abort(step.id)}>
             {tr('Cancel')}
           </button>
         )}

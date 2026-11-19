@@ -5,7 +5,8 @@ import {TitleRow} from '@/components/TopWeather';
 import {CheckIcon, CloseIcon, GuideIcon, PlayIcon} from '@/components/icons';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
-import {useMowerActions} from '@/hooks/useMowerActions';
+import {useJustReset} from '@/hooks/useEmergencyReset';
+import {lockedAfter, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {loadUpdate} from '@/lib/autoUpdate';
 import {
@@ -253,6 +254,10 @@ function Calibration() {
   const {state} = link;
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
+  // the start held back like the dashboard's: in an emergency stop, right after its reset and right after a tap
+  const justReset = useJustReset(!!state?.emergency);
+  const [tapped, tap] = useTapLock();
+  const startLocked = !live || !!state?.emergency || justReset || (!!tapped && lockedAfter(tapped, ACTION.startMowing));
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
@@ -435,7 +440,14 @@ function Calibration() {
           <p className={styles.now}>{tr("It mows and measures along. You don't need to do anything.")}</p>
           <p className={styles.dim}>{tr('Ends by itself once there\'s enough, after {n} hours at the latest.', {n: 2})}</p>
           {hasAction(ACTION.startMowing) && (
-            <button className={styles.primary} disabled={!live} onClick={() => publishAction(ACTION.startMowing)}>
+            <button
+              className={styles.primary}
+              disabled={startLocked}
+              onClick={() => {
+                tap(ACTION.startMowing);
+                publishAction(ACTION.startMowing);
+              }}
+            >
               <PlayIcon size={18} />
               {tr('Start mowing')}
             </button>

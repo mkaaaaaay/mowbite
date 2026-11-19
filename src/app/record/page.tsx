@@ -6,7 +6,8 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {useHeadingDrift} from '@/hooks/useHeadingDrift';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
-import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {useJustReset} from '@/hooks/useEmergencyReset';
+import {useCommandNote, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {useMowerMap, type DockingStation, type MowerMap} from '@/hooks/useMowerMap';
 import {recordedIn} from '@/lib/sameMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
@@ -166,7 +167,6 @@ function Record() {
   }, [guide, guideSeen]);
   // the station it saved, told on the page after it
   const [station, setStation] = useState<{station: Station; before: DockingStation | null} | null>(null);
-  const guiding = guide && recordingMode && phase === 'empty' && !os;
 
   // the stick, held sideways the two pads; the sideways layout for dialogs over it
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -180,12 +180,19 @@ function Record() {
   // mowing by hand: in recording mode OpenMower runs the blade until it's switched off or the mode ends, also while the
   // mower stands still
   const bladeOn = recordingMode && hasAction(A('stop_manual_mowing'));
+  const justReset = useJustReset(!!state?.emergency);
+  const [bladeTapped, bladeTap] = useTapLock();
   const blade = useRef({on: bladeOn, off: () => publishAction(A('stop_manual_mowing'))});
   blade.current = {on: bladeOn, off: () => publishAction(A('stop_manual_mowing'))};
   // after an emergency stop it would start again by itself once that's reset
   useEffect(() => {
     if (state?.emergency && bladeOn && live) blade.current.off();
   }, [state?.emergency, bladeOn, live]);
+  // the station's guide has no blade buttons: it opens once the blade is off, asked for it goes off first
+  const guiding = guide && recordingMode && phase === 'empty' && !os && !bladeOn;
+  useEffect(() => {
+    if (guide && bladeOn && live) blade.current.off();
+  }, [guide, bladeOn, live]);
   // leaving the page or putting the phone away switches the blade off (the stick stops by itself)
   useEffect(() => {
     const hidden = () => {
@@ -570,6 +577,38 @@ function Record() {
           ? tr('Docking station')
           : tr('Recording mode');
   const blades = knowsAction(A('start_manual_mowing'));
+  // on and off each at their own place, never one under the finger where the other was. on takes two taps and is held
+  // back for a moment after a blade tap and after an emergency reset; off goes at once, whenever connected
+  const bladeOnButton = blades && (
+    <button
+      key="blade_on"
+      className={sure === 'blade' ? ds.danger : undefined}
+      disabled={!live || !hasAction(A('start_manual_mowing')) || justReset || !!bladeTapped}
+      onClick={() =>
+        confirm('blade', () => {
+          bladeTap('on');
+          act('start_manual_mowing');
+        })
+      }
+    >
+      {ICONS.start_manual_mowing}
+      {tr(sure === 'blade' ? 'Sure? Blade on' : 'Blade on')}
+    </button>
+  );
+  const bladeOffButton = blades && (
+    <button
+      key="blade_off"
+      className={ds.danger}
+      disabled={!connected || !hasAction(A('stop_manual_mowing'))}
+      onClick={() => {
+        bladeTap('off');
+        act('stop_manual_mowing');
+      }}
+    >
+      {ICONS.stop_manual_mowing}
+      {tr('Blade off')}
+    </button>
+  );
   const bladeWarn = tr(
     'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the emergency stop button on the mower.',
   );
@@ -704,9 +743,9 @@ function Record() {
               <>
                 {bladeOn && <p className={ds.remoteBlade}>{bladeWarn}</p>}
                 <div className={ds.remoteButtons}>
+                  {bladeOnButton}
                   {buttons}
-                  {button('start_manual_mowing', 'Blade on')}
-                  {button('stop_manual_mowing', 'Blade off', 'danger')}
+                  {bladeOffButton}
                 </div>
               </>
             }
@@ -738,9 +777,9 @@ function Record() {
               </div>
             )}
             <div className={styles.buttons}>
+              {bladeOnButton}
               {buttons}
-              {blades && button('start_manual_mowing', 'Blade on')}
-              {blades && button('stop_manual_mowing', 'Blade off', 'danger')}
+              {bladeOffButton}
             </div>
             {bladeOn && <p className={ds.warn}>{bladeWarn}</p>}
             <label className={styles.check}>

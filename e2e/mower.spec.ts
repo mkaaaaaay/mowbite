@@ -1,4 +1,4 @@
-import {demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
+import {bladeOn, demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
 import {length} from '@/lib/planProgress';
 
@@ -31,11 +31,21 @@ test('the blade in recording mode goes off with its button and when the phone is
   const on = page.locator('button:visible', {hasText: 'Blade on'});
   const off = page.locator('button:visible', {hasText: 'Blade off'});
   const turning = page.getByText('The blade is turning, also while the mower stands still.').first();
+  // both at their own place, off greyed out while it's off
+  await expect(off).toBeDisabled();
+  // one tap only asks
+  await on.click();
+  await expect(on).toHaveText('Sure? Blade on');
+  await expect(turning).toBeHidden();
+  await page.waitForTimeout(700);
   await on.click();
   await expect(turning).toBeVisible();
+  // off goes at once, on stays held back for a moment after it
   await off.click();
   await expect(turning).toBeHidden();
-  await on.click();
+  await expect(on).toBeDisabled();
+  await expect(on).toBeEnabled();
+  await bladeOn(page);
   await expect(turning).toBeVisible();
   const away = (hidden: boolean) =>
     page.evaluate((hidden) => {
@@ -450,12 +460,26 @@ test('the overview in recording mode leads back to recording and out of it', asy
   await expect(page.locator('button:visible', {hasText: 'Discard area'}).first()).toBeVisible();
 });
 
+// the station's guide has no blade buttons: asked for with the blade on, it switches it off first
+test('the guide for the docking station opens with the blade off', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await bladeOn(page);
+  const turning = page.getByText('The blade is turning, also while the mower stands still.').first();
+  await expect(turning).toBeVisible();
+  await page.locator('button:visible', {hasText: /Record (the )?docking station/}).first().click();
+  await expect(page.getByText('it measures where it charges')).toBeVisible();
+  await expect(turning).toBeHidden();
+  expect((await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json')).find((a) => a.action_id.endsWith('stop_manual_mowing'))?.enabled).toBeFalsy();
+});
+
 // with the blade turning a reload asks first: what the page sends while it unloads doesn't get out
 test('a reload while the blade turns in recording mode asks first', async ({page}) => {
   await page.goto('/record/');
   await demoDocked(page);
   await page.getByRole('button', {name: 'Start recording mode'}).click();
-  await page.locator('button:visible', {hasText: 'Blade on'}).click();
+  await bladeOn(page);
   await expect(page.getByText('The blade is turning, also while the mower stands still.').first()).toBeVisible();
   const asked = new Promise<string>((done) =>
     page.once('dialog', (d) => {
