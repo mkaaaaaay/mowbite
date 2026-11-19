@@ -6,6 +6,7 @@ const mower = vi.hoisted(() => ({
   actions: [] as string[],
   connected: true,
   stale: false,
+  misfit: null as string | null,
   calls: [] as {method: string; params: object; late?: (a: unknown) => void}[],
   answer: (() => Promise.resolve({})) as () => Promise<unknown>,
 }));
@@ -24,6 +25,7 @@ vi.mock('@/lib/mqttClient', () => ({
 }));
 
 vi.mock('./useMowerState', () => ({liveNow: () => mower.connected && !mower.stale}));
+vi.mock('@/lib/osUpdate', () => ({runningMisfit: () => mower.misfit}));
 
 const {sendCall, sendCommand, commandNote, lockedAfter, setsOff} = await import('./useMowerActions');
 const settle = () => new Promise((r) => setTimeout(r, 0));
@@ -34,6 +36,7 @@ describe('a command to the mower', () => {
     mower.calls = [];
     mower.connected = true;
     mower.stale = false;
+    mower.misfit = null;
     mower.answer = () => Promise.resolve({state: 'MOWING', sub_state: ''});
   });
 
@@ -153,6 +156,16 @@ describe('a command to the mower', () => {
     mower.stale = false;
     sendCall('docking.test');
     expect(mower.calls.map((c) => c.method)).toContain('docking.test');
+  });
+  it('sends nothing that sets the mower off to a MowBite OS whose interface this app does not speak, stopping still goes', () => {
+    mower.methods = new Set(['mowing.start', 'mowing.pause', 'emergency.reset']);
+    mower.misfit = 'APP_API_BREAK';
+    sendCommand('mower_logic:idle/start_mowing');
+    sendCommand('mower_logic/reset_emergency');
+    expect(mower.calls).toEqual([]);
+    expect(commandNote()?.text).toMatch(/^Not sent\. This version of the app was built for another break of the interface/);
+    sendCommand('mower_logic:mowing/pause');
+    expect(mower.calls.map((c) => c.method)).toEqual(['mowing.pause']);
   });
 });
 

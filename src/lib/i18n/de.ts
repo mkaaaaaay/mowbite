@@ -240,6 +240,7 @@ const de: Record<string, string> = {
   "The mower answered late: done after all.": "Der Mäher hat spät geantwortet: doch ausgeführt.",
   "Not sent, no connection to the mower.": "Nicht gesendet, keine Verbindung zum Mäher.",
   "Not sent, the mower hasn't reported for a while.": "Nicht gesendet, der Mäher hat sich eine Weile nicht gemeldet.",
+  "Not sent. {why}": "Nicht gesendet. {why}",
   "Updates": "Updates",
   "App": "App",
   "checking…": "prüfe…",
