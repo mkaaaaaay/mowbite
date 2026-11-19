@@ -47,7 +47,7 @@ import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
 import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, inSetupStep, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
-import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -78,8 +78,8 @@ import {UpdateBanner} from '@/components/Updates';
 import {OsRestart} from '@/components/HostOs';
 import {ACTION, PARAM} from '@/lib/openmower';
 
-// skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
-// it back
+// skipping an area or a path drops what's left of it, so it goes out only after a few seconds; a second tap or leaving
+// the page takes it back
 const SKIP_DELAY = 4;
 // the left out start that was closed, by its time
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
@@ -306,18 +306,6 @@ export default function Home() {
   }, [skip, publishAction]);
   const toggleSkip = (id: string) =>
     setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY, area: state?.current_area, path: state?.current_path});
-  // leaving the page doesn't take a waiting skip back: it goes out right away
-  const waiting = useRef({skip, publishAction});
-  useEffect(() => {
-    waiting.current = {skip, publishAction};
-  });
-  useEffect(
-    () => () => {
-      const {skip, publishAction} = waiting.current;
-      if (skip) publishAction(skip.id, skip);
-    },
-    [],
-  );
   // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
   const [tapped, setTapped] = useTapLock();
 
