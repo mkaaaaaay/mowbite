@@ -428,7 +428,7 @@ export const REASONS: Record<string, Variant[]> = {
   DOCKING_FAILED: [r('docking failed')],
   MOW_MOTOR_SPINUP_FAILED: [r("the blade didn't come up to speed")],
   UNDOCKING_FAILED: [r('leaving the dock failed')],
-  POSITION_JUMP: [r('position jumped')],
+  POSITION_JUMP: [r('position jumped {distance:2} m', {when: {distance: {present: true}}}), r('position jumped')],
   MARK: [r('marked by you')],
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
   ON_DOCK: [
@@ -568,6 +568,8 @@ export const REASONS: Record<string, Variant[]> = {
   // taken, but the emergency didn't end within 2 s (bits: what still holds), or another reason latched since STOP
   STILL_ACTIVE: [r('still active')],
   LATCH_CHANGED: [r('a new emergency reason came up')],
+  // only while the setup's safety measurement has the driver go quiet
+  SILENT: [r('the mower is checking that it stops by itself without its controller, wait a moment and reset again')],
   LEARNING: [r('the mower is assigning its inputs, finish or stop that in the setup')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
   DRIVER_MISSING: [
@@ -605,6 +607,13 @@ export const REASONS: Record<string, Variant[]> = {
   TOO_DARK: [r('too dark to see')],
   TOO_BRIGHT: [r('too bright, glare or a low sun')],
   COVERED: [r('the lens is covered or dirty')],
+  // STATE PAUSED (api 53)
+  MAP_CHANGED: [r('the mowing areas changed while mowing, Continue plans anew')],
+  DOCK_CONTACT: [r('touched the docking station while mowing')],
+  POSITION_UNSTABLE: [
+    r('lost the position {times} times in a row without getting on', {when: {times: {present: true}}}),
+    r('lost the position again and again without getting on'),
+  ],
   // STATE PAUSED and MOWING_REFUSED where obstacle_mode stops for them (api 51), kind the most serious one that holds it
   OBSTACLE: [
     r('the camera still sees a person in the way', {when: {type: 'MOWING_REFUSED', kind: 'PERSON'}}),
@@ -688,6 +697,8 @@ export const REASONS: Record<string, Variant[]> = {
     r("the IMU doesn't measure gravity as it should"),
   ],
   GYRO_SIGN: [r('the gyro measures turning the other way than the wheels')],
+  GYRO_OFFSET: [r('the gyro measures turning while the mower stands')],
+  NOT_STANDING: [r('the mower moved while it should stand still')],
   NOT_MOVING: [r("doesn't move")],
   NOT_TURNING: [r("doesn't turn")],
   TURN_SLIDE: [r('slid away while turning on the spot')],

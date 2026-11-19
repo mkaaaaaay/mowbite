@@ -1669,6 +1669,15 @@
   ],
   "POSITION_JUMP": [
    {
+    "en": "position jumped {distance:2} m",
+    "when": {
+     "distance": {
+      "present": true
+     }
+    },
+    "de": "Position um {distance:2} m gesprungen"
+   },
+   {
     "en": "position jumped",
     "de": "Position gesprungen"
    }
@@ -2374,6 +2383,12 @@
     "de": "ein neuer Notaus-Grund kam dazu"
    }
   ],
+  "SILENT": [
+   {
+    "en": "the mower is checking that it stops by itself without its controller, wait a moment and reset again",
+    "de": "der Mäher prüft gerade, ob er ohne Steuerung von selbst anhält, kurz warten und dann erneut freigeben"
+   }
+  ],
   "LEARNING": [
    {
     "en": "the mower is assigning its inputs, finish or stop that in the setup",
@@ -2564,6 +2579,33 @@
    {
     "en": "the lens is covered or dirty",
     "de": "die Linse ist verdeckt oder schmutzig"
+   }
+  ],
+  "MAP_CHANGED": [
+   {
+    "en": "the mowing areas changed while mowing, Continue plans anew",
+    "de": "die Mähflächen haben sich beim Mähen geändert, Weiter plant neu"
+   }
+  ],
+  "DOCK_CONTACT": [
+   {
+    "en": "touched the docking station while mowing",
+    "de": "beim Mähen die Ladestation berührt"
+   }
+  ],
+  "POSITION_UNSTABLE": [
+   {
+    "en": "lost the position {times} times in a row without getting on",
+    "when": {
+     "times": {
+      "present": true
+     }
+    },
+    "de": "{times}-mal hintereinander die Position verloren, ohne voranzukommen"
+   },
+   {
+    "en": "lost the position again and again without getting on",
+    "de": "immer wieder die Position verloren, ohne voranzukommen"
    }
   ],
   "OBSTACLE": [
@@ -2993,6 +3035,18 @@
    {
     "en": "the gyro measures turning the other way than the wheels",
     "de": "das Gyroskop misst die Drehung andersherum als die Räder"
+   }
+  ],
+  "GYRO_OFFSET": [
+   {
+    "en": "the gyro measures turning while the mower stands",
+    "de": "das Gyroskop misst eine Drehung, obwohl der Mäher steht"
+   }
+  ],
+  "NOT_STANDING": [
+   {
+    "en": "the mower moved while it should stand still",
+    "de": "der Mäher hat sich bewegt, obwohl er stillstehen sollte"
    }
   ],
   "NOT_MOVING": [

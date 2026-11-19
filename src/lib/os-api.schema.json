@@ -1330,6 +1330,11 @@
       "additionalProperties": false,
       "description": "The calibration drive stopped before its end",
       "properties": {
+        "accuracy": {
+          "description": "Expected error of the position",
+          "type": "number",
+          "x-unit": "m"
+        },
         "battery_percentage": {
           "description": "Charge of the battery",
           "type": "integer",
@@ -1344,6 +1349,11 @@
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
+        },
+        "distance": {
+          "description": "The distance the reason is about",
+          "type": "number",
+          "x-unit": "m"
         },
         "free_length": {
           "description": "The free length in front of the mower",
@@ -1386,6 +1396,8 @@
           "enum": [
             "STOPPED",
             "POSE_LOST",
+            "POSITION_ACCURACY",
+            "POSITION_JUMP",
             "BATTERY_LOW",
             "NO_RTK",
             "NO_ROOM",
@@ -1397,6 +1409,8 @@
             "IMU_GRAVITY",
             "TIMEOUT",
             "GYRO_SIGN",
+            "GYRO_OFFSET",
+            "NOT_STANDING",
             "NOT_TURNING",
             "OVERSPEED",
             "LEFT_LANE",
@@ -4034,6 +4048,7 @@
             "STILL_ACTIVE",
             "LATCH_CHANGED",
             "LEARNING",
+            "SILENT",
             "STILL_TILTED",
             "TILT_UNKNOWN",
             "FOREIGN_HOST",
@@ -5983,7 +5998,10 @@
             "RAIN",
             "DARK",
             "SCHEDULE",
-            "OBSTACLE"
+            "OBSTACLE",
+            "MAP_CHANGED",
+            "DOCK_CONTACT",
+            "POSITION_UNSTABLE"
           ],
           "type": "string"
         },
@@ -6055,6 +6073,10 @@
           "description": "The temperature it measured",
           "type": "number",
           "x-unit": "°C"
+        },
+        "times": {
+          "description": "Waits for a good position in a row that ended without getting on",
+          "type": "integer"
         },
         "type": {
           "const": "STATE",
@@ -7376,7 +7398,7 @@
       "type": "array"
     },
     "map.replace.params": {
-      "description": "The params of map.replace: [map]",
+      "description": "The params of map.replace: [map] or [map, {expected_sha256}]",
       "items": {
         "description": "One item",
         "type": "object"
@@ -9286,7 +9308,7 @@
     },
     "robot_state": {
       "additionalProperties": false,
-      "description": "robot_state/json, retained: the state of the mower for the app",
+      "description": "robot_state/json, live without retain: the state of the mower for the app",
       "properties": {
         "battery_percentage": {
           "description": "Charge of the battery from 0 to 1",
@@ -16419,11 +16441,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:52",
+  "$id": "urn:mowbite-os:api:53",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 52,
+  "x-api": 53,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -17215,7 +17237,7 @@
       "result": "#/$defs/map.area_properties.result"
     },
     "map.replace": {
-      "description": "Replaces the map with the one given, in the shape of map/json",
+      "description": "Replaces the map with the one given, in the shape of map/json. With a second parameter {\"expected_sha256\": sha256 of the map/json text the client last read} another map stored meanwhile is not replaced (-32001 map changed meanwhile)",
       "node": "mowbite_map",
       "offered": "",
       "params": "#/$defs/map.replace.params",
@@ -17807,6 +17829,12 @@
         "resume": "user",
         "severity": "error"
       },
+      "GYRO_OFFSET": {
+        "description": "The gyro does not read zero while the mower stands",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
       "GYRO_SIGN": {
         "description": "The gyro turns the other way than the wheels",
         "fields": {},
@@ -17830,6 +17858,12 @@
       },
       "NOT_MOVING": {
         "description": "The mower does not move",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
+      "NOT_STANDING": {
+        "description": "The mower moves while it should stand",
         "fields": {},
         "resume": "user",
         "severity": "error"
@@ -17874,6 +17908,23 @@
       "POSE_LOST": {
         "description": "The position stopped coming",
         "fields": {},
+        "resume": "user",
+        "severity": "warning"
+      },
+      "POSITION_ACCURACY": {
+        "description": "The position is not accurate enough",
+        "fields": {
+          "accuracy": "m",
+          "limit": "m"
+        },
+        "resume": "user",
+        "severity": "warning"
+      },
+      "POSITION_JUMP": {
+        "description": "The position jumped back onto GPS",
+        "fields": {
+          "distance": "m"
+        },
         "resume": "user",
         "severity": "warning"
       },
@@ -19149,6 +19200,12 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      },
+      "SILENT": {
+        "description": "The driver tests its silence: the emergency stays until it is over",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning"
       },
       "STILL_ACTIVE": {
         "description": "The release was taken, but the emergency did not end within 2 s",
@@ -21528,6 +21585,12 @@
         "resume": "user",
         "severity": "info"
       },
+      "DOCK_CONTACT": {
+        "description": "Contact with the docking station while mowing",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
       "EMERGENCY": {
         "description": "An emergency stops the mower",
         "fields": {},
@@ -21560,6 +21623,12 @@
         "fields": {},
         "resume": "user",
         "severity": "info"
+      },
+      "MAP_CHANGED": {
+        "description": "The mowing areas changed while mowing; continue plans anew",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
       },
       "MAP_MISMATCH": {
         "description": "The map does not fit the datum in use",
@@ -21666,6 +21735,14 @@
         },
         "resume": "auto",
         "severity": "warning"
+      },
+      "POSITION_UNSTABLE": {
+        "description": "The position was lost again and again without the job getting on",
+        "fields": {
+          "times": ""
+        },
+        "resume": "user",
+        "severity": "error"
       },
       "RAIN": {
         "description": "It rains",
