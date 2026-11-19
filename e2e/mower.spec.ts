@@ -522,6 +522,29 @@ test('skip area while paused goes out and is done on continue', async ({page}) =
   await expect.poll(area).not.toBe(before);
 });
 
+// leaving the dashboard while the undo still counts drops the skip
+test('leaving the page drops a waiting skip', async ({page}) => {
+  await page.goto('/');
+  await expect.poll(() => state(page)).toBe('MOWING');
+  const area = async () => (await demoHas<{current_area: number}>(page, 'robot_state/json')).current_area;
+  await expect.poll(area).toBeGreaterThanOrEqual(0);
+  const before = await area();
+  await page.getByRole('button', {name: 'Pause', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('PAUSED');
+  await page.getByRole('button', {name: 'Skip area'}).click();
+  await expect(page.getByRole('button', {name: /^Undo \(\d s\)$/})).toBeVisible();
+  await tab(page, '/settings').click();
+  await expect(page).toHaveURL(/\/settings\/$/);
+  await tab(page, '/').click();
+  await expect(page.getByRole('button', {name: 'Skip area'})).toBeVisible();
+  // longer than the countdown, the skip would have gone out meanwhile
+  await page.waitForTimeout(5000);
+  await page.getByRole('button', {name: 'Continue', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('MOWING');
+  await page.waitForTimeout(1500);
+  expect(await area()).toBe(before);
+});
+
 // the emergency stop hides the undo of a waiting skip: it doesn't go out then
 test('an emergency stop drops a waiting skip', async ({page}) => {
   await page.goto('/');
