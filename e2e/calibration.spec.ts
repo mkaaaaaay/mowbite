@@ -1,4 +1,4 @@
-import {demoAction, demoDocked, demoDrive, demoHas, expect, recordStation, SIM, tab, test} from './app';
+import {demoAction, demoDocked, demoDrive, demoEmergency, demoHas, expect, recordStation, SIM, tab, test} from './app';
 import type {Page} from '@playwright/test';
 
 // from the start through the drive by hand until the result is worked out
@@ -151,6 +151,23 @@ test('a calibration on the next mowing run leaves recording mode to the record p
   await back.click();
   await expect(page.locator('button:visible', {hasText: 'Record outline'}).first()).toBeVisible();
   await expect(page).toHaveURL(/\/record\/?$/);
+});
+
+// its start is held back like the dashboard's: in an emergency stop and for a moment after it's reset
+test('a calibration on the next mowing run starts mowing only without an emergency stop', async ({page}) => {
+  test.skip(SIM, 'the demo mower only');
+  await page.goto('/calibration/');
+  await demoDocked(page);
+  await page.getByText('On the next mowing run').click();
+  await page.getByRole('button', {name: 'Start calibration'}).click();
+  await page.getByRole('dialog', {name: 'Ready to calibrate?'}).getByRole('button', {name: "Let's go"}).click();
+  const start = page.getByRole('button', {name: 'Start mowing'});
+  await expect(start).toBeEnabled();
+  await demoEmergency(page);
+  await expect(start).toBeDisabled();
+  await demoAction(page, 'mower_logic/reset_emergency');
+  await expect(start).toBeDisabled();
+  await expect(start).toBeEnabled();
 });
 
 test('the guide for calibrating opens from the settings', async ({page}) => {
