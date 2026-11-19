@@ -16,6 +16,8 @@ export type SystemInfo = {
   platform?: string;
   schema?: number;
   api?: number;
+  // the break of the interface (api 31 on), what an app has to match (masterplan 3, api-Stand)
+  api_break?: number;
   mqtt?: number;
   stop_release?: StopRelease | null;
   blade_height?: BladeHeight | null;
@@ -67,6 +69,7 @@ export const isMowbiteOs = (i: SystemInfo | null | undefined) => i?.name === MOW
 
 // what system.info said, without waiting for it: false until it's known
 export const runsMowbiteOs = (): boolean => isMowbiteOs(known);
+export const knownSystemInfo = () => known;
 
 // MowBite OS says -32601 too for a method it lists when the node that answers it is gone (the planner, the cameras'
 // process): away for now, not a method the mower doesn't have. OpenMower keeps what it listed, there the error stays

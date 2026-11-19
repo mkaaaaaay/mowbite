@@ -387,6 +387,7 @@ const de: Record<string, string> = {
   "The file's coordinates aren't longitude and latitude, it's likely in a projected system like UTM. Save it in WGS84 (EPSG:4326).": "Die Koordinaten in der Datei sind keine Längen- und Breitengrade, sie ist wohl in einem projizierten System wie UTM. Speichere sie in WGS84 (EPSG:4326).",
   "The file's areas lie more than 2 km from the mower's map, it's likely for another place.": "Die Flächen aus der Datei liegen mehr als 2 km von der Karte des Mähers entfernt, sie ist wohl für einen anderen Ort.",
   "No areas in the file.": "In der Datei sind keine Flächen.",
+  "A docking station in the file has no heading. Record it with the mower instead.": "Eine Ladestation in der Datei hat keine Richtung. Nimm sie lieber mit dem Mäher auf.",
   "Load from file": "Aus Datei laden",
   "loading…": "hole Daten…",
   "Map": "Karte",

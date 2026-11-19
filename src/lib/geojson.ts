@@ -10,7 +10,8 @@ import {toUtm, utmZone} from './utm';
 // 1e-8 degrees, about a millimeter
 const round = (v: number) => Math.round(v * 1e8) / 1e8;
 
-// the area properties read from a file, with what each has to be. styles other apps add (stroke, fill) stay out
+// the area properties read from a file, with what each has to be. styles other apps add (stroke, fill) stay out, so do
+// the planner's settings and the margin of an area: set in the app, where switching them asks first
 const KNOWN: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
   name: 'string',
   type: 'string',
@@ -23,8 +24,6 @@ const KNOWN: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
   angle: 'number',
   angle_min: 'number',
   angle_max: 'number',
-  planner: 'object',
-  margin: 'number',
   pin: 'boolean',
 };
 const TYPES = ['mow', 'nav', 'obstacle', 'decor', 'draft'];
@@ -169,11 +168,15 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
         continue;
       }
       const [lon, lat] = g.coordinates;
-      const heading = typeof f.properties.heading === 'number' && Number.isFinite(f.properties.heading) ? f.properties.heading : 0;
-      const dock: DockingStation = {id: id ?? generateId(), position: toLocal(lon, lat), heading};
-      if (Math.hypot(dock.position.x, dock.position.y) > FAR) far++;
+      // without one a station keeps its own, a new one can't be docked to
+      const given = typeof f.properties.heading === 'number' && Number.isFinite(f.properties.heading) ? f.properties.heading : null;
+      const position = toLocal(lon, lat);
+      if (Math.hypot(position.x, position.y) > FAR) far++;
       found++;
-      const i = oneDock ? 0 : docks.findIndex((d) => d.id === dock.id);
+      const i = oneDock ? 0 : docks.findIndex((d) => d.id === (id ?? ''));
+      if (i < 0 && given === null) throw new GeoJsonError('A docking station in the file has no heading. Record it with the mower instead.');
+      const heading = given ?? docks[i].heading;
+      const dock: DockingStation = {id: id ?? generateId(), position, heading};
       if (i < 0) {
         docks.push(dock);
         added++;
