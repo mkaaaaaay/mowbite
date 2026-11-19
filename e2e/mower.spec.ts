@@ -125,6 +125,20 @@ test('an emergency stop while recording is reset on the record page', async ({pa
   expect(await state(page)).toBe('AREA_RECORDING');
 });
 
+// the reset button takes the stick's place once the emergency stop comes: a tap meant for the stick mustn't reset it
+test('an emergency stop on the record page holds its reset a moment', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await expect(stick(page)).toBeVisible();
+  await demoEmergency(page);
+  const reset = page.locator('button:visible', {hasText: 'Reset emergency'});
+  await expect(reset).toBeDisabled();
+  await expect(reset).toBeEnabled();
+  await reset.click();
+  await expect(reset).toBeHidden();
+});
+
 // the stick takes the reset button's place once the emergency stop is let go: a second tap meant for the reset mustn't
 // drive, also not when it's held on
 test('after an emergency reset on the record page the stick waits a moment', async ({page}) => {
@@ -189,8 +203,10 @@ test('a pad held through an emergency stop drives again only once pressed anew',
   let from = await pose(page);
   await expect.poll(() => moved(from)).toBeGreaterThan(0.05);
   await demoEmergency(page);
-  // reset with a second finger, the first one stays and moves on past the second it waits
-  await page.locator('button:visible', {hasText: 'Reset emergency'}).dispatchEvent('click');
+  // reset with a second finger once it's let, the first one stays and moves on past the second it waits
+  const reset = page.locator('button:visible', {hasText: 'Reset emergency'});
+  await expect(reset).toBeEnabled();
+  await reset.dispatchEvent('click');
   await expect.poll(() => state(page)).toBe('AREA_RECORDING');
   await page.waitForTimeout(1300);
   await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, {steps: 2});
