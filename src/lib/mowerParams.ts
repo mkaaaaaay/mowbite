@@ -203,7 +203,7 @@ export function parseKept(text: string): KeptParams {
 }
 
 // a number with at most 6 decimals, the container takes no more (and no exponent)
-const keptValue = (v: number | boolean) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
+export const keptValue = (v: number | boolean) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
 
 export const serializeKept = (k: KeptParams) =>
   [`enabled ${k.enabled ? 1 : 0}`, ...Object.entries(k.values).map(([key, v]) => `${paramName(key)} ${keptValue(v)}`), ''].join('\n');
