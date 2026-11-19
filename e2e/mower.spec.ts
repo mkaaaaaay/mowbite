@@ -468,7 +468,7 @@ test('the guide for the docking station opens with the blade off', async ({page}
   await bladeOn(page);
   const turning = page.getByText('The blade is turning, also while the mower stands still.').first();
   await expect(turning).toBeVisible();
-  await page.locator('button:visible', {hasText: 'Record docking station'}).first().click();
+  await page.locator('button:visible', {hasText: /Record (the )?docking station/}).first().click();
   await expect(page.getByText('it measures where it charges')).toBeVisible();
   await expect(turning).toBeHidden();
   expect((await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json')).find((a) => a.action_id.endsWith('stop_manual_mowing'))?.enabled).toBeFalsy();
