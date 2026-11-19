@@ -39,7 +39,7 @@ export const demoFlagNow = (page: Page, name: string, value: unknown) => page.ev
 
 // the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
 // would make one
-type DemoMower = Pick<World, 'retained' | 'published' | 'ahead' | 'emergency' | 'refuseReset' | 'cameras'>;
+type DemoMower = Pick<World, 'retained' | 'published' | 'ahead' | 'emergency' | 'refuseReset' | 'cameras' | 'set'>;
 export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   return page.evaluate((t) => JSON.parse((window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.retained(t)[0][1]), topic);
@@ -75,6 +75,9 @@ export const demoEmergency = (page: Page, reasons?: string[]) =>
 // a reset turned down the way MowBite OS does it (EMERGENCY_RESET_REFUSED with these fields), null lets it go again
 export const demoRefuseReset = (page: Page, why: Record<string, unknown> | null) =>
   page.evaluate((w) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.refuseReset(w), why);
+// what goes on around the demo mower (World.set), e.g. the receiver's accuracy
+export const demoAround = (page: Page, change: Parameters<World['set']>[0]) =>
+  page.evaluate((c) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.set(c), change);
 // seconds driven at once
 export const demoAhead = (page: Page, seconds: number) => page.evaluate((s) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.ahead(s), seconds);
 // the cameras' process of MowBite OS coming up or going while the app is open
