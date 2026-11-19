@@ -82,7 +82,11 @@ function SetupView() {
     start: (step, confirm) => call(step, (s) => startStep(s, step, confirm)),
     answer: (step, values) => call(step, (s) => answerStep(s, step, values)),
     skip: (step, reason, note) => call(step, (s) => skipStep(s, step, reason, note)),
-    abort: (step) => call(step, () => abortStep(step)),
+    // a stop never waits for another call's answer
+    abort: (step) => {
+      setError(null);
+      abortStep(step).catch((e) => setError({step, text: answerError(e)}));
+    },
   };
   const step = setup?.steps.find((s) => s.id === selected) ?? null;
   const select = (id: string) => router.push(stepHref(id));
