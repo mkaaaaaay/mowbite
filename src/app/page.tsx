@@ -16,7 +16,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
 import {useTrackBefore} from '@/hooks/useLeftoversBefore';
-import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {lockedAfter, setsOff, useCommandNote, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
@@ -218,7 +218,7 @@ export default function Home() {
   const choice = useMowerChoice();
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
-  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency);
   // the release with STOP at the mower, where it has one
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
@@ -319,12 +319,7 @@ export default function Home() {
     [],
   );
   // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
-  const [tapped, setTapped] = useState<string | null>(null);
-  useEffect(() => {
-    if (!tapped) return;
-    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
-    return () => clearTimeout(t);
-  }, [tapped]);
+  const [tapped, setTapped] = useTapLock();
 
   const current = state?.current_state ?? '';
   // asked every minute while it's out, from a container that has it

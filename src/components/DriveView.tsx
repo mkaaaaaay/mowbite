@@ -236,7 +236,7 @@ export default function DriveView({
   const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
   const why = useEmergencyReasons(!!state?.emergency);
-  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency);
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
   const [zoom, setZoom] = useState(2);

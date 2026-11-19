@@ -4,9 +4,10 @@ import {describe, reasonText} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
-import {ACTION, COMMAND, TOPIC} from '@/lib/openmower';
+import {ACTION, COMMAND, RPC, TOPIC} from '@/lib/openmower';
 import {callCommand, knownMethods, RpcError} from '@/lib/rpc';
 import {refusalEvent, rpcErrorText} from '@/lib/rpcText';
+import {liveNow} from './useMowerState';
 
 interface ActionInfo {
   action_id: string;
@@ -61,6 +62,27 @@ export const setsOff = (id: string) => SETS_OFF.includes(id);
 export const lockedAfter = (tapped: string, id: string) =>
   id === tapped || setsOff(id) || (SWAPS.includes(tapped) && SWAPS.includes(id));
 
+// the command button tapped last, for TAP_LOCK_MS: what lockedAfter holds back meanwhile
+export function useTapLock(): [string | null, (id: string) => void] {
+  const [tapped, setTapped] = useState<string | null>(null);
+  useEffect(() => {
+    if (!tapped) return;
+    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
+    return () => clearTimeout(t);
+  }, [tapped]);
+  return [tapped, setTapped];
+}
+
+// what sets the mower or its blade off, or lets go of the emergency stop: only sent while the state is current, an old
+// picture or a dead connection could send it into what the user can't see
+const NEEDS_LIVE: string[] = [...SETS_OFF, ACTION.resetEmergency, ACTION.recording('start_manual_mowing')];
+const NEEDS_LIVE_CALLS = new Set([...NEEDS_LIVE.flatMap((id) => COMMAND[id]?.method ?? []), RPC.dockingTest]);
+const notLiveNote = (): CommandNote => ({
+  at: Date.now(),
+  text: getMqttClient().connected ? tr("Not sent, the mower hasn't reported for a while.") : tr('Not sent, no connection to the mower.'),
+  warn: true,
+});
+
 // counts the commands sent: an answer only speaks while its command is the last one, a late one of an earlier command
 // would read like the answer to the newer
 let sent = 0;
@@ -72,6 +94,7 @@ export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
   const cmd = COMMAND[id];
   if (!cmd || !knownMethods()?.has(cmd.method)) {
     ++sent;
+    if (NEEDS_LIVE.includes(id) && !liveNow()) return setNote(notLiveNote());
     setNote(null);
     // plain text, not json. offline it's dropped, not kept for later
     if (!getMqttClient().connected) setNote({at: Date.now(), text: tr('Not sent, no connection to the mower.'), warn: true});
@@ -87,6 +110,7 @@ export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
 // a command that is only a call (no action behind it), answered like the others
 export function sendCall(method: string, extra: Record<string, unknown> = {}) {
   const mine = ++sent;
+  if (NEEDS_LIVE_CALLS.has(method) && !liveNow()) return setNote(notLiveNote());
   setNote(null);
   const params = {client: 'app', ...extra};
   const say = (n: CommandNote) => mine === sent && setNote(n);
