@@ -3,6 +3,8 @@
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
+  fitHeight,
+  groupFields,
   loadKept,
   mowsIntoNight,
   onOs,
@@ -10,7 +12,6 @@ import {
   paramField,
   paramConflict,
   paramName,
-  paramShown,
   paramValue,
   parseParam,
   saveKept,
@@ -20,7 +21,7 @@ import {
   type ParamField,
   type ParamGroup,
 } from '@/lib/mowerParams';
-import {isMowbiteOs, systemInfo, useMowbiteOs} from '@/lib/mowerOs';
+import {isMowbiteOs, systemInfo, useBladeHeight, useMowbiteOs} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
 import {sunTimes} from '@/lib/sun';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -139,14 +140,19 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // switching it off waits for a yes
+  // switching it off waits for a yes, so does a choice where confirmChoice asks (the value asked for)
   const [asking, setAsking] = useState(false);
+  const [askTo, setAskTo] = useState<number | null>(null);
   // the sun's times where the mower is, for going home at sunset
   const datum = f.key === 'dock_at_sunset' ? datumFromParams(params) : undefined;
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
+  const blade = useBladeHeight();
+  const heights = f.bladeHeight ? blade : null;
+  if (f.bladeHeight && !heights) return null;
 
   const set = async (v: number | boolean) => {
     setAsking(false);
+    setAskTo(null);
     if (v === value) return;
     const conflict = paramConflict(params, f.key, v);
     setError(conflict && tr(conflict));
@@ -164,11 +170,12 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
     if (draft === null) return;
     const v = parseParam(f, draft);
     setDraft(null);
-    if (v !== null) void set(v);
+    if (v !== null) void set(heights ? fitHeight(v, heights) : v);
   };
+  const choose = (v: number) => (f.confirmChoice?.when(value as number, v) ? setAskTo(v) : void set(v));
   const isKept = !!k?.enabled && f.key in k.values;
-  const label = tr((os && f.osLabel) || f.label);
-  const help = (os && f.osHelp) || f.help;
+  const label = tr(f.label);
+  const help = f.help;
 
   return (
     <div className={local.row}>
@@ -187,8 +194,8 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
             aria-label={label}
           />
         ) : f.type === 'choice' ? (
-          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
-            {f.choices!.map((c, i) => (
+          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => choose(Number(e.target.value))} aria-label={label}>
+            {f.choices!.slice(0, Math.max(f.max ?? Infinity, value as number) + 1).map((c, i) => (
               <option key={c} value={i}>
                 {tr(c)}
               </option>
@@ -209,6 +216,13 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
           </span>
         )}
       </div>
+      {heights && (
+        <span className={local.kept}>
+          {value === 0
+            ? tr("the mower's own: {mm} mm", {mm: heights.default_mm})
+            : tr('{min} to {max} mm, 0 for its own ({mm} mm)', {min: heights.min_mm, max: heights.max_mm, mm: heights.default_mm})}
+        </span>
+      )}
       {sun && <span className={local.kept}>{value ? tr('today at {set}', {set: sun.set}) : tr('off: mows on after sunset (today {set})', {set: sun.set})}</span>}
       {asking && (
         <span className={local.ask}>
@@ -217,6 +231,15 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
             {tr('Switch off')}
           </button>
           <button onClick={() => setAsking(false)}>{tr('Keep on')}</button>
+        </span>
+      )}
+      {askTo !== null && (
+        <span className={local.ask}>
+          <b>{tr(f.choices![askTo])}</b> {tr(f.confirmChoice!.text)}
+          <button className={local.askOff} onClick={() => void set(askTo)}>
+            {tr('Change')}
+          </button>
+          <button onClick={() => setAskTo(null)}>{tr('Keep it')}</button>
         </span>
       )}
       {isKept && (
@@ -274,14 +297,22 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
       ].join(' · ');
     }
     case 'gps':
-      return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
+      return [
+        os ? tr('docking waits {n} s for a position', {n: n('gps_timeout')}) : tr('{n} s without a fix', {n: n('gps_timeout')}),
+        tr('better than {n} cm', {n: n('max_position_accuracy')}),
+      ].join(' · ');
     case 'docking':
       return [tr('approach from {n} m', {n: n('docking_approach_distance')}), v('docking_retry_count') === 1 ? tr('1 retry') : tr('{n} retries', {n: n('docking_retry_count')})].join(' · ');
     case 'motor':
       return tr('pauses at {hot} °C, on again at {cold} °C', {hot: n('motor_hot_temperature'), cold: n('motor_cold_temperature')});
+    case 'journal':
+      return tr(v('journal_enabled') ? 'kept' : 'off');
+    case 'obstacles':
+      return [tr(OBSTACLE_SHORT[v('obstacle_mode') as number] ?? 'on the map'), ...(v('obstacle_mode') && v('obstacle_photos') ? [tr('with photos')] : [])].join(', ');
   }
 }
 const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
+const OBSTACLE_SHORT = ['off', 'on the map', 'stops for them', 'drives around them'];
 
 // OpenMower's own values for mowing every area (mower_params.yaml), with the map where an area can have its own
 export function OpenMowerMowing({styles}: {styles: Styles}) {
@@ -325,11 +356,12 @@ export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Rec
 }
 
 // the values of one of OpenMower's groups that this mower has
-export function ParamGroupRows({group, params, os}: {group: ParamGroup; params: Record<string, unknown>; os: boolean}) {
+// max: the highest value this mower can do, where it says so itself
+export function ParamGroupRows({group, params, os, max}: {group: ParamGroup; params: Record<string, unknown>; os: boolean; max?: Record<string, number>}) {
   return (
     <div className={`${local.rows} ${local.inGroup}`}>
-      {PARAM_FIELDS.filter((f) => f.group === group && paramShown(f, params)).map((f) => (
-        <ParamRow key={f.key} field={f} os={os} />
+      {groupFields(group, params).map((f) => (
+        <ParamRow key={f.key} field={max?.[f.key] === undefined ? f : {...f, max: max[f.key], osMax: max[f.key]}} os={os} />
       ))}
     </div>
   );

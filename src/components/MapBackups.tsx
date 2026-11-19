@@ -6,6 +6,7 @@ import type {Datum} from '@/lib/imagery';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {dayLabel, clock} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
+import {useOpenMower} from '@/lib/mowerOs';
 import {useRef, useState} from 'react';
 import styles from './MapBackups.module.css';
 
@@ -35,6 +36,7 @@ export default function MapBackups({
   // onLoad takes the map with them in
   geo: {datum: Datum; base: MowerMap | null; onLoad: (map: MowerMap) => void} | null;
 }) {
+  const om = useOpenMower();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +122,9 @@ export default function MapBackups({
           </ul>
         </>
       ) : backups === null ? (
-        <p className={styles.dim}>{tr('Backups on the mower need MowBite running as its container. Files still work.')}</p>
+        <p className={styles.dim}>
+          {om ? tr('Backups on the mower need MowBite running as its container. Files still work.') : tr('This mower keeps no map backups. Files still work.')}
+        </p>
       ) : (
         <p className={styles.dim}>{tr("The mower's backups didn't come (yet). Files still work.")}</p>
       )}

@@ -15,6 +15,8 @@ import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerNote, ParamGroupRows, summary, useCanSetParams} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
+import {OsRestart} from '@/components/HostOs';
+import {DATA_METHODS, MowerData} from '@/components/MowerData';
 import {OsUpdate} from '@/components/OsUpdate';
 import {LegalFooter, UpdateSettings} from '@/components/Updates';
 import {savePlannerSettings, slic3rPlans, useAskPlanner, usePlannerSettings, usePlannerWaiting} from '@/lib/mowerBody';
@@ -23,10 +25,13 @@ import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
+import {offersSetup} from '@/lib/setup';
 import {CALIB_SHOWN, canCalibrate} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {LightSettings} from '@/components/LightSettings';
 import {SoundSettings} from '@/components/SoundSettings';
+import {NtripSettings} from '@/components/NtripSettings';
+import {ObstacleSettings} from '@/components/ObstacleSettings';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {RPC} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
@@ -34,7 +39,7 @@ import {osUpdatesOffered} from '@/lib/osUpdate';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
-import {PARAM_GROUPS} from '@/lib/mowerParams';
+import {groupFields, PARAM_GROUPS} from '@/lib/mowerParams';
 import {APP_VERSION} from '@/lib/updates';
 import {answerError} from '@/lib/rpcText';
 
@@ -321,6 +326,9 @@ export default function SettingsPage() {
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
   const sounds = !!methods?.has(RPC.soundList);
+  const ntrip = !!methods?.has(RPC.ntripGet);
+  const obstacles = !!methods?.has(RPC.obstaclesList);
+  const setup = offersSetup(methods);
   // MowBite OS keeps the sizes itself, with its planner or without
   const geometry = !!methods?.has(RPC.geometry);
   // the calibration isn't there on MowBite OS, nor is the way to its guide
@@ -374,9 +382,16 @@ export default function SettingsPage() {
         {/* both there, the one not shown hidden: a link finds its part in either, nothing loads again on a switch */}
         <div className={styles.tabPanel} role="tabpanel" id="panel-mower" aria-labelledby="tab-mower" hidden={tab !== 'mower'}>
             {!demo && <p className={styles.dim}>{tr('Saved on the mower, it counts for everyone who uses it.')}</p>}
-            {(sizes || lights || sounds) && (
+            {(sizes || lights || sounds || ntrip || obstacles || setup) && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>{tr('The mower itself')}</h2>
+                {setup && (
+                  <Group id="setup" title={tr('Setup')} hint={tr('Check the mower step by step')}>
+                    <Link href="/setup" className={styles.pillButton}>
+                      {tr('To the setup')}
+                    </Link>
+                  </Group>
+                )}
                 {sizes && (
                   <Group id="mower" title={calibrate ? tr('Sizes and calibration') : tr('Mower sizes')} hint={tr('Body, blade and antenna')} anchors={['sizes']}>
                     {/* set once: with the MowBite Planner kept by it, without it in the app, on MowBite OS by the OS */}
@@ -402,6 +417,16 @@ export default function SettingsPage() {
                     <SoundSettings styles={styles} />
                   </Group>
                 )}
+                {ntrip && (
+                  <Group id="ntrip" title={tr('Corrections (NTRIP)')} hint={tr('Access to the service for RTK')}>
+                    <NtripSettings styles={styles} />
+                  </Group>
+                )}
+                {obstacles && (
+                  <Group id="obstacles" title={tr('Obstacles')} hint={summary('obstacles', params, os)}>
+                    <ObstacleSettings styles={styles} />
+                  </Group>
+                )}
               </section>
             )}
 
@@ -409,7 +434,8 @@ export default function SettingsPage() {
               <section className={styles.section} id="openmower">
                 <h2 className={styles.sectionTitle}>{tr('How it works')}</h2>
                 {can &&
-                  PARAM_GROUPS.filter((g) => g.key !== 'mowing').map((g) => (
+                  // a group without a setting this mower has (the journal outside MowBite OS) stays out
+                  PARAM_GROUPS.filter((g) => g.key !== 'mowing' && groupFields(g.key, params).length).map((g) => (
                     <Group key={g.key} id={g.key} title={tr(g.title)} hint={summary(g.key, params, os)}>
                       <ParamGroupRows group={g.key} params={params} os={os} />
                     </Group>
@@ -446,7 +472,7 @@ export default function SettingsPage() {
                           {plannerLeftovers.settable === false && <p className={styles.dim}>{tr("Set by the mower, it can't be changed here.")}</p>}
                           {plannerLeftovers.value !== true && plannerLeftovers.settable !== false && settings.leftovers?.auto && (
                             <p className={styles.dim}>
-                              {tr('Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.', {
+                              {tr("Still done by MowBite on the mower as set before, from {m} m² and after charging, home again at the run's end time or at sunset. Switch it off and on to let the planner do it.", {
                                 m: dec(settings.leftovers.min ?? 0.5),
                               })}
                             </p>
@@ -498,6 +524,7 @@ export default function SettingsPage() {
               <Group id="update" title={tr('Updates')} hint={osUpdates ? 'MowBite OS' : 'MowBite Updater'}>
                 <section className={styles.card}>
                   <h2>{tr('On the mower')}</h2>
+                  <OsRestart />
                   {osUpdates ? (
                     <OsUpdate />
                   ) : (
@@ -508,13 +535,20 @@ export default function SettingsPage() {
                   )}
                 </section>
               </Group>
+              {methods && DATA_METHODS.some((m) => methods.has(m)) && (
+                <Group id="data" title={tr('Data on the mower')} hint={tr('Delete tracks and events')}>
+                  <section className={styles.card}>
+                    <MowerData methods={methods} />
+                  </section>
+                </Group>
+              )}
               {/* everything to plan and drive this garden again elsewhere, for sharing: one file */}
               {sizes && (
                 <Group id="garden" title={tr('Garden file')} hint={tr('The map and the settings in one file')}>
                   <section className={styles.card}>
                     <p className={styles.dim}>
                       {tr(
-                        "The map, the planner's settings and what OpenMower mows and drives with, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
+                        "The map, the planner's settings and the mower's settings for mowing and driving, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
                       )}
                     </p>
                     <GardenDownload className={styles.pillButton} />
@@ -658,6 +692,11 @@ export default function SettingsPage() {
                   {(lights || sounds) && (
                     <Link href="/guide/lights" className={styles.pillButton}>
                       {lights ? tr('Lights and sounds') : tr('Sounds')}
+                    </Link>
+                  )}
+                  {setup && (
+                    <Link href="/guide/setup" className={styles.pillButton}>
+                      {tr('Setup')}
                     </Link>
                   )}
                   {CALIB_SHOWN && !os && (

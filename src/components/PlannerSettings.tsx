@@ -2,8 +2,8 @@
 
 import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {ANGLE_FOR_ALL, BODY_KEYS, COUNTED, DROPPED, DROPPED_CHOICES, FIELDS, fromInput, GROUPS, hidden, RETIRED, SIMPLE, toInput, type Field, type Group} from '@/lib/plannerFields';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {DROPPED_CHOICES, expertKeys, FIELDS, fromInput, GROUPS, helpOf, toInput, type Field, type Group} from '@/lib/plannerFields';
+import {useOpenMower} from '@/lib/mowerOs';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
@@ -15,6 +15,8 @@ import local from './PlannerSettings.module.css';
 
 type Styles = Record<string, string>;
 type Value = string | string[];
+
+// the recorded outline pass: asked before it's switched on, with a note under its switch
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -64,8 +66,8 @@ function PlannerField({
   warning?: string | null;
 }) {
   const field: Field | undefined = FIELDS[name];
-  const os = useMowbiteOs();
-  const help = os && field?.helpOs ? field.helpOs : field?.help;
+  const om = useOpenMower();
+  const help = helpOf(field, om);
   const label = (
     <span className={local.label}>
       {tr(field?.label ?? name)}
@@ -95,14 +97,24 @@ function PlannerField({
       </div>
     );
   }
-  if (setting.type === 'string' && choices.length) {
+  // a choice, or a switch with a name for each way, as a row of buttons
+  const segment: [string, string][] | null =
+    setting.type === 'string' && choices.length
+      ? choices.map((c) => [c, field?.choices?.[c] ?? c])
+      : setting.type === 'boolean' && field?.ways
+        ? [
+            ['false', field.ways[0]],
+            ['true', field.ways[1]],
+          ]
+        : null;
+  if (segment) {
     return (
       <div className={local.wide}>
         {label}
         <div className={styles.segment}>
-          {choices.map((c) => (
-            <button key={c} className={value === c ? styles.segmentOn : undefined} onClick={() => onChange(c)}>
-              {tr(field?.choices?.[c] ?? c)}
+          {segment.map(([v, name]) => (
+            <button key={v} className={value === v ? styles.segmentOn : undefined} onClick={() => onChange(v)}>
+              {tr(name)}
             </button>
           ))}
         </div>
@@ -112,7 +124,11 @@ function PlannerField({
   if (setting.type === 'boolean') {
     return (
       <label className={styles.check}>
-        <input type="checkbox" checked={value === 'true'} onChange={(e) => onChange(e.target.checked ? 'true' : 'false')} />
+        <input
+          type="checkbox"
+          checked={value === 'true'}
+          onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
+        />
         {label}
       </label>
     );
@@ -120,8 +136,9 @@ function PlannerField({
   // a number the planner can work out itself (perimeter_passes -1): a button for that next to it
   const auto = setting.auto_value !== undefined ? String(setting.auto_value) : null;
   const isAuto = auto !== null && value === auto;
-  const fromText =
-    setting.from && !setting.stored && toInput(field, setting.value) ? tr('OpenMower: {value}', {value: toInput(field, setting.value)}) : null;
+  // the value the planner takes when none is set here: OpenMower's on OpenMower
+  const from = setting.from && !setting.stored ? toInput(field, setting.value) : '';
+  const fromText = !from ? null : om ? tr('OpenMower: {value}', {value: from}) : from;
   const input = (
     <input
       inputMode="decimal"
@@ -158,6 +175,7 @@ function PlannerField({
 
 export function PlannerSettings({styles}: {styles: Styles}) {
   const settings = usePlannerSettings();
+  const om = useOpenMower();
   // numbers as typed, saved once the field is left
   const [form, setForm] = useState<Record<string, Value>>({});
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; confirm?: boolean}>({});
@@ -176,12 +194,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
 
   const all = settings.settings;
   const shown = {...formFrom(all), ...form};
-  // the ones the planner menu above doesn't have (a direction for all areas: each area has its own)
-  const keys = Object.keys(all).filter(
-    (k) =>
-      !BODY_KEYS.includes(k) && !DROPPED.includes(k) && !RETIRED.includes(k) && !SIMPLE.includes(k) && !ANGLE_FOR_ALL.includes(k) && all[k].settable && !hidden(k, all[k]),
-  );
-  const fixed = Object.keys(all).filter((k) => !all[k].settable && !COUNTED.includes(k) && !hidden(k, all[k]));
+  const {keys, fixed} = expertKeys(all, om);
   const group = (k: string): Group => FIELDS[k]?.group ?? 'fine';
   const advanced = (k: string) => !FIELDS[k] || !!FIELDS[k].advanced;
   const typed = (k: string) => !['list', 'string', 'boolean'].includes(all[k].type);
@@ -266,7 +279,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
         })}
         {fixed.length > 0 && (
           <p className={styles.dim}>
-            {tr('Set by OpenMower with every plan, not here: {which}.', {which: fixed.join(', ')})}
+            {tr('Set by OpenMower with every plan, not here: {which}.', {which: fixed.map((k) => tr(FIELDS[k]?.label ?? k)).join(', ')})}
           </p>
         )}
       </details>

@@ -54,7 +54,7 @@ export default function InfoTip({children}: {children: React.ReactNode}) {
       </button>
       {pos &&
         createPortal(
-          <span className={styles.bubble} style={{left: pos.left, top: pos.top, width: pos.width}}>
+          <span role="tooltip" className={styles.bubble} style={{left: pos.left, top: pos.top, width: pos.width}}>
             {children}
           </span>,
           document.body,

@@ -1,5 +1,5 @@
 import type {Page} from '@playwright/test';
-import {demoCameras, demoDocked, demoWith, expect, SIM, tab, test} from './app';
+import {bladeOn, demoCameras, demoDocked, demoWith, expect, SIM, tab, test} from './app';
 
 // the picture the camera view shows right now, as text: the demo draws the camera's name into each one of its stream
 const picture = (page: Page) =>
@@ -27,6 +27,33 @@ async function onDashboard(page: Page) {
 // mowing when it opens, the blade running: no picture until it's home
 test.describe('cameras', () => {
   test.skip(SIM, 'the demo mower only');
+
+  test('webrtc turned down: the same camera once more with mjpeg', async ({page}) => {
+    await demoWith(page, 'Cameras');
+    await page.addInitScript(() => ((window as {mowbiteDemoCameraWebrtc?: boolean}).mowbiteDemoCameraWebrtc = true));
+    await page.goto('/');
+    const camera = await onDashboard(page);
+    await demoDocked(page);
+    await expect(camera.locator('img')).toBeVisible();
+    await expect(camera).not.toContainText('No picture');
+  });
+
+  test('AI view switches the boxes in the picture, only where the camera has them', async ({page}) => {
+    // (a newer MowBite OS takes the switch, the plain demo is an OpenMower)
+    await demoWith(page, 'Os', 'Cameras');
+    await page.goto('/');
+    const camera = await onDashboard(page);
+    await demoDocked(page);
+    const ai = camera.getByRole('button', {name: 'AI view'});
+    await expect(ai).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => picture(page)).toContain('leaf 0.87');
+    await ai.click();
+    await expect(ai).toHaveAttribute('aria-pressed', 'false');
+    await expect(camera.locator('img')).toBeVisible();
+    await expect.poll(() => picture(page)).not.toContain('leaf 0.87');
+    await camera.getByRole('button', {name: 'Rear camera'}).click();
+    await expect(camera.getByRole('button', {name: 'AI view'})).toHaveCount(0);
+  });
 
   test('on the dashboard once switched on: why there is none while the blade runs, then the picture, the cameras to switch', async ({page}) => {
     await demoWith(page, 'Cameras');
@@ -68,7 +95,7 @@ test.describe('cameras', () => {
     await camera.getByRole('button', {name: 'Try again'}).click();
     await expect.poll(() => picture(page)).toContain('Obstacle camera left');
 
-    // off on the picture itself, on again at the top of the dashboard
+    // off on the picture itself, on again in the status card
     await camera.getByRole('button', {name: 'Hide the camera picture'}).click();
     await expect(camera).toHaveCount(0);
     const onOff = page.getByRole('button', {name: 'Camera picture', exact: true});
@@ -129,7 +156,7 @@ test.describe('cameras', () => {
     await expect(page.locator('[data-camera]')).toBeVisible();
 
     // the blade by hand: no picture, and why
-    await page.locator('button:visible', {hasText: 'Blade on'}).click();
+    await bladeOn(page);
     await expect(page.locator('[data-camera]')).toContainText('Not while the blade is running');
     await page.locator('button:visible', {hasText: 'Blade off'}).click();
     await expect(page.locator('[data-camera] img')).toBeVisible();

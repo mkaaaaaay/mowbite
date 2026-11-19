@@ -1,20 +1,28 @@
 import {describe, expect, it, vi} from 'vitest';
 import {clock} from './dates';
+import {OM_WORDS} from './platformWords';
 import {setLangChoice} from './i18n';
 import {
+  AFTER_CAMERA,
   chargeConfirmed,
+  CONTINUE_WHEN,
   describe as describeEvent,
+  EMERGENCY_HELP,
   emergencyFlags,
   emergencyText,
+  eventSource,
   explain,
   groupRuns,
   homeReason,
+  NOT_DRIVEN_HELP,
   noteworthy,
   parseEvent,
   rawLine,
   reasonText,
   refusalReason,
+  RESET_REFUSED_HELP,
   resetRefusedText,
+  RESTART_CAUSE,
   stopReleaseText,
   type MowerEvent,
 } from './events';
@@ -261,6 +269,78 @@ describe('heading home and charging on MowBite OS', () => {
     );
   });
 
+  it('names what an incident was kept for, a safety one apart, with its detail below', () => {
+    const hint = (f: Partial<MowerEvent>) => explain(ev(0, 'INCIDENT', f), undefined, undefined, true);
+    expect(os('INCIDENT', {reason: 'DOCKING_FAILED', safety: false, incident: 'a1'})).toBe('Incident kept: docking failed');
+    expect(os('INCIDENT', {reason: 'EMERGENCY', safety: true, detail: 'LIFT'})).toBe('Safety incident kept: emergency stop');
+    expect(hint({reason: 'EMERGENCY', detail: 'LIFT'})).toMatch(/to look into it later\. Details: LIFT$/);
+    expect(hint({reason: 'MARK', detail: ''})).toMatch(/to look into it later\.$/);
+  });
+
+  it("docks by the dock camera: the test, what led it in, and why the camera failed in the catalog's words", () => {
+    const hint = (type: string, f: Partial<MowerEvent>) => explain(ev(0, type, f), undefined, undefined, true);
+    expect(os('DOCKING', {reason: 'TEST', severity: 'info'})).toBe('Docking test by camera');
+    expect(hint('DOCKING', {reason: 'TEST'})).toContain('without map or position');
+    expect(os('DOCKED', {guide: 'marker'})).toBe('Docked by the dock camera');
+    expect(os('DOCKED', {guide: 'position'})).toBe('Docked by position');
+    expect(os('DOCKED')).toBe('Docked');
+    const lost = {reason: 'dock_failed', attempts: 1, cause: 'MARKER_LOST', guide: 'marker'};
+    expect(os('DOCKING_RETRY', lost)).toBe('Docking retry 1 (marker lost)');
+    expect(hint('DOCKING_RETRY', lost)).toBe(
+      'Led by the dock camera. The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt. It backs out and tries again. Clear the view between the mower and the station.',
+    );
+    const dark = {reason: 'dock_failed', attempts: 3, cause: 'MARKER_UNAVAILABLE', detail: 'TOO_DARK'};
+    expect(os('DOCKING_FAILED', dark)).toBe('Docking failed after 3 tries (dock camera not measuring)');
+    expect(hint('DOCKING_FAILED', dark)).toBe(
+      'The camera towards the docking station cannot measure the marker right now. The camera said: The image is too dark. It gave up and waits where it is. Check that the station has power and the marker light is on; otherwise provide light at the station.',
+    );
+    // a detail it doesn't know: the cause's own fix
+    expect(hint('DOCKING_FAILED', {...dark, detail: 'NEW_ONE'})).toContain('the detail names the cause.');
+    expect(hint('DOCKING_RETRY', {reason: 'dock_failed', guide: 'position'})).toMatch(/^Led by its position\. It was in front of the dock/);
+    // MowBite OS without a cause: its message, the charger only on OpenMower
+    const refused = {reason: 'dock_failed', attempts: 1, message: 'Docking test refused: saw no marker within 25 s'};
+    expect(os('DOCKING_FAILED', refused)).toBe('Docking failed after 1 tries (Docking test refused: saw no marker within 25 s)');
+    expect(hint('DOCKING_FAILED', refused)).toBeUndefined();
+    expect(hint('DOCKING_FAILED', {...refused, guide: 'marker'})).toBe('Led by the dock camera.');
+    expect(os('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBe('Docking failed after 1 tries (Docking test refused: saw no marker within 25 s)');
+    expect(os('DOCKING_FAILED', {reason: 'dock_failed', attempts: 1, cause: 'TEST_START'})).toBe('Docking failed after 1 tries (docking test refused)');
+    expect(hint('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBe(
+      'The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware. Place the mower closer, straight and centered in front of the docking station and start the test again.',
+    );
+    expect(os('DOCKING_FAILED', {...refused, cause: 'MARKER_LOST'})).toBe('Docking failed after 1 tries (marker lost)');
+    expect(os('DOCKING_FAILED', {reason: 'dock_failed', attempts: 1})).toBe('Docking failed after 1 tries (no contact with the charger)');
+    const mismatch = {reason: 'dock_failed', cause: 'MARKER_MISMATCH', guide: 'marker'};
+    expect(os('DOCKING_FAILED', mismatch)).toBe('Docking failed (marker does not match the map)');
+    expect(hint('DOCKING_FAILED', mismatch)).toContain('docks neither by camera nor by its position. It gave up');
+    const without = {cause: 'MARKER_UNAVAILABLE', detail: 'NO_SIGNAL', severity: 'warning', resume: 'auto'};
+    expect(os('DOCKING_WITHOUT_MARKER', without)).toBe('Docking without the dock camera');
+    expect(hint('DOCKING_WITHOUT_MARKER', without)).toBe(
+      'The camera towards the docking station cannot measure the marker right now. The camera said: No picture. The camera gives no picture right now. It docks by its position this time, that is less exact. Wait a moment. If it stays so, restart MowBite OS.',
+    );
+    expect(hint('DOCKING_WITHOUT_MARKER', {cause: 'NEW_ONE'})).toBeUndefined();
+    expect(os('DRIVE_REFUSED', {reason: 'NO_CHARGE_CONTACTS'})).toBe('Drive not started: no charge contacts are set for this mower, it cannot dock');
+  });
+
+  it('says how each run of a docking test with several ended, and that the first failure ends it', () => {
+    const run = (f: Partial<MowerEvent>) => ev(0, 'DOCKING_TEST_RUN', {run: 2, of: 5, ...f});
+    const said = (f: Partial<MowerEvent>) => describeEvent(run(f), undefined, true);
+    const hint = (f: Partial<MowerEvent>) => explain(run(f), undefined, undefined, true);
+    expect(said({ok: true, severity: 'info'})).toEqual({text: 'Run 2 of 5: docked', severity: 'info'});
+    expect(hint({ok: true})).toBeUndefined();
+    expect(said({ok: false, reason: 'dock_failed', cause: 'MARKER_LOST', severity: 'error'})).toEqual({text: 'Run 2 of 5: marker lost', severity: 'error'});
+    expect(said({ok: false, reason: 'NO_CHARGE_CURRENT', severity: 'error'}).text).toBe('Run 2 of 5: on the contacts but not charging');
+    expect(said({ok: false, reason: 'approach_failed', cause: 'PLANNER_TIMEOUT', severity: 'error'}).text).toBe('Run 2 of 5: approach failed');
+    expect(said({ok: false, reason: 'STOPPED', severity: 'info'})).toEqual({text: 'Run 2 of 5: stopped', severity: 'info'});
+    expect(hint({ok: false, reason: 'dock_failed'})).toBe('The test ended here, the runs after it were not driven.');
+    expect(hint({ok: false, reason: 'dock_failed', run: 5})).toBe('The test ended here.');
+    // without the rating of MowBite OS: a run that docked or was stopped is no problem
+    expect(describeEvent(run({ok: true})).severity).toBe('info');
+    expect(describeEvent(run({ok: false, reason: 'STOPPED'})).severity).toBe('info');
+    expect(describeEvent(run({ok: false, reason: 'dock_failed'})).severity).toBe('error');
+    // listed on the day though it's no problem
+    expect(noteworthy(run({ok: true, severity: 'info'}), undefined, true)).toBe(true);
+  });
+
   it('charges only once DOCKED is newer than what leaves it unconfirmed', () => {
     expect(chargeConfirmed([])).toBeNull();
     expect(chargeConfirmed([ev(10, 'DOCKED'), ev(5, 'BOOTED')])).toBe(true);
@@ -387,18 +467,18 @@ describe('emergency stop reasons', () => {
       'DRIVER_STALL',
     ]);
     expect(emergencyFlags(2 ** 15 + 1)).toEqual(['LATCH', 'STUCK']);
-    expect(emergencyFlags(2 ** 22 + 1)).toEqual(['LATCH', 'BIT_22']);
+    expect(emergencyFlags(2 ** 23 + 1)).toEqual(['LATCH', 'BIT_23']);
     expect(emergencyFlags(2 ** 31 + 32)).toEqual(['COLLISION', 'BIT_31']);
     expect(emergencyFlags(String(2 ** 32 - 1))).toHaveLength(32);
   });
 
   it('says a bit without a name next to the others, it never drops out', () => {
-    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_22'])).toBe('bumper, bit 22');
-    expect(emergencyText(['LATCH', 'BIT_22'])).toBe('bit 22');
+    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_23'])).toBe('bumper, bit 23');
+    expect(emergencyText(['LATCH', 'BIT_23'])).toBe('bit 23');
     expect(emergencyText(['LATCH', 'WHEEL_RUNAWAY'])).toBe('wheel turning against the command');
     // what MowBite OS's log line says for a bit it has no name for
     expect(emergencyText(['UNKNOWN'])).toBe('unknown reason');
-    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 22 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 22');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 23 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 23');
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop: no data from the IMU');
   });
 
@@ -407,7 +487,7 @@ describe('emergency stop reasons', () => {
     expect(stop(2 ** 18 + 1)).toMatch(/^A wheel turned against the drive command/);
     expect(stop(2 ** 16)).toMatch(/^The IMU's data stopped coming/);
     expect(stop(2 ** 13 + 1)).toMatch(/below its release angle\.$/);
-    expect(stop(2 ** 19 + 1)).toMatch(/OpenMower still running next to MowBite OS/);
+    expect(stop(2 ** 19 + 1)).toMatch(/^Another computer or program is talking to the mower's board/);
     // a sentence or two each, the bits that came together
     expect(stop(2 ** 20 + 2 ** 17 + 1)).toBe(
       'The blade was switched off but kept turning faster than allowed. Let it run down, then check that the mow motor stops when told to. ' +
@@ -417,7 +497,7 @@ describe('emergency stop reasons', () => {
     expect(stop(129)).toMatch(/^Software above the board latched it/);
     expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
     expect(stop(2 ** 15 + 1)).toMatch(/^The wheels turned, but by the GPS/);
-    expect(stop(2 ** 22 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
+    expect(stop(2 ** 23 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
     expect(stop(2 ** 21 + 1)).toMatch(/the activity says what happened\.$/);
   });
 
@@ -425,7 +505,7 @@ describe('emergency stop reasons', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
     try {
-      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 22 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 22');
+      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 23 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 23');
       expect(emergencyText(['LATCH', 'TILT', 'LIFT'])).toBe('zu stark geneigt, angehoben');
     } finally {
       setLangChoice('en');
@@ -460,7 +540,7 @@ describe('a reset of the emergency stop MowBite OS turned down', () => {
   it('says what to do and, where it is reset, in a few words', () => {
     expect(explain(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Stand it level, then reset it again.');
     expect(explain(refused({reason: 'TILT_UNKNOWN'}))).toMatch(/check the IMU/);
-    expect(explain(refused({reason: 'FOREIGN_HOST'}))).toMatch(/^Stop the other computer or program first/);
+    expect(explain(refused({reason: 'FOREIGN_HOST'}))).toMatch(/^Stop the other computer or program talking to the board first/);
     expect(explain(refused({reason: 'NO_ANSWER'}))).toMatch(/^A part of MowBite OS didn't answer/);
     expect(explain(refused({reason: 'RESTART_HOLD_STAYS'}))).toMatch(/^The mower couldn't delete its hold/);
     expect(resetRefusedText(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Not reset: still tilted (34°, less than 26° needed)');
@@ -856,5 +936,34 @@ describe("MowBite OS's schedule in the events", () => {
   it('says why a scheduled start was turned down', () => {
     expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'CLOCK_UNSAFE', clock_reason: 'clock_jump'}))).toBe("the mower's clock jumped");
     expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'NOT_DOCKED'}))).toBe('not in the dock, a scheduled start only goes from there');
+  });
+});
+
+describe('no names of OpenMower on MowBite OS', () => {
+
+  it("keeps them out of MowBite OS's own texts", () => {
+    for (const table of [EMERGENCY_HELP, RESTART_CAUSE, NOT_DRIVEN_HELP, RESET_REFUSED_HELP, AFTER_CAMERA, CONTINUE_WHEN])
+      for (const text of Object.values(table)) expect(text).not.toMatch(OM_WORDS);
+  });
+
+  it('explains a lost fix and a mow motor short of its speed in its own words', () => {
+    const lost = ev(1, 'GPS', {available: false});
+    expect(explain(lost, 'MOWING', 10, true)).toBe(
+      'The RTK fix had been gone for longer than the mower allows, so it stopped with the blade off and waits until the fix is back.',
+    );
+    expect(explain(lost, 'MOWING', 10)).toMatch(/xbot_positioning.*mower_logic\/gps_timeout/);
+    expect(explain(lost, 'MOWING')).toContain('mower_logic/gps_timeout');
+    const spinup = ev(1, 'EMERGENCY', {emergency: true, reason: '1024'});
+    expect(explain(spinup, undefined, undefined, true)).toMatch(/^The mow motor didn't reach its speed in time, so the mower triggered an emergency stop/);
+    expect(explain(spinup, undefined, undefined, true)).not.toMatch(OM_WORDS);
+    expect(explain(spinup)).toContain('mower_logic/mower_spinup_timeout');
+    expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}), undefined, undefined, true)).not.toMatch(OM_WORDS);
+  });
+
+  it('names no source file there', () => {
+    for (const e of [ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}), ev(1, 'GPS', {available: false}), ev(1, 'DOCKING_FAILED', {reason: 'dock_failed'})]) {
+      expect(eventSource(e, false)).toBeUndefined();
+      expect(eventSource(e, true)?.url).toMatch(/open_mower_ros/);
+    }
   });
 });

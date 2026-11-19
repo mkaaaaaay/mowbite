@@ -21,20 +21,32 @@ export const TOPIC = {
   plannerProgress: 'mowbite/planner/progress',
   // how far the MowBite Planner's recording for a calibration got (retained, see lib/calibration)
   plannerCalib: 'mowbite/planner/calib',
-  // MowBite OS's updater (its host): what it does and has, and whether it's there (both retained, see lib/osUpdate)
+  // MowBite OS's updater (its host): what it does and has, and whether it and MowBite OS are there (both retained, see lib/osUpdate, lib/hostOs)
   updateStatus: 'mowbite/update/status',
   hostStatus: 'mowbite/host/status',
   // whether the next start of the schedule would go as things are now (retained, empty without one to come)
   scheduleReady: 'mowbite/schedule/ready',
+  // MowBite OS's setup program (retained where the platform has a step list, see lib/setup)
+  setup: 'setup/json',
 } as const;
+
+// the caster's port when the access names none (ntrip.set)
+export const NTRIP_PORT = 2101;
+
+// the name MowBite OS answers system.info with
+export const MOWBITE_OS = 'mowbite-os';
 
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',
   // what runs on the mower, MowBite OS only (lib/mowerOs)
   systemInfo: 'system.info',
+  // docks by the dock camera alone from in front of the station, without map or position (MowBite OS, where it lists it)
+  dockingTest: 'docking.test',
   // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
   systemStats: 'system.stats',
+  // min, mean and max of the number sensors per step over 48 h, MowBite OS where it lists it (hooks/useSensorHistory)
+  sensorsHistory: 'sensors.history',
   // the lights on the mower by state, MowBite OS only (lib/light)
   lightGet: 'light.get_profile',
   lightSet: 'light.set_profile',
@@ -47,12 +59,29 @@ export const RPC = {
   soundVolume: 'sound.volume',
   soundUpload: 'sound.upload',
   soundDelete: 'sound.delete',
+  // the access to the caster for corrections, MowBite OS only; set and delete where it takes them over rpc (lib/ntrip)
+  ntripGet: 'ntrip.get',
+  ntripSet: 'ntrip.set',
+  ntripDelete: 'ntrip.delete',
   // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
   cameraList: 'camera.list',
   cameraStream: 'camera.stream',
+  // what the obstacle sensors saw, kept on the mower with a photo each, where the platform has such a sensor (lib/obstacles)
+  obstaclesList: 'vision.obstacles.list',
+  obstaclesImage: 'vision.obstacles.image',
+  obstaclesClear: 'vision.obstacles.clear',
   // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
   geometry: 'robot.geometry.get',
   geometrySet: 'robot.geometry.set',
+  // the setup program: its state, a step begun, answered, kept going, skipped or stopped, all taken back, and a step's image
+  setupGet: 'setup.get',
+  setupStart: 'setup.start',
+  setupAnswer: 'setup.answer',
+  setupKeep: 'setup.keep',
+  setupSkip: 'setup.skip',
+  setupAbort: 'setup.abort',
+  setupReset: 'setup.reset',
+  setupImage: 'setup.image',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
   // MowBite OS's own updates, answered by its host (lib/osUpdate)
@@ -60,6 +89,8 @@ export const RPC = {
   updateStart: 'update.start',
   updateAbort: 'update.abort',
   updateRollback: 'update.rollback',
+  // starts MowBite OS again, answered by its host too (lib/hostOs)
+  hostRestartOs: 'host.restart_os',
   // MowBite OS's own schedule (lib/schedule), the container's elsewhere
   scheduleGet: 'schedule.get',
   scheduleSet: 'schedule.set',
@@ -83,12 +114,22 @@ export const RPC = {
   events: 'events.history',
   jobs: 'position.history.list',
   jobTrack: 'position.history',
+  // deleting them on the mower, MowBite OS only: all days, and all tracks but the one of the running job
+  eventsDelete: 'events.history.delete',
+  jobTrackDelete: 'position.history.delete',
   // the mowing plan for an area straight from the mower's planner
   areaPlan: 'mowing.plan',
   // the area settings this mower keeps in map.json
   areaProperties: 'map.area_properties',
   // the last warnings and errors ROS logged, kept in memory by the mower
   logs: 'logs.recent',
+  // MowBite OS's journal and the incidents kept from it (lib/incidents)
+  journalStatus: 'journal.status',
+  incidentsList: 'incidents.list',
+  incidentsGet: 'incidents.get',
+  incidentsDownload: 'incidents.download',
+  incidentsMark: 'incidents.mark',
+  incidentsDelete: 'incidents.delete',
   // the MowBite Planner's settings (with OM_PLANNER=mowbite only): every setting with value, default and range,
   // and changing them (null: back to the default)
   plannerSettings: 'planner.settings',
@@ -125,6 +166,8 @@ export const ACTION = {
   goHome: 'mower_logic:mowing/abort_mowing',
   // while leaving the dock (and waiting for gps after it): stops there, the mower stays idle where it is
   abortUndocking: 'mower_logic:undocking/abort_undocking',
+  // while heading home or docking: stops there, the mower stays idle where it is
+  abortDocking: 'mower_logic:docking/abort_docking',
   skipArea: 'mower_logic:mowing/skip_area',
   // the rest of the outline pass or block of lanes being mowed, the mower goes on with the next one
   skipPath: 'mower_logic:mowing/skip_path',
@@ -139,6 +182,17 @@ export const ACTION = {
 // MowBite OS's parts whose update waits for the mower idle in the dock and restarts MowBite OS (masterplan 3.5), the
 // others switch at any time
 export const UPDATE_GATED = ['os', 'planner'];
+
+// how far off the line straight out of the station the docking test may start (MowBite OS's dock camera)
+export const DOCK_TEST_REACH = {cm: 5, deg: 20};
+// how many dockings in a row a docking test takes (runs), from this api of MowBite OS on; before it only one
+export const DOCK_TEST_RUNS = 10;
+export const DOCK_TEST_RUNS_API = 37;
+// camera.stream switches the boxes of what the mower recognises on and off per stream
+export const CAMERA_DETECTIONS_API = 49;
+
+// obstacle_mode by its names in vision.obstacles.list
+export const OBSTACLE_MODES = ['off', 'show', 'stop', 'avoid'];
 
 // above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
 export const DOCKED_VOLTAGE = 5;
@@ -158,7 +212,7 @@ export const COMMAND: Record<string, {method: string; params?: Record<string, un
   [ACTION.skipArea]: {method: 'mowing.skip_area'},
   [ACTION.skipPath]: {method: 'mowing.skip_path'},
   [ACTION.abortUndocking]: {method: 'undocking.abort'},
-  'mower_logic:docking/abort_docking': {method: 'docking.abort'},
+  [ACTION.abortDocking]: {method: 'docking.abort'},
   [ACTION.startRecording]: {method: 'recording.start'},
   [ACTION.recording('exit_recording_mode')]: {method: 'recording.exit'},
   [ACTION.recording('start_recording')]: {method: 'recording.ring_start'},

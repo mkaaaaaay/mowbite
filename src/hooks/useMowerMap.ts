@@ -41,6 +41,9 @@ export interface MapArea {
     // decoration only: a picture standing by itself on the map (a pin), its outline a small square round where it
     // stands (app/map/editing pinSquare). Saved only by a mower_map that keeps properties it doesn't know
     pin?: boolean;
+    // the ring was drawn or reshaped by hand, a hard edge. missing: recorded by driving, the path of the mower's middle
+    // (map contract, the MowBite Planner reads it). never false
+    drawn?: boolean;
   };
   outline: Point[];
 }

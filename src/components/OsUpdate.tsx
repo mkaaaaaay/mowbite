@@ -1,14 +1,18 @@
 'use client';
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useSetup} from '@/hooks/useSetup';
+import {safetyFailed} from '@/lib/setup';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
+import {useHostOnline} from '@/lib/hostOs';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {RPC, UPDATE_GATED} from '@/lib/openmower';
 import {
   abortUpdate,
+  apiMisfit,
   appTooOld,
   askUpdateStatus,
   checkUpdates,
@@ -25,7 +29,6 @@ import {
   shortRevision,
   startUpdate,
   updating,
-  useHostOnline,
   useUpdateStatus,
   versionInText,
   versionLabel,
@@ -222,6 +225,7 @@ function Part({
   off,
   onStart,
   onBack,
+  checkFailed,
 }: {
   c: Component;
   // its update went through within the last hour
@@ -232,6 +236,8 @@ function Part({
   off: boolean;
   onStart: (revision?: string) => void;
   onBack: (resetJobs: boolean) => void;
+  // a safety step failed and closed the lock (setup.get safety.why)
+  checkFailed: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [ask, setAsk] = useState<'back' | 'anyway' | null>(null);
@@ -239,6 +245,7 @@ function Part({
   const {available: a, running, previous} = c;
   const blocked = a?.blocked ?? null;
   const tooOld = appTooOld(a);
+  const misfit = apiMisfit(a);
   // the mower runs another version of the app than this page shows
   const reload = c.id === 'app' && pageFromMower() && !!running?.version && running.version !== APP_VERSION;
 
@@ -291,6 +298,13 @@ function Part({
         </div>
       )}
       {a && tooOld && <div className={shared.warn}>{appFirst(a.min_app!)}</div>}
+      {a && !tooOld && misfit && (
+        <div className={shared.warn}>
+          {misfit === 'OS_TOO_OLD'
+            ? why(misfit)
+            : tr("This app ({v}) doesn't speak the interface of this version. After the update the mower serves the app that comes with MowBite OS until this one is updated as well.", {v: APP_VERSION})}
+        </div>
+      )}
       {a && !blocked && !tooOld && hint && <span className={shared.dim}>{tr(hint)}</span>}
       {a && !blocked && (
         <button className={[shared.control, shared.primary].join(' ')} disabled={locked || tooOld} onClick={() => onStart()}>
@@ -353,6 +367,10 @@ function Part({
               onYes={answer(() => onBack(resetJobs))}
               onNo={answer()}
             >
+              {c.id === 'os' && checkFailed && (
+                // an OS before the lock could be taken back (api 45) opens it again by the date kept by hand
+                <p className={shared.error}>{tr('A safety step failed. An older MowBite OS may not know that and let the mower drive by itself again.')}</p>
+              )}
               {UPDATE_GATED.includes(c.id) && (
                 <p>
                   {tr('The mower has to stand ready in the dock for this.')}
@@ -413,6 +431,7 @@ export function OsUpdate() {
   const seen = useUpdateStatus();
   const online = useHostOnline() !== false;
   const methods = useRpcMethods();
+  const setup = useSetup();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unanswered, setUnanswered] = useState(false);
@@ -481,6 +500,7 @@ export function OsUpdate() {
               off={!!now}
               onStart={(revision) => run(() => startUpdate(c.id, revision ? {revision} : {}))}
               onBack={(resetJobs) => run(() => rollBack(c.id, resetJobs))}
+              checkFailed={safetyFailed(setup)}
             />
           ))}
       </div>

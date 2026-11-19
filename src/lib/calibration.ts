@@ -1,5 +1,6 @@
 import {requestCalib, requestCalibBack} from './autoUpdate';
 import {fmt, tr} from './i18n';
+import {keptValue} from './mowerParams';
 import {topicStore} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
 import {callRpc} from './rpc';
@@ -202,7 +203,7 @@ export function calibLines(values: CalibValue[], chosen: Set<string>, paths: Rec
   for (const v of values) {
     if (!chosen.has(v.name) || !v.ok || v.value === null) continue;
     const p = paths[v.name];
-    if (p && v.value >= p.min && v.value <= p.max) lines.push(`${p.path} ${v.value}`);
+    if (p && v.value >= p.min && v.value <= p.max) lines.push(`${p.path} ${keptValue(v.value)}`);
     else byHand.push(v);
   }
   return {lines: lines.length ? lines.join('\n') + '\n' : '', byHand};

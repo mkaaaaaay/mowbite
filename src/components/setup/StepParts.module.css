@@ -1,0 +1,44 @@
+.parts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: var(--radius-m);
+  background: var(--tile);
+}
+
+.text {
+  composes: label from './StateMark.module.css';
+}
+
+.text b {
+  font-size: 15px;
+}
+
+.part[data-state='waiting'] {
+  background: var(--tint-accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
+}
+
+.part[data-state='ok'] b {
+  color: var(--soft-good);
+}
+
+.part[data-state='failed'] {
+  background: var(--tint-bad);
+}
+
+.part[data-state='failed'] b {
+  color: var(--soft-bad);
+}

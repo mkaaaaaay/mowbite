@@ -1,0 +1,421 @@
+.step {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+}
+
+.back {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  margin-left: -10px;
+  color: var(--foreground);
+}
+
+.where {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.where b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.where span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.body,
+.visual,
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* what a running step asks, above everything else of it */
+.asked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.content[data-held] > :not(.note) {
+  opacity: 0.55;
+}
+
+.lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lead h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.lead p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.verdict p {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.verdict b {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.verdict span {
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+/* the release passed: the lock open in a green seal with a tick */
+.released {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--tint-good);
+  color: var(--soft-good);
+}
+
+.released p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.released b {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.released span {
+  font-size: var(--text-s);
+  line-height: 1.4;
+}
+
+.seal {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--accent-foreground);
+}
+
+.seal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--success);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--accent-foreground);
+  color: var(--success);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  box-shadow: 0 0 0 2px var(--success);
+}
+
+.reason,
+.note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--tile);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.reason {
+  font-weight: 600;
+}
+
+.links {
+  display: block;
+  margin-top: 6px;
+}
+
+.links a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
+  text-underline-offset: 2px;
+}
+
+.note[data-tone='warn'] {
+  background: var(--tint-warn);
+  color: var(--soft-warn);
+}
+
+.reason,
+.note[data-tone='bad'] {
+  background: var(--tint-bad);
+  color: var(--soft-bad);
+}
+
+.note[data-asked-line] {
+  background: var(--tint-accent);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.advanced summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* its save is one among the step's buttons, not the main one */
+.advanced button[type='submit']:not(:disabled) {
+  background: var(--tile);
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+.fix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+}
+
+.fix h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fix p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* the buttons stay in reach above the tab bar while the step scrolls */
+.dock {
+  position: sticky;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 12px 16px;
+  background: linear-gradient(to top, var(--background) 70%, transparent);
+}
+
+.dock:empty {
+  display: none;
+}
+
+.button {
+  composes: button from './Sheet.module.css';
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+
+.button[data-primary] {
+  flex-basis: 100%;
+  order: -1;
+}
+
+@media (min-width: 900px) {
+  /* the overview beside the step has the way back and on */
+  .back,
+  .button[data-next] {
+    display: none;
+  }
+
+  .dock {
+    position: static;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .button,
+  .button[data-primary] {
+    flex: 0 1 auto;
+  }
+}
+
+/* wide: the picture beside the text */
+@container (min-width: 640px) {
+  .body {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .asked {
+    grid-column: 1 / -1;
+  }
+}
+
+/* a step fades in when it opens, a verdict or a seen line slides in when it comes */
+@media (prefers-reduced-motion: no-preference) {
+  .step {
+    animation: show var(--dur-move) ease-out;
+  }
+
+  .result,
+  .note[data-asked-line] {
+    animation: enter var(--dur-move) var(--ease-out);
+  }
+
+  /* the release just passed: the seal pops, the shackle swings open, a ring goes out once, then the tick draws */
+  .released[data-moved] {
+    animation: enter var(--dur-move) var(--ease-out);
+  }
+
+  .released[data-moved] .seal {
+    animation: pop 0.4s var(--ease-out);
+  }
+
+  .released[data-moved] .seal > svg:first-child path {
+    transform-box: fill-box;
+    transform-origin: 0 100%;
+    animation: unlock 0.5s 0.15s var(--ease-out) backwards;
+  }
+
+  .released[data-moved] .seal::after {
+    animation: ring 0.9s 0.25s ease-out;
+  }
+
+  .released[data-moved] .tick {
+    animation: appear 0.3s 0.5s var(--ease-out) backwards;
+  }
+
+  .released[data-moved] .tick path {
+    stroke-dasharray: 22;
+    animation: draw 0.35s 0.6s ease-out backwards;
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+  }
+
+  60% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes appear {
+  from {
+    transform: scale(0);
+  }
+
+  60% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes unlock {
+  from {
+    transform: rotate(12deg) translateY(2px);
+  }
+}
+
+@keyframes ring {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+}
+
+@keyframes show {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

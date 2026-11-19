@@ -1,9 +1,9 @@
 import {spawn, spawnSync} from 'node:child_process';
-import {mkdtempSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it, vi} from 'vitest';
-import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validTopic, withMowerUrl, type OsNotify} from './notify';
+import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validToken, validTopic, withMowerUrl, type OsNotify} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
@@ -88,6 +88,10 @@ describe('push message settings', () => {
     expect(validTopic('my topic')).toBe(false);
     expect(validServer('https://ntfy.sh')).toBe(true);
     expect(validServer('ntfy.sh')).toBe(false);
+    expect(validToken('tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2')).toBe(true);
+    expect(validToken('a.b-c~d+e/f==')).toBe(true);
+    expect(validToken('two words')).toBe(false);
+    expect(validToken('a"b')).toBe(false);
   });
 });
 
@@ -249,6 +253,21 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(messages).toEqual(['Steve has mowed 83 h since the blades were last changed.', 'Steve has mowed 111 h since the blades were last changed.']);
   });
 
+  it("keeps a part stats.cgi dropped while it waited for the lock to mark one told", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'notify-'));
+    writeFileSync(join(dir, 'conf'), conf.replace('spinup', 'spinup,maintenance'));
+    writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
+    writeFileSync(join(dir, 'reminded'), 'clean 0\n');
+    // stats.cgi holding the lock while it drops clean
+    const cgi = spawn('flock', ['/tmp/stats.lock', 'sh', '-c', 'touch "$1.held"; sleep 1; : > "$1"', '-', join(dir, 'reminded')]);
+    const done = new Promise((ok) => cgi.on('close', ok));
+    await vi.waitFor(() => expect(existsSync(join(dir, 'reminded.held'))).toBe(true));
+    spawnSync('sh', AWK_SH, {input: state(1000, 0), env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: '', STATS: dir}});
+    await done;
+    expect(readFileSync(join(dir, 'reminded'), 'utf8')).toBe('blade 0\n');
+  });
+
   it('tells once when it stands still for ten minutes and is not charging, until it moves or charges again', () => {
     const at = (t: number, st: string, x: number, charging = 0) =>
       `${t} robot_state/json {"emergency":0,"is_charging":${charging},"current_state":"${st}","pose":{"x":${x},"y":2.5,"heading":0.1}}\n`;
@@ -377,6 +396,28 @@ describe('what the container sends', {timeout: 30_000}, () => {
     // it didn't set off for the dock, no tries
     const out2 = run(event(100, '{"type":"DOCKING_FAILED","reason":"POSITION_ACCURACY","accuracy":999,"limit":0.1,"severity":"error","resume":"user"}'), conf);
     expect(out2.map((m) => [m.title, m.message])).toEqual([["Can't go home", "Steve couldn't set off for the dock (no position) and is waiting outside."]]);
+  });
+
+  it('tells a hold at an obstacle after a minute, five for a person, and a pause by hand by its reason from api 51', () => {
+    const at = (t: number, st: string, reason = '', kind = '') =>
+      `${t} robot_state/json {"emergency":0,"is_charging":0,"current_state":"${st}","pause_reason":"${reason}","pause_kind":"${kind}","pose":{"x":3,"y":2.5,"heading":0.1}}\n`;
+    // continue is offered in the hold too, it doesn't count as paused by hand there
+    const cont = `90 actions/json [{"action_id":"mower_logic:mowing/continue","action_name":"Continue Mowing","enabled":1}]\n`;
+    const still = 'topic t\nlang en\nname Steve\nevents standstill\n';
+    const object = run(cont + at(100, 'PAUSED', 'OBSTACLE', 'OBJECT') + at(159, 'PAUSED', 'OBSTACLE', 'OBJECT') + at(160, 'PAUSED', 'OBSTACLE', 'OBJECT'), still);
+    expect(object.map((m) => [m.title, m.message])).toEqual([
+      ['Paused: obstacle in the way', 'Steve has been waiting for 1 min because the camera sees an obstacle in the way. It goes on by itself once the place is free.'],
+    ]);
+    const person = (until: number) => run(at(100, 'PAUSED', 'OBSTACLE', 'PERSON') + at(until, 'PAUSED', 'OBSTACLE', 'PERSON'), still);
+    expect(person(399)).toEqual([]);
+    expect(person(400).map((m) => m.message)).toEqual(['Steve has been waiting for 5 min because the camera sees a person in the way. It goes on by itself once the place is free.']);
+    // by hand: nothing even with continue off, any other pause after ten minutes even with continue on
+    expect(run(at(100, 'PAUSED', 'MANUAL') + at(900, 'PAUSED', 'MANUAL'), still)).toEqual([]);
+    expect(run(cont + at(100, 'PAUSED', 'NO_POSITION') + at(700, 'PAUSED', 'NO_POSITION'), still).map((m) => m.title)).toEqual(['Standing still']);
+    // a start turned down while it still sees it
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"OBSTACLE","kind":"ANIMAL"}'), 'topic t\nlang de\nname Steve\nevents refused\n')[0].message).toBe(
+      'Steve hat nicht mit dem Mähen begonnen: die Kamera sieht noch ein Tier im Weg.',
+    );
   });
 
   it('tells why MowBite OS goes home, or stays out without a way home', () => {

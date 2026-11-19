@@ -1,0 +1,203 @@
+answer at
+answer bytes
+answer cache
+answer conf
+answer container
+answer containers
+answer data
+answer days
+answer gate
+answer id
+answer image
+answer items
+answer kind
+answer log
+answer name
+answer os
+answer part
+answer parts
+answer picked
+answer refs
+answer requested
+answer restarts
+answer room
+answer self
+answer stack
+answer started
+answer state
+answer status
+answer what
+answer why
+compose container mowbite-updater
+compose image ghcr.io/mkaaaaaay/mowbite-updater:latest
+compose network host
+compose volume /etc/localtime
+compose volume /host/os-release
+compose volume /opt/stacks
+compose volume /var/run/docker.sock
+env HTTP_HOST
+env MOWBITE_CONTAINER
+env MOWBITE_ORIGINS
+env MOWBITE_OS_REPO
+env MQTT_HOST
+env MQTT_PASSWORD
+env MQTT_PORT
+env MQTT_PREFIX
+env OM_RELEASES
+env OPENMOWER_CONTAINER
+env PLANNER_CONTAINER
+env PLANNER_GITHUB
+env PORT
+env PRUNE
+env STATE_DIR
+env TEST_LABEL
+env UPDATER_CALIB_WAIT
+env UPDATER_CONTAINER
+env UPDATER_HOLD_WAIT
+env UPDATER_OS_CALM
+env UPDATER_OS_WAIT
+env UPDATER_SELF
+env VERSION
+form status <part> updated <unix s> <a release's tag or the commit>, of a build
+form status <part>_available yes|no|failed|unknown <its release's tag or its branch>, of a build
+form status <part>_release <its tag, v0.2.0>, none for its branch
+form status <part>_stable yes|no, also of the planner's build
+form status nokeep_openmower rm|drop|new|back <new tag> <the one before by digest> <its tag> <the new one's digest, or -> [<its image id, or -> <why back>]
+form status openmower_missing <tries> <next try, unix s, or -> <new|back, what it downloads> <the new version> <the one before by its digest> <the tag it ran under> <its stack's folder, or ->
+form status openmower_nokeep no prev|env|registry|holders|room <MB needed> <MB there>|box <container>|base <part>|github <part>
+form status openmower_nokeep yes <MB downloaded> <parts built again, commas, or -> <tags back afterwards, commas, or -> <tags gone for good, commas, or ->
+form status os error offer|schedule <unix s>|not_docked|battery <min %>|firmware|hold|keep|pull|files|import|stop|broker|registry|busy|back|interrupted
+form status os switched <unix s> import|kept|rolled_back pull|files|import|start|health|halt|info|state|emergency|back <unix s> map|old [lost]
+form status os_data <the folder of OpenMower's data kept before>
+form status os_drop <OpenMower by its digest> <its tag> <the images deleted> ...
+form status os_env <datum lat> <long> <height> <OpenMower's ros folder> <its params folder>
+form status os_image <image> <its id, or -> <MB free it needs> import|kept
+form status os_ran <container>:<its restart policy>:running|stopped ...
+form status os_safety check_failed
+form status os_switch no image|registry|data|datum|import|files|openmower|nokeep|pending|stack|prev|room <MB needed> <MB there>
+form status os_switch on <since, unix s>
+form status os_switch yes <MB downloaded> keep|drop import|kept
+form status switch_os openmower export|stop|om|data|start [map|old [lost]]
+form status switch_os os back rolled_back|error <why>
+form status switch_os os pull|stop|drop|start|wait
+form status updater_release <its tag, v1.2.0>, none for a build of main
+label mowbite.update.check
+label mowbite.update.gate
+label mowbite.update.log
+label mowbite.update.name
+label mowbite.update.stable
+label openmower.ui.description
+label openmower.ui.icon
+label openmower.ui.name
+label openmower.ui.port
+request calib
+request calib=back
+request check
+request conf
+request containers
+request data=*
+request free=cache | free=all
+request free=img:*
+request logs=* | restart=*
+request nokeep=*
+request now
+request now=* | back=*
+request room
+request self
+request switch=openmower
+request switch=os
+setting <part>
+setting <part>_auto
+setting at
+setting days
+setting openmower
+setting os
+setting picked
+status <part>
+status <part>_at
+status <part>_available
+status <part>_back
+status <part>_base_id
+status <part>_beta
+status <part>_built
+status <part>_failed
+status <part>_gate
+status <part>_image
+status <part>_name
+status <part>_picked
+status <part>_rebuild
+status <part>_release
+status <part>_running
+status <part>_source
+status <part>_stable
+status <part>_stable_older
+status after_self
+status alive
+status calib
+status calib_backup
+status calib_last
+status calib_paths
+status calib_pending
+status candidates
+status changed_<part>
+status checked
+status clock
+status data_put
+status disk_free
+status embed
+status gone_<part>
+status gone_openmower
+status looking
+status mowbite_name
+status mowbite_version
+status mower
+status night_done
+status nokeep_holders
+status nokeep_openmower
+status openmower_available
+status openmower_back
+status openmower_env
+status openmower_failed
+status openmower_fw
+status openmower_fw_check
+status openmower_gate
+status openmower_line
+status openmower_missing
+status openmower_name
+status openmower_nokeep
+status openmower_prev
+status openmower_running
+status openmower_saved
+status openmowerapp_name
+status os_data
+status os_drop
+status os_env
+status os_image
+status os_ran
+status os_safety
+status os_stack
+status os_switch
+status parts
+status pending_<part>
+status pending_openmower
+status planner_name
+status progress
+status reach
+status restarted
+status result
+status run_parts
+status self_night
+status started
+status switch_os
+status taken
+status unreachable
+status updater_available
+status updater_away
+status updater_failed
+status updater_release
+status updater_running
+status xtechapp_name
+topic mowbite/hold
+topic mowbite/schedule/next
+topic mowbite/updater
+topic robot_state/json

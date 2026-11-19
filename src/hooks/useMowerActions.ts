@@ -1,12 +1,14 @@
 'use client';
 
-import {describe, reasonText} from '@/lib/events';
+import {describe, reasonSentence, reasonText} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
-import {ACTION, COMMAND, TOPIC} from '@/lib/openmower';
+import {ACTION, COMMAND, RPC, TOPIC} from '@/lib/openmower';
+import {runningMisfit} from '@/lib/osUpdate';
 import {callCommand, knownMethods, RpcError} from '@/lib/rpc';
 import {refusalEvent, rpcErrorText} from '@/lib/rpcText';
+import {liveNow} from './useMowerState';
 
 interface ActionInfo {
   action_id: string;
@@ -61,6 +63,29 @@ export const setsOff = (id: string) => SETS_OFF.includes(id);
 export const lockedAfter = (tapped: string, id: string) =>
   id === tapped || setsOff(id) || (SWAPS.includes(tapped) && SWAPS.includes(id));
 
+// the command button tapped last, for TAP_LOCK_MS: what lockedAfter holds back meanwhile
+export function useTapLock(): [string | null, (id: string) => void] {
+  const [tapped, setTapped] = useState<string | null>(null);
+  useEffect(() => {
+    if (!tapped) return;
+    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
+    return () => clearTimeout(t);
+  }, [tapped]);
+  return [tapped, setTapped];
+}
+
+// what sets the mower or its blade off, or lets go of the emergency stop: only sent while the state is current, an old
+// picture or a dead connection could send it into what the user can't see, and to a MowBite OS whose interface this app
+// speaks (masterplan 3, api-Stand). stopping always goes
+const NEEDS_LIVE: string[] = [...SETS_OFF, ACTION.resetEmergency, ACTION.recording('start_manual_mowing')];
+const NEEDS_LIVE_CALLS = new Set([...NEEDS_LIVE.flatMap((id) => COMMAND[id]?.method ?? []), RPC.dockingTest]);
+function heldBack(): CommandNote | null {
+  const note = (text: string) => ({at: Date.now(), text, warn: true});
+  if (!liveNow()) return note(getMqttClient().connected ? tr("Not sent, the mower hasn't reported for a while.") : tr('Not sent, no connection to the mower.'));
+  const misfit = runningMisfit();
+  return misfit ? note(tr('Not sent. {why}', {why: reasonSentence(misfit, 'UPDATE')})) : null;
+}
+
 // counts the commands sent: an answer only speaks while its command is the last one, a late one of an earlier command
 // would read like the answer to the newer
 let sent = 0;
@@ -69,22 +94,34 @@ let sent = 0;
 // MowBite OS before the calls, a list that hasn't come yet). seen: the area and path the tap was meant for, a skip
 // doesn't hit the next one then. never sent again by itself
 export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
-  const mine = ++sent;
   const cmd = COMMAND[id];
-  setNote(null);
   if (!cmd || !knownMethods()?.has(cmd.method)) {
+    ++sent;
+    const held = NEEDS_LIVE.includes(id) && heldBack();
+    if (held) return setNote(held);
+    setNote(null);
     // plain text, not json. offline it's dropped, not kept for later
     if (!getMqttClient().connected) setNote({at: Date.now(), text: tr('Not sent, no connection to the mower.'), warn: true});
     getMqttClient().publish(withPrefix(TOPIC.action), id);
     return;
   }
-  const params: Record<string, unknown> = {client: 'app', ...cmd.params};
+  const params: Record<string, unknown> = {...cmd.params};
   if (cmd.method === 'mowing.skip_area' && typeof seen?.area === 'number') params.area = seen.area;
   if (cmd.method === 'mowing.skip_path' && typeof seen?.path === 'number') params.path = seen.path;
+  sendCall(cmd.method, params);
+}
+
+// a command that is only a call (no action behind it), answered like the others
+export function sendCall(method: string, extra: Record<string, unknown> = {}) {
+  const mine = ++sent;
+  const held = NEEDS_LIVE_CALLS.has(method) && heldBack();
+  if (held) return setNote(held);
+  setNote(null);
+  const params = {client: 'app', ...extra};
   const say = (n: CommandNote) => mine === sent && setNote(n);
   const late = (a: unknown) =>
     say(a instanceof RpcError ? refusalNote(a) : {at: Date.now(), text: tr('The mower answered late: done after all.'), warn: false});
-  callCommand(cmd.method, params, COMMAND_MS, late).catch((e) =>
+  callCommand(method, params, COMMAND_MS, late).catch((e) =>
     say(
       e instanceof RpcError && e.code === 'timeout'
         ? {at: Date.now(), text: e.message === 'offline' ? tr('Not sent, no connection to the mower.') : tr("The mower didn't answer (yet)."), warn: true}

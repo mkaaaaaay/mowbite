@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {fitHeight, mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {OM_WORDS, OS_WORDS} from './platformWords';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -30,6 +31,11 @@ describe('the settings of the mower', () => {
     expect(paramShown(sunset, {'/mower_logic/gps_timeout': 10})).toBe(false);
     expect(paramShown(sunset, {'/mower_logic/dock_at_sunset': false})).toBe(true);
     expect(paramShown(paramField('gps_timeout')!, {})).toBe(true);
+  });
+
+  it('fit the cutting height into what the mower sets, 0 its own', () => {
+    const b = {min_mm: 30, max_mm: 90, default_mm: 60};
+    expect([0, 10, 45, 120].map((mm) => fitHeight(mm, b))).toEqual([0, 30, 45, 90]);
   });
 
   it('read the switch as 0|1 on MowBite OS too', () => {
@@ -87,5 +93,34 @@ describe('the settings of the mower', () => {
   it('are kept with at most 6 decimals and no exponent, the container takes no more', () => {
     const kept = {enabled: true, values: {tool_width: 0.30000001192092896, outline_offset: 1e-7, motor_hot_temperature: 28.000000000000004}};
     expect(serializeKept(kept)).toBe('enabled 1\n/mower_logic/tool_width 0.3\n/mower_logic/outline_offset 0\n/mower_logic/motor_hot_temperature 28\n');
+  });
+});
+
+describe('a choice that asks first', () => {
+  const asks = (key: string, from: number, to: number) => !!paramField(key)?.confirmChoice?.when(from, to);
+  it('asks before the mower starts by itself, not back to manual', () => {
+    expect([asks('automatic_mode', 0, 1), asks('automatic_mode', 1, 2), asks('automatic_mode', 2, 0)]).toEqual([true, true, false]);
+  });
+  it('asks before the stop for obstacles is taken away, not between stop and drive around or below it', () => {
+    expect([asks('obstacle_mode', 2, 1), asks('obstacle_mode', 3, 0), asks('obstacle_mode', 3, 2), asks('obstacle_mode', 1, 0), asks('obstacle_mode', 0, 2)]).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+});
+
+describe('mower settings by platform', () => {
+  it("names nothing of OpenMower on MowBite OS and nothing of MowBite OS on OpenMower", () => {
+    for (const f of PARAM_FIELDS) {
+      const om = [f.label, f.help, f.confirmOff, f.confirmChoice?.text, ...(f.choices ?? [])].filter(Boolean).join(' ');
+      if (f.group !== 'journal') expect(om, f.key).not.toMatch(OS_WORDS);
+      if (f.group === 'mowing') continue;
+      const o = onOs(f, true);
+      const os = [o.label, o.help, o.confirmOff, o.confirmChoice?.text, ...(o.choices ?? [])].filter(Boolean).join(' ');
+      expect(os, f.key).not.toMatch(OM_WORDS);
+    }
   });
 });

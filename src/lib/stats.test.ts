@@ -3,7 +3,7 @@ import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {amountsOf, dueParts, fromOs, nextDue, osFrom, parseStats, partUse, periodStart} from './stats';
+import {amountsOf, countedSince, dueParts, fromOs, nextDue, osFrom, parseStats, partUse, periodStart} from './stats';
 
 describe('stats', () => {
   // a wednesday at noon, local time
@@ -54,6 +54,12 @@ describe('stats', () => {
     expect(nextDue(stats)).toBe(0);
     expect(nextDue({...stats, parts: [stats.parts[0]]})).toBe(72);
     expect(nextDue({...stats, parts: [{...stats.parts[0], key: 'other'}]})).toBeNull();
+  });
+
+  it('knows when counting started, or that it is not known before the clock was set', () => {
+    expect(countedSince(stats)).toBe(1700000000);
+    expect(countedSince({...stats, since: 0})).toBeNull();
+    expect(countedSince(parseStats(''))).toBeUndefined();
   });
 
   it("reads MowBite OS's statistics as the container's", () => {

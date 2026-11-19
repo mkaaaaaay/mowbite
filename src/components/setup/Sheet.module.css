@@ -1,0 +1,201 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(16 18 24 / 45%);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: var(--content-max-width);
+  max-height: 85vh;
+  overflow: auto;
+  padding: 10px 18px calc(22px + env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0;
+  background: var(--background);
+  box-shadow: 0 -8px 30px rgb(0 0 0 / 18%);
+}
+
+.grip {
+  align-self: center;
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--track);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.head p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.list legend {
+  padding: 0 0 6px;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.move,
+.warn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--tint-warn);
+  color: var(--soft-warn);
+}
+
+.move[data-still] {
+  background: var(--tile);
+  color: var(--text-secondary);
+}
+
+.move svg {
+  flex: none;
+}
+
+.limit {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.warn {
+  font-size: var(--text-s);
+}
+
+.check,
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.check {
+  min-height: 48px;
+  padding: 6px 4px;
+}
+
+.choice {
+  min-height: 52px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--tile);
+}
+
+.choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--tint-accent);
+}
+
+.check input,
+.choice input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.field textarea {
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--field-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 15px;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 8px;
+}
+
+/* the buttons of the setup, the others compose this one */
+.button {
+  min-height: 50px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.button[data-primary] {
+  background: var(--accent);
+  box-shadow: var(--btn-glass);
+  color: var(--accent-foreground, #fff);
+}
+
+.button:disabled {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow: none;
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .backdrop {
+    animation: fade 0.2s ease-out;
+  }
+
+  .sheet {
+    animation: rise var(--dur-move) var(--ease-out);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}

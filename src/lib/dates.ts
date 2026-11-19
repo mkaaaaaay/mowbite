@@ -36,6 +36,11 @@ export const numericDay = (t: number) => dayFormat().numeric.format(new Date(t *
 export const shortDay = (t: number) => dayFormat().short.format(new Date(t * 1000));
 
 // a moment as a day in numbers and the time, "09.11.2026, 02:31"
+// a day YYYY-MM-DD as the app writes days, as it came when it isn't one
+export function dayText(date: string): string {
+  const t = new Date(`${date}T00:00`).getTime();
+  return Number.isNaN(t) ? date : numericDay(t / 1000);
+}
 export const numericDayClock = (t: number) => `${numericDay(t)}, ${clock(t)}`;
 
 export function dayLabel(d: Date) {

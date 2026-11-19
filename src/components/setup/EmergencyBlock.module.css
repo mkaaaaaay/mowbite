@@ -1,0 +1,47 @@
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-l);
+  border: 1.5px solid color-mix(in srgb, var(--error) 45%, transparent);
+  background: var(--tint-bad);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--error);
+  color: var(--accent-foreground);
+}
+
+.head h3 {
+  margin: 0;
+  color: var(--soft-bad);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.block p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.refused {
+  color: var(--soft-bad);
+  font-size: var(--text-s);
+}
+
+.button {
+  composes: button from './Sheet.module.css';
+}

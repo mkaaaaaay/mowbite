@@ -5,9 +5,10 @@ import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {isMowbiteOs, providerGone, runsMowbiteOs, systemInfo} from './mowerOs';
+import {tr} from './i18n';
 import {askPlan} from './plannerProgress';
 import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, onMethodsChanged, RpcError, rpcMethods} from './rpc';
-import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
+import {saveSettings, settingsStore, sharedSettings, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
 // the point the path is for (OpenMower's base_link, the middle between the rear drive wheels), robot_front ahead of
@@ -56,6 +57,8 @@ export interface PlannerSetting {
   max?: number;
   choices?: string[];
   settable: boolean;
+  // robot.geometry on MowBite OS: when the user set or confirmed it (unix s), null before (the setup program asks)
+  confirmed?: number | null;
   // where its value comes from while it isn't set for the planner (a mower_logic parameter)
   from?: string;
   nullable?: boolean;
@@ -242,6 +245,32 @@ export interface Geometry {
 
 export const loadGeometry = () => callRpc<Geometry>(RPC.geometry, {});
 
+// the docking station from above (dock_footprint, MowBite OS from api 38): given around the docked mower, which needn't
+// stand inside it, [ahead, left] along the station's heading. That's the way the mower drives onto the contacts, the
+// docked mower faces against it where they sit behind the axle (dock_contact_x < 0). null where the mower leaves it to
+// its planner (an empty list) or doesn't give one
+export function dockFootprint(g: {settings: Record<string, {value: unknown}>} | null | undefined): Outline | null {
+  const v = g?.settings.dock_footprint?.value;
+  if (!Array.isArray(v) || v.length < 3) return null;
+  const ok = v.every((p) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n)));
+  const contact = g?.settings.dock_contact_x?.value;
+  const back = typeof contact === 'number' && contact < 0;
+  return ok ? v.map(([ahead, left]) => (back ? [-ahead, -left] : [ahead, left])) : null;
+}
+
+// a contour around the mower as points of the map, for the mower at x, y facing heading (rad, ccw)
+export function outlineAt(o: Outline, x: number, y: number, heading: number): {x: number; y: number}[] {
+  const at = placedAt(x, y, heading);
+  return o.map(([ahead, left]) => at(ahead, left));
+}
+
+// a point ahead and left of the mower at x, y facing heading (rad, ccw) as a point of the map
+const placedAt = (x: number, y: number, heading: number) => {
+  const c = Math.cos(heading);
+  const s = Math.sin(heading);
+  return (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+};
+
 // changes sizes on MowBite OS (idle only, all or nothing), the ones in reset back to the platform's. Its planner takes
 // them a moment later, until then the planner's shown with them
 export async function saveGeometry(version: number, settings: Record<string, unknown>, reset: string[]): Promise<Geometry> {
@@ -254,6 +283,11 @@ export async function saveGeometry(version: number, settings: Record<string, unk
   }
   return g;
 }
+
+// the sizes of MowBite OS the user hasn't set or confirmed yet, and confirming them as they are
+export const unconfirmed = (g: Geometry | null) =>
+  Object.entries(g?.settings ?? {}).flatMap(([k, s]) => (s.settable && s.confirmed === null ? [k] : []));
+export const confirmGeometry = (version: number, keys: string[]) => callRpc<Geometry>(RPC.geometrySet, {version, confirm: keys});
 
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
 // outline gets that outline from the app by itself: once per start (until it went through), after the shared settings
@@ -272,6 +306,11 @@ export async function giveOutline() {
   if (isMowbiteOs(info)) return;
   try {
     await syncSettings();
+    // only with the settings read from the mower: a rectangle kept there would be passed over (next time then)
+    if (!sharedSettings()) {
+      outlineChecked = false;
+      return;
+    }
     if (!current || outlineOf(current.settings.robot_outline?.value)) return;
     const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
     if (!m?.outline) return;
@@ -293,7 +332,7 @@ export async function resetPlannerAngle(): Promise<PlannerSettings> {
 }
 
 // a setting's number, null without one (planner.settings or robot.geometry)
-export const num = (s: Pick<PlannerSettings, 'settings'> | null | undefined, key: string) => {
+export const num = (s: {settings: Record<string, {value: unknown}>} | null | undefined, key: string) => {
   const v = s?.settings[key]?.value;
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 };
@@ -426,9 +465,7 @@ export async function checkBody(req: PlanRequest): Promise<BodyCheck | null> {
 
 // the corners of the body and the blade's centre in the map, for the mower at x, y facing heading (rad, ccw)
 export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
-  const c = Math.cos(heading);
-  const s = Math.sin(heading);
-  const at = (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+  const at = placedAt(x, y, heading);
   return {
     // the contour's points, or the rectangle's corners
     corners: b.outline
@@ -490,6 +527,8 @@ export const MOWER_MODELS: {
   label: string;
   sizes: Required<Omit<MowerSizes, 'outline'>>;
   outline?: Outline;
+  // the outline measured on the mower itself, not on a photo
+  outlineOnMower?: boolean;
   turnRadius: number;
 }[] = [
   // the same body on all three
@@ -547,12 +586,10 @@ export const MOWER_MODELS: {
     sizes: {width: 0.47, front: 0.6, rear: 0.12, blade: 0.281, bladeAhead: 0.23, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
-    // from a photo from straight above, scaled to the length from the front to the back: the bar in front, the omni wheels
-    // at its corners, widest at the rear wheels, the handle narrower behind them, both sides averaged
-    outline: [
-      [0.6, 0.13], [0.562, 0.188], [0.441, 0.227], [0.067, 0.235], [-0.042, 0.226], [-0.057, 0.205], [-0.12, 0.07],
-      [-0.12, -0.07], [-0.057, -0.205], [-0.042, -0.226], [0.067, -0.235], [0.441, -0.227], [0.562, -0.188], [0.6, -0.13],
-    ],
+    // as robot_outline of MowBite OS (measured on the mower, 16.11.): 4 to 5 mm outside the bar in front, which reaches 3 mm past
+    // the front above, widest from its tips to the back. only for OpenMower, MowBite OS has its own (robot.geometry)
+    outline: [[0.605, 0.15], [0.54, 0.235], [-0.12, 0.235], [-0.12, -0.235], [0.54, -0.235], [0.605, -0.15]],
+    outlineOnMower: true,
   },
 ];
 
@@ -615,6 +652,9 @@ export function modelOf(s: MowerSizes | undefined): string | null {
   });
   return model?.key ?? null;
 }
+
+// where a model's outline was measured, for the sizes cards
+export const measuredWhere = (m: (typeof MOWER_MODELS)[number]) => tr(m.outlineOnMower ? 'on the mower' : 'on a photo from straight above');
 
 // the model with a measured outline these sizes are exactly: its outline goes with them on its own, unless the
 // rectangle is kept

@@ -226,7 +226,7 @@
   gap: 8px;
 }
 
-.problemList li {
+.problemList > li {
   padding: 8px 10px;
   border-radius: 8px;
   font-size: 13px;
@@ -234,17 +234,14 @@
   color: var(--soft-warn);
 }
 
-.problemList li.error {
+.problemList > li.error {
   background: rgba(239, 83, 80, 0.1);
   color: var(--soft-bad);
 }
 
-.problemList div {
+.problemHead {
   display: flex;
   gap: 10px;
-}
-
-.problemHead {
   cursor: pointer;
 }
 
@@ -261,7 +258,7 @@
   transform: rotate(90deg);
 }
 
-.problemList p {
+.problemList > li > p {
   margin: 4px 0 0 74px;
   color: var(--foreground);
   line-height: 1.4;
@@ -271,7 +268,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   margin: 8px 0 0 74px;
 }
 
@@ -334,7 +331,7 @@
 }
 
 @media (max-width: 600px) {
-  .problemList p,
+  .problemList > li > p,
   .problemActions,
   .raw {
     margin-left: 0;

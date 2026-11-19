@@ -46,6 +46,14 @@
   text-decoration: none;
 }
 
+/* the link to the guide, with its book */
+.guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
 .card {
   display: flex;
   flex-direction: column;

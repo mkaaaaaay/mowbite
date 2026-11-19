@@ -7,6 +7,8 @@ import {
   cameraParts,
   cameraReason,
   closed,
+  fallbackProtocol,
+  giveBack,
   pickProtocol,
   pictureRatio,
   playMjpeg,
@@ -109,6 +111,10 @@ describe('cameras', () => {
   it('play webrtc where the browser can, else mjpeg, nothing else', () => {
     expect(pickProtocol(['webrtc', 'mjpeg'], true)).toBe('webrtc');
     expect(pickProtocol(['webrtc', 'mjpeg'], false)).toBe('mjpeg');
+    // webrtc turned down: once more with mjpeg where the camera has it, mjpeg turned down stays so
+    expect(fallbackProtocol('webrtc', ['webrtc', 'mjpeg'])).toBe('mjpeg');
+    expect(fallbackProtocol('webrtc', ['webrtc'])).toBeNull();
+    expect(fallbackProtocol('mjpeg', ['webrtc', 'mjpeg'])).toBeNull();
     expect(pickProtocol(['hls', 'mjpeg'], true)).toBe('mjpeg');
     expect(pickProtocol(['webrtc'], false)).toBeNull();
     expect(pickProtocol(['hls'], true)).toBeNull();
@@ -281,6 +287,19 @@ describe('a stream of a camera', () => {
     await vi.waitFor(() => expect(ended).toHaveBeenCalledTimes(1));
     await close();
     await expect(read(img.put[1])).rejects.toThrow();
+  });
+
+  it("gives back a place it doesn't want any more: connected once and closed right away", async () => {
+    const asked: string[] = [];
+    let stopped = false;
+    vi.stubGlobal('fetch', (u: string, init: RequestInit) => {
+      asked.push(u);
+      init.signal!.addEventListener('abort', () => (stopped = true));
+      return open()(u, init);
+    });
+    await giveBack({url, protocol: 'mjpeg', expires: 0}, url);
+    expect(asked).toEqual([url]);
+    expect(stopped).toBe(true);
   });
 
   it('draws one picture at a time, then the newest of those that came meanwhile', async () => {

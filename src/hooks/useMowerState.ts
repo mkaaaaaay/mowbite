@@ -1,6 +1,6 @@
 'use client';
 
-import {getMqttClient, messagesHeld, onTopic} from '@/lib/mqttClient';
+import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 import {lastSensorAt, useSensorValue} from './useMowerSensors';
@@ -99,8 +99,6 @@ function start() {
     update({resuming: true});
   });
   setInterval(() => {
-    // while another page is drawn the states wait (lib/mqttClient), they aren't missing
-    if (messagesHeld()) return;
     update({
       stale: !!link.state && Date.now() - link.lastAt > STALE_MS,
       resuming: link.resuming && Date.now() - resumedAt < RESUME_MS,
@@ -151,3 +149,11 @@ export function useIdle(): boolean {
 
 // connected and the state is current: only then is what's shown real and a command goes out right away
 export const isLive = (l: MowerLink) => l.connected && !l.stale;
+// the same outside a page, for a command as it goes out
+export function liveNow(): boolean {
+  start();
+  return isLive(link);
+}
+// the states in which the mower is out: paused counts too, it's standing somewhere on the lawn then. recording drives
+// with gps as well
+export const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);

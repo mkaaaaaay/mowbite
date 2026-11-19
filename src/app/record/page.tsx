@@ -6,7 +6,8 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {useHeadingDrift} from '@/hooks/useHeadingDrift';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
-import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {useJustReset} from '@/hooks/useEmergencyReset';
+import {useCommandNote, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {useMowerMap, type DockingStation, type MowerMap} from '@/hooks/useMowerMap';
 import {recordedIn} from '@/lib/sameMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
@@ -21,8 +22,9 @@ import styles from './page.module.css';
 import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, RPC, TOPIC, UNDO_METERS} from '@/lib/openmower';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {usePlatform} from '@/lib/mowerOs';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useSure} from '@/hooks/useSure';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
@@ -30,6 +32,7 @@ import {guardLeaving} from '@/lib/leaving';
 import {parseEvent, refusalText, type MowerEvent} from '@/lib/events';
 import {onTopic} from '@/lib/mqttClient';
 import {SAVE_WAIT_MS} from '@/lib/recordingJob';
+import {NOT_DRIVEN} from '@/lib/reasonTexts';
 import {markRecording, useRecordingJob} from '@/components/RecordingWatch';
 
 const START = ACTION.startRecording;
@@ -82,7 +85,9 @@ function Record() {
   const position = useMowerPosition() ?? state?.pose;
   const overlay = useMapOverlay();
   // MowBite OS records the docking station its own way: there only OpenMower's two steps
-  const os = useMowbiteOs();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   // a save sent: saved once the map has it (OpenMower drops an area it can't use without a word), late when it hasn't
   // come after SAVE_WAIT_MS
   const [save, setSave] = useState<{what: string; kind: 'mow' | 'nav' | 'dock'; before: MowerMap | null; at: 'sent' | 'late' | 'saved'} | null>(null);
@@ -162,13 +167,12 @@ function Record() {
   }, [guide, guideSeen]);
   // the station it saved, told on the page after it
   const [station, setStation] = useState<{station: Station; before: DockingStation | null} | null>(null);
-  const guiding = guide && recordingMode && phase === 'empty' && !os;
 
   // the stick, held sideways the two pads; the sideways layout for dialogs over it
   const remoteRef = useRef<HTMLDivElement>(null);
   const drive = useDrive({show: recordingMode, onMove: () => (mine.current = true)});
-  // the heading running away while it stands: OpenMower's gyro got a wrong zero when it started
-  const drift = useHeadingDrift(recordingMode, drive.movedAt);
+  // the heading running away while it stands: OpenMower's gyro got a wrong zero when it started (MowBite OS holds it)
+  const drift = useHeadingDrift(recordingMode && om, drive.movedAt);
   const driftLine = drift !== null && (
     <em className={ds.missed}>{tr('The heading drifts {n}°/s while it stands: restart OpenMower before it mows', {n: fmt(Math.abs(drift) * (180 / Math.PI), 1)})}</em>
   );
@@ -176,12 +180,19 @@ function Record() {
   // mowing by hand: in recording mode OpenMower runs the blade until it's switched off or the mode ends, also while the
   // mower stands still
   const bladeOn = recordingMode && hasAction(A('stop_manual_mowing'));
+  const justReset = useJustReset(!!state?.emergency);
+  const [bladeTapped, bladeTap] = useTapLock();
   const blade = useRef({on: bladeOn, off: () => publishAction(A('stop_manual_mowing'))});
   blade.current = {on: bladeOn, off: () => publishAction(A('stop_manual_mowing'))};
   // after an emergency stop it would start again by itself once that's reset
   useEffect(() => {
     if (state?.emergency && bladeOn && live) blade.current.off();
   }, [state?.emergency, bladeOn, live]);
+  // the station's guide has no blade buttons: it opens once the blade is off, asked for it goes off first
+  const guiding = guide && recordingMode && phase === 'empty' && !os && !bladeOn;
+  useEffect(() => {
+    if (guide && bladeOn && live) blade.current.off();
+  }, [guide, bladeOn, live]);
   // leaving the page or putting the phone away switches the blade off (the stick stops by itself)
   useEffect(() => {
     const hidden = () => {
@@ -197,12 +208,19 @@ function Record() {
   // a step the mower turned down, with why: MowBite OS sends it, OpenMower doesn't (then nothing shows). gone with the next
   // step, another phase, or for a point once the line goes on
   const [refused, setRefused] = useState<MowerEvent | null>(null);
+  // MowBite OS: why the outline being recorded has no exact edge any more, as far as the app sees it (a driven_reason):
+  // reversing, points taken back or set by hand, Auto points off. The others only come with the saved area
+  const [edgeLost, setEdgeLost] = useState<string | null>(null);
+  // the line discarded to record it again: started again once it's gone
+  const restart = useRef(false);
   useEffect(
     () =>
       onTopic(TOPIC.events, (payload) => {
         const e = parseEvent(payload.toString());
         if (e?.type !== 'RECORDING_REFUSED') return;
         setRefused(e);
+        restart.current = false;
+        if (e.reason === 'REVERSING') setEdgeLost((r) => r ?? 'REVERSED');
         // saving it didn't work after all
         if (e.action?.startsWith('finish_') || e.action === 'record_dock') setSave(null);
       }),
@@ -277,7 +295,7 @@ function Record() {
   // (the phone's back button) can't ask, it ends the mode only when nothing is being recorded
   const [leaving, setLeaving] = useState<string | null>(null);
   // stop on a line without a second point yet (the mower hasn't moved 10 cm since it started, or no point set with auto
-  // points off): OpenMower then drops the whole area, so with an outline to lose it asks first
+  // points off): OpenMower then drops the whole area, so with an outline to lose it asks first. MowBite OS refuses the stop
   const [early, setEarly] = useState(false);
   if (early && phase !== 'recording') setEarly(false);
   const canExit = hasAction(A('exit_recording_mode'));
@@ -411,6 +429,33 @@ function Record() {
       </button>
     );
   const discardButton = button('finish_discard', askDiscard ? 'Really discard?' : 'Discard area', 'danger', undefined, discardTap);
+  // the area's outline on MowBite OS, where the exact edge counts
+  const outlining = os && phase === 'recording' && !hasOutline;
+  if (edgeLost && !outlining) setEdgeLost(null);
+  if (outlining && !edgeLost && hasAction(A('auto_point_collecting_enable'))) setEdgeLost('INTERRUPTED');
+  const lose = (reason: string) => () => outlining && setEdgeLost((r) => r ?? reason);
+  useEffect(() => {
+    if (phase === 'empty' && restart.current) actRef.current('start_recording');
+    if (phase !== 'recording') restart.current = false;
+  }, [phase]);
+  const {sure, confirm} = useSure();
+  // the outline thrown away and started again from where the mower stands, after asking
+  const againButton = edgeLost && hasAction(A('finish_discard')) && (
+    <button
+      key="record_again"
+      className={sure === 'again' ? ds.danger : undefined}
+      disabled={!live}
+      onClick={() =>
+        confirm('again', () => {
+          restart.current = true;
+          act('finish_discard');
+        })
+      }
+    >
+      {ICONS.start_recording}
+      {tr(sure === 'again' ? 'Sure? Discard the line and start again here' : 'Record again for the exact edge')}
+    </button>
+  );
   // the docking station: with the guide on OpenMower, OpenMower's own two steps on MowBite OS
   const stationButton = (again: boolean) =>
     os ? (
@@ -427,6 +472,8 @@ function Record() {
   let say: React.ReactNode = null;
   let text: React.ReactNode = null;
   let buttons: React.ReactNode[] = [];
+  // while a line is recorded: how to drive it, on MowBite OS also what the exact edge takes
+  let hints: string[] = [];
   if (phase === 'empty') {
     const lost = save?.at === 'late' ? tr("{what} didn't arrive in the map. Look at the map, or record it again.", {what: tr(save.what)}) : null;
     say = saved ? (
@@ -445,7 +492,7 @@ function Record() {
       : lost
         ? lost
         : os
-          ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
+          ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, at least half a meter, facing it.')
           : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
     buttons = [
       button('start_recording', 'Record outline', 'primary', () => setSave(null)),
@@ -470,10 +517,21 @@ function Record() {
       : hasOutline
         ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
+    hints = [
+      tr('Drive forwards all the way while recording.'),
+      tr('Drive corners a little inside and blunt, not with a sharp turn.'),
+      ...(os
+        ? [
+            tr('Took a wrong turn? Back up a bit, the mower takes the last points back. The exact edge is lost by that.'),
+            tr('The exact edge only comes from driving the whole round forwards without a break, with Auto points on. The recorded outline pass needs it.'),
+          ]
+        : []),
+    ];
     buttons = [
-      button('stop_recording', 'Stop', 'primary', undefined, hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
-      undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS})),
-      button('collect_point', 'Set point here'),
+      button('stop_recording', 'Stop', 'primary', undefined, om && hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
+      againButton,
+      undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS}), undefined, lose('INTERRUPTED')),
+      button('collect_point', 'Set point here', undefined, lose('MANUAL_POINT')),
       button('auto_point_collecting_disable', 'Auto points: on'),
       button('auto_point_collecting_enable', 'Auto points: off'),
       discardButton,
@@ -519,6 +577,38 @@ function Record() {
           ? tr('Docking station')
           : tr('Recording mode');
   const blades = knowsAction(A('start_manual_mowing'));
+  // on and off each at their own place, never one under the finger where the other was. on takes two taps and is held
+  // back for a moment after a blade tap and after an emergency reset; off goes at once, whenever connected
+  const bladeOnButton = blades && (
+    <button
+      key="blade_on"
+      className={sure === 'blade' ? ds.danger : undefined}
+      disabled={!live || !hasAction(A('start_manual_mowing')) || justReset || !!bladeTapped}
+      onClick={() =>
+        confirm('blade', () => {
+          bladeTap('on');
+          act('start_manual_mowing');
+        })
+      }
+    >
+      {ICONS.start_manual_mowing}
+      {tr(sure === 'blade' ? 'Sure? Blade on' : 'Blade on')}
+    </button>
+  );
+  const bladeOffButton = blades && (
+    <button
+      key="blade_off"
+      className={ds.danger}
+      disabled={!connected || !hasAction(A('stop_manual_mowing'))}
+      onClick={() => {
+        bladeTap('off');
+        act('stop_manual_mowing');
+      }}
+    >
+      {ICONS.stop_manual_mowing}
+      {tr('Blade off')}
+    </button>
+  );
   const bladeWarn = tr(
     'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the emergency stop button on the mower.',
   );
@@ -601,7 +691,7 @@ function Record() {
               </button>
             )}
             {refusedText && <p className={styles.warn}>{refusedText}</p>}
-            {bounced && (
+            {bounced && om && (
               <p className={styles.warn}>
                 {tr(
                   "The mower dropped out of recording mode right away. Older OpenMower versions do that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again, or update OpenMower.",
@@ -653,15 +743,20 @@ function Record() {
               <>
                 {bladeOn && <p className={ds.remoteBlade}>{bladeWarn}</p>}
                 <div className={ds.remoteButtons}>
+                  {bladeOnButton}
                   {buttons}
-                  {button('start_manual_mowing', 'Blade on')}
-                  {button('stop_manual_mowing', 'Blade off', 'danger')}
+                  {bladeOffButton}
                 </div>
               </>
             }
           >
             {phase === 'empty' && stationLine}
             {refusedText && <p className={ds.warn}>{refusedText}</p>}
+            {edgeLost && (
+              <p className={ds.warn}>
+                {tr('No exact edge any more ({why}). For the recorded outline pass, start the round again from here.', {why: tr(NOT_DRIVEN[edgeLost])})}
+              </p>
+            )}
             {drift !== null && (
               <p className={ds.warn}>
                 {tr(
@@ -670,6 +765,11 @@ function Record() {
               </p>
             )}
             <p className={ds.dim}>{text}</p>
+            {hints.map((h) => (
+              <p key={h} className={ds.dim}>
+                {h}
+              </p>
+            ))}
             {closing !== null && (
               <div className={styles.closing}>
                 <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>
@@ -677,9 +777,9 @@ function Record() {
               </div>
             )}
             <div className={styles.buttons}>
+              {bladeOnButton}
               {buttons}
-              {blades && button('start_manual_mowing', 'Blade on')}
-              {blades && button('stop_manual_mowing', 'Blade off', 'danger')}
+              {bladeOffButton}
             </div>
             {bladeOn && <p className={ds.warn}>{bladeWarn}</p>}
             <label className={styles.check}>

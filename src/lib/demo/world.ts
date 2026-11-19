@@ -1,15 +1,21 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan, ownCount} from '../mowPlan';
-import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
+import {ACTION, DOCK_TEST_RUNS, MOWBITE_OS, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 import {demoCameras} from './camera';
-import {demoOn} from './flags';
+import {demoFlags, demoOn} from './flags';
+import {demoHost} from './host';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
+import {demoNtrip} from './ntrip';
+import {demoSetup} from './setup';
+import {demoPlanner} from './planner';
 import {demoSounds} from './sound';
+import {demoIncidents} from './incidents';
+import {demoObstacles} from './obstacles';
 import {demoUpdates} from './update';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
@@ -65,7 +71,7 @@ export interface WorldOptions {
   timer?: boolean;
   // in the middle of a mow with the days before in its history (the demo), or in the station with nothing behind it
   start?: 'mowing' | 'docked';
-  // every event also on events/json as it happens, like OpenMower (the demo only sends a refused reset there)
+  // every event also on events/json as it happens, like OpenMower (the demo only sends those in ALWAYS_LIVE there)
   liveEvents?: boolean;
   // m/s along the plan, and how often its timer moves it on and sends the position (ms)
   speed?: number;
@@ -74,6 +80,8 @@ export interface WorldOptions {
   params?: Record<string, number | boolean>;
 }
 type EventPart = {type: string} & Record<string, unknown>;
+// sent on events/json as they happen without liveEvents too
+const ALWAYS_LIVE = new Set(['EMERGENCY_RESET_REFUSED', 'DOCKING_TEST_RUN']);
 
 export interface Leg {
   pts: Point[];
@@ -453,6 +461,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // changed by params.set, like the ros params until the mower restarts
   const ros: Record<string, number | boolean> = {...DEMO_PARAMS, ...opts.params};
   let last = opts.now ?? Date.now();
+  // MowBite OS's obstacle sensors and what they saw, with their two settings (window.mowbiteDemoObstacles)
+  const obstacles = demoOn('Obstacles') ? demoObstacles(deliver, () => last / 1000, (name) => Number(ros[`/mower_logic/${name}`])) : null;
+  if (obstacles) Object.assign(ros, obstacles.params, opts.params);
   let around: Surroundings = {};
   const speed = opts.speed ?? SPEED;
   let job: {id: string; session: string; run: Run} | null = null;
@@ -469,6 +480,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // the emergency stop as OpenMower's bits (LATCH and the ones named), 0 when it isn't latched: the wheels and the
   // blade stand until it's reset, unless that's turned down
   let latchedBits = 0;
+  // MowBite OS's setup program, its inputs seen through the stop
+  const release = () => {
+    latchedBits = 0;
+  };
+  const setup = demoOn('Setup') ? demoSetup(deliver, (reason) => !!(latchedBits & bitOf(reason)), release, demoOn('Assign')) : null;
   let refusal: Record<string, unknown> | null = null;
   // mower_logic's checks: the highest voltage of the window and when it began, rain seen all through the window, when
   // the fix was last good and whether it's gone for longer than gps_timeout, the fully charged said once a stay
@@ -482,6 +498,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // undocking waits at its end this long for a fix (ms), the dockings that failed in a row
   let gpsWait = 0;
   let dockTries = 0;
+  // MowBite OS's docking test (mowbiteDemoDockTest): the run it's at and how many it has
+  const dockTestOn = demoOn('DockTest');
+  let dockTest: {run: number; of: number} | null = null;
   // the ros warnings logs.recent hands out: why the emergency stop came
   const rosLog: {t: number; level: string; node: string; msg: string}[] = [];
   let battery = 1;
@@ -532,11 +551,14 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return p;
   };
 
-  // kept for the history, and sent on events/json as it happens where that's asked for
+  // kept for the history, and sent on events/json as it happens where that's asked for; set right below, its own INCIDENT events come through logged too
+  let incidents: ReturnType<typeof demoIncidents> | null = null;
   const logged = (e: DemoEvent) => {
     log.push(e);
-    if (opts.liveEvents) deliver(TOPIC.events, JSON.stringify(e));
+    if (opts.liveEvents || ALWAYS_LIVE.has(e.type)) deliver(TOPIC.events, JSON.stringify(e));
+    incidents?.trigger(e);
   };
+  if (demoOn('Incidents')) incidents = demoIncidents(() => last / 1000, logged);
   const hooksFor = (id: string, session: string): Hooks => ({
     enter(l, t) {
       for (const e of l.events ?? []) logged({id: `demo${++ids}`, t, job_id: id, session_id: session, x: l.pts[0].x, y: l.pts[0].y, ...e});
@@ -626,13 +648,33 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return legs.reduce((s, l) => s + l.len, 0);
   }
 
+  // a run of a docking test with several ended, docked or not
+  const testRun = (ok: boolean, reason?: string): EventPart[] =>
+    dockTest && dockTest.of > 1
+      ? [{type: 'DOCKING_TEST_RUN', run: dockTest.run, of: dockTest.of, ok, ...(reason && {reason}), severity: ok || reason === 'STOPPED' ? 'info' : 'error'}]
+      : [];
+  // a docking test's way in or out of the station
+  const testDetour = (t: number, legs: Leg[]) => {
+    detour = {id: `demo-test-${Math.round(t)}`, session: 'demo-test', run: {legs, at: 0, d: 0}, then: 'idle'};
+  };
+
   function docked(t: number) {
     const d = dock();
-    note(t, d?.at ?? pose, {type: 'DOCKED'}, {type: 'STATE', state: 'IDLE'});
-    parked = true;
+    const series = dockTest && dockTest.of > 1 ? dockTest : null;
+    const more = !!series && series.run < series.of && !!d;
+    note(t, d?.at ?? pose, {type: 'DOCKED'}, ...testRun(true), ...(more ? [] : [{type: 'STATE', state: 'IDLE'}]));
+    parked = !more;
     away = false;
     paused = false;
     dockTries = 0;
+    if (!more) {
+      dockTest = null;
+      return;
+    }
+    // the next run of a docking test: out of the station and in again
+    dockTest = {run: series!.run + 1, of: series!.of};
+    const legs = [leg([d!.at, d!.out], 'DOCKING', false, -1, -1, {reverse: true}), leg([d!.out, d!.at], 'DOCKING', false, -1, -1)];
+    testDetour(t, legs);
   }
 
   // idle where it is: undocking or docking gave up
@@ -643,7 +685,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     away = true;
     paused = false;
     dockTries = 0;
+    dockTest = null;
   }
+
+  // a run of a docking test with several ended without docking, the test with it
+  const runEnded = (reason: string) => testRun(false, reason);
 
   // a docking that doesn't take, while dockFails says so: DockingBehavior tries again docking_retry_count times, from in
   // front of the station after an approach that failed, backing out first after one on the station, then gives up
@@ -655,8 +701,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const reason = fails.at === 'approach' ? 'approach_failed' : 'dock_failed';
     dockTries++;
     if (fails.at === 'approach') pose = {x: d.out.x, y: d.out.y, heading: d.heading};
-    if (dockTries > param('docking_retry_count')) {
-      gaveUp(t, {type: 'DOCKING_FAILED', reason, attempts: dockTries});
+    // a docking test with several runs ends with the first that fails
+    const ended = runEnded(reason);
+    if (dockTries > param('docking_retry_count') || ended.length) {
+      gaveUp(t, {type: 'DOCKING_FAILED', reason, attempts: dockTries}, ...ended);
       return true;
     }
     note(t, pose, {type: 'DOCKING_RETRY', reason, attempts: dockTries});
@@ -753,6 +801,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       a(ACTION.resume, 'Continue', s === 'PAUSED'),
       a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING' && s !== 'UNDOCKING' && !rec),
       a(ACTION.abortUndocking, 'Stop Undocking', s === 'UNDOCKING'),
+      ...(dockTestOn ? [a(ACTION.abortDocking, 'Stop Docking', s === 'DOCKING')] : []),
       a(ACTION.skipArea, 'Skip Area', mowing),
       a(ACTION.skipPath, 'Skip Path', mowing),
       ...recordingActions(),
@@ -807,6 +856,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   };
   // like AreaRecordingBehavior's
   const subState = () => {
+    if (setup?.driving()) return 'SETUP';
     if (!rec) return '';
     if (rec.dockFrom) return 'RECORD_DOCKING_POSITION';
     if (rec.line) return rec.outline ? 'RECORD_OBSTACLE' : 'RECORD_OUTLINE';
@@ -939,6 +989,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     } else if (id === ACTION.goHome && s !== 'UNDOCKING') sendHome('Manual pause');
     // (OpenMower leaves it idle in front of the station, the demo drives it back in)
     else if (id === ACTION.abortUndocking && s === 'UNDOCKING') sendHome();
+    // (MowBite OS's: idle where it is, a docking test ends with it)
+    else if (id === ACTION.abortDocking && dockTestOn && s === 'DOCKING') gaveUp(t, ...runEnded('STOPPED'));
     else if ((id === ACTION.skipArea || id === ACTION.skipPath) && s === 'PAUSED') skipLater = id === ACTION.skipArea || !!skipLater;
     else if (id === ACTION.skipArea && s === 'MOWING') skip(true);
     else if (id === ACTION.skipPath && s === 'MOWING') skip(false);
@@ -948,11 +1000,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     } else if (id === ACTION.resetEmergency) {
       if (latchedBits && refusal) {
         note(t, pose, {type: 'EMERGENCY_RESET_REFUSED', ...refusal});
-        if (!opts.liveEvents) deliver(TOPIC.events, JSON.stringify(log[log.length - 1]));
       } else {
         // mower_logic says so when it lets go of a stop it latched itself
         if (latchedBits & OWN_BITS) note(t, pose, {type: 'EMERGENCY', emergency: false, reason: 0});
         latchedBits = 0;
+        setup?.emergencyChanged();
       }
     } else if (id === ACTION.startRecording && s === 'IDLE') {
       rec = {outline: null, obstacles: [], line: null, dockFrom: null, auto: true, blade: false};
@@ -1047,6 +1099,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
   let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
   const updates = demoOn('Updates') ? demoUpdates(deliver) : null;
+  const host = demoOn('Host')
+    ? demoHost(deliver, () => ({idle: state() === 'IDLE', emergency: latchedBits !== 0}), Object.keys(updates?.methods ?? {}))
+    : null;
+  const planner = demoOn('Planner') ? demoPlanner() : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1125,11 +1181,63 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
+    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for, on the platform
+    // window.mowbiteDemoPlatform names
+    ...(demoOn('Os') && {
+      [RPC.systemInfo]: () => ({
+        name: MOWBITE_OS,
+        version: '0.0.0',
+        platform: (demoFlags().mowbiteDemoPlatform as string | undefined) ?? 'demo',
+        api: JSON.parse(process.env.APP_OS_API ?? 'null')?.max,
+      }),
+    }),
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
+    ...(demoOn('Ntrip') && demoNtrip(state)),
+    ...setup?.methods,
+    ...incidents?.methods,
+    ...(dockTestOn && {
+      // from idle off the station straight onto it by the dock camera, runs times in a row
+      [RPC.dockingTest]: (params: unknown) => {
+        const runs = (params as {runs?: unknown})?.runs ?? 1;
+        if (typeof runs !== 'number' || !Number.isInteger(runs) || runs < 1 || runs > DOCK_TEST_RUNS)
+          throw new Error(`runs: 1 to ${DOCK_TEST_RUNS}`);
+        const d = dock();
+        if (state() !== 'IDLE' || !away || !d) throw new Error('the docking test starts idle in front of the station');
+        const t = last / 1000;
+        note(t, pose, {type: 'DOCKING', reason: 'TEST', severity: 'info'}, {type: 'STATE', state: 'DOCKING'});
+        dockTest = {run: 1, of: runs};
+        // mowbiteDemoDockTestFails: so many of its dockings don't take
+        const fails = demoFlags().mowbiteDemoDockTestFails;
+        if (typeof fails === 'number') around = {...around, dockFails: {count: fails, at: 'dock'}};
+        testDetour(t, [leg([{x: pose.x, y: pose.y}, d.at], 'DOCKING', false, -1, -1)]);
+        parked = false;
+        changed();
+        return {state: 'DOCKING', sub_state: ''};
+      },
+    }),
     ...updates?.methods,
+    ...host?.methods,
+    // MowBite OS deleting events and tracks, counted in files (a day, a track), the running job's track stays
+    ...(demoOn('Erase') && {
+      [RPC.eventsDelete]: (params: unknown) => {
+        const date = (params as {date?: string})?.date;
+        const days = new Set(log.map((e) => utcDay(e.t)).filter((d) => !date || d === date));
+        for (let i = log.length - 1; i >= 0; i--) if (days.has(utcDay(log[i].t))) log.splice(i, 1);
+        return {deleted: days.size};
+      },
+      [RPC.jobTrackDelete]: (params: unknown) => {
+        const id = (params as {job_id?: string})?.job_id;
+        const gone = new Set(jobs.map((j) => j.job_id).filter((j) => (id ? j === id : j !== job?.id)));
+        for (let i = jobs.length - 1; i >= 0; i--) if (gone.has(jobs[i].job_id)) jobs.splice(i, 1);
+        gone.forEach((j) => tracks.delete(j));
+        return {deleted: gone.size};
+      },
+    }),
+    ...planner?.methods,
     ...cameras?.methods,
+    ...obstacles?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
       // go off
@@ -1150,11 +1258,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       },
     }),
   };
-  const answer = (paths: Path[], angle: number, id?: string) => ({
-    ...(id ? {area_id: id} : {}),
-    angle,
-    paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
-  });
+  const answer = (paths: Path[], angle: number, id?: string) => {
+    const warnings = planner?.warnings();
+    return {
+      ...(id ? {area_id: id} : {}),
+      angle,
+      ...(warnings?.length && {warnings}),
+      paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
+    };
+  };
 
   function rpc(message: string) {
     let req: {id?: string; method?: string; params?: unknown};
@@ -1206,6 +1318,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     latchedBits |= bits | bitOf('LATCH');
     stick = {vx: 0, vz: 0, at: -Infinity};
     if (own) note(t, pose, {type: 'EMERGENCY', emergency: true, reason: own});
+    setup?.emergencyChanged();
   }
 
   // what mower_logic checks every time round: the fix, then whether it has to go home, in its order
@@ -1295,7 +1408,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
       if (topic === TOPIC.plannerCalib) return calibSaid ? [[topic, calibSaid]] : [];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
-      return updates?.retained(topic) ?? [];
+      return host?.retained(topic) ?? updates?.retained(topic) ?? setup?.retained(topic) ?? [];
     },
     published(topic, message) {
       if (topic === TOPIC.teleop) {

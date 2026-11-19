@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {ACTION, RPC, TOPIC} from '../openmower';
 import {parseBattery} from '../battery';
 import {parseKept} from '../mowerParams';
@@ -550,6 +550,57 @@ describe('the mower around it, for a mock mower', () => {
     expect(never.events.find((e) => e.type === 'DOCKING_FAILED')).toMatchObject({reason: 'approach_failed', attempts: 5});
     expect(never.types()).not.toContain('DOCKED');
     expect(never.w.inspect()).toMatchObject({state: 'IDLE', away: true});
+  });
+
+  it("docks several times in a row as MowBite OS's docking test, a run that fails or is stopped ends it", () => {
+    vi.stubGlobal('window', {mowbiteDemoDockTest: true});
+    const away = () => {
+      const m = mower();
+      m.w.displace(-1.5, 0);
+      return {...m, test: (params: object) => m.w.published(TOPIC.rpcRequest, JSON.stringify({jsonrpc: '2.0', id: 't', method: RPC.dockingTest, params}))};
+    };
+    const runs = (m: ReturnType<typeof away>) => m.events.filter((e) => e.type === 'DOCKING_TEST_RUN').map(({run, of, ok, reason}) => ({run, of, ok, reason}));
+    try {
+      const three = away();
+      // not a number of runs it takes: nothing starts
+      three.test({runs: 11});
+      expect(three.state().current_state).toBe('IDLE');
+      three.test({runs: 3});
+      expect(three.events.slice(0, 2)).toMatchObject([{type: 'DOCKING', reason: 'TEST'}, {type: 'STATE', state: 'DOCKING'}]);
+      three.pass(120);
+      expect(runs(three)).toEqual([1, 2, 3].map((run) => ({run, of: 3, ok: true, reason: undefined})));
+      expect(three.types().filter((t) => t === 'DOCKED')).toHaveLength(3);
+      // idle only after the last one
+      expect(three.events.filter((e) => e.type === 'STATE').map((e) => e.state)).toEqual(['DOCKING', 'IDLE']);
+      expect(three.w.inspect().docked).toBe(true);
+
+      const failing = away();
+      failing.w.set({dockFails: {count: 1, at: 'dock'}});
+      failing.test({runs: 4});
+      failing.pass(120);
+      expect(runs(failing)).toEqual([{run: 1, of: 4, ok: false, reason: 'dock_failed'}]);
+      expect(failing.types()).toContain('DOCKING_FAILED');
+      expect(failing.types()).not.toContain('DOCKING_RETRY');
+      expect(failing.w.inspect()).toMatchObject({state: 'IDLE', away: true});
+
+      const stopped = away();
+      stopped.test({runs: 2});
+      stopped.pass(1);
+      stopped.act(ACTION.abortDocking);
+      expect(runs(stopped)).toEqual([{run: 1, of: 2, ok: false, reason: 'STOPPED'}]);
+      expect(stopped.state().current_state).toBe('IDLE');
+
+      // one run is the plain test: it tries again, no run events
+      const one = away();
+      one.w.set({dockFails: {count: 1, at: 'dock'}});
+      one.test({});
+      one.pass(120);
+      expect(one.types()).toContain('DOCKING_RETRY');
+      expect(one.types()).toContain('DOCKED');
+      expect(runs(one)).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('latches the stop when the blade does not spin up, and says so when it lets go', () => {

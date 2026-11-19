@@ -1,3 +1,4 @@
+import {toBase64} from './base64';
 import {RPC} from './openmower';
 import {callRpc, RpcError} from './rpc';
 import {sha256Hex} from './sha256';
@@ -59,12 +60,6 @@ export const leftHeld = (e: unknown) => !(e instanceof RpcError) || e.code === '
 
 export const splitParts = (bytes: Uint8Array, size = PART_BYTES): Uint8Array[] =>
   Array.from({length: Math.ceil(bytes.length / size)}, (_, i) => bytes.subarray(i * size, (i + 1) * size));
-
-export function toBase64(bytes: Uint8Array): string {
-  let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-}
 
 // a file the phone turns down before sending, as MowBite OS's refusal would say it; seconds null: it doesn't decode,
 // undefined: not known (yet)

@@ -1,0 +1,90 @@
+.lines h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+  font-weight: 600;
+}
+
+.lines ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lines li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-m);
+  background: var(--tile);
+  line-height: 1.25;
+}
+
+.lines li[data-assigned='false'] {
+  color: var(--text-secondary);
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--track);
+}
+
+li[data-active] .dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--tint-accent);
+}
+
+.name {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.role,
+.state {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lines li[data-active] {
+  background: var(--tint-accent);
+}
+
+li[data-active] .state {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* a line that switches lights up with a ring */
+@media (prefers-reduced-motion: no-preference) {
+  .lines li {
+    transition: background-color 0.2s ease;
+  }
+
+  li[data-active] .dot {
+    animation: ping 0.9s ease-out;
+  }
+}
+
+@keyframes ping {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}

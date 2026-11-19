@@ -3,15 +3,17 @@
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {cmText, dec, tr} from '@/lib/i18n';
 import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {ANGLE_FOR_ALL, FIELDS, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
+import {ANGLE_FOR_ALL, FIELDS, helpOf, hidden, noOwnStrategy, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {usePlatform} from '@/lib/mowerOs';
+import {RECORDED_LOOP as LOOP, recordedLoopMeans, recordedLoopNote, recordedLoopWarning} from '@/lib/recordedLoop';
 import {ownCount} from '@/lib/mowPlan';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
 import {NoSizesWarning} from './MowerBodySettings';
 import {setOpenMowerParam} from './MowerParamSettings';
+import {AskSheet} from './AskSheet';
 import local from './PlannerSimple.module.css';
 
 // The planner's settings that matter for a garden, in the same sections for all areas and for one area: the style (a
@@ -53,7 +55,6 @@ const PATTERN_NOTES: Record<string, string> = {
 };
 const STRATEGIES = ['longest_edge', 'min_width', 'optimal'];
 const STRATEGY_NOTES: Record<string, string> = {
-  openmower: "From the outline's first point, for a recorded area the way you set off.",
   longest_edge: 'Along the longest edge of the area.',
   min_width: 'Across the narrowest width: the fewest lanes, the longest ones.',
   optimal: 'Directions are tried and the one with the fewest lanes and turns taken.',
@@ -156,8 +157,13 @@ export function PlannerSimple({
 }) {
   const planner = usePlannerSettings();
   // MowBite OS: no lane spacing of OpenMower's, the planner's overlap counts also when it isn't set
-  const os = useMowbiteOs();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // the recorded outline pass asks before it's switched on
+  // the setting asked about before it's saved: the recorded outline pass on, the collision check off
+  const [asking, setAsking] = useState<typeof LOOP | 'body_fit' | null>(null);
   // want: what's being saved, shown already while the planner hasn't answered (it may be planning for minutes)
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; want?: Record<string, unknown>}>({});
   // "saved" shows for a moment
@@ -189,6 +195,9 @@ export function PlannerSimple({
     if (area) return area.set(k, v);
     await store({[k]: v === undefined ? null : v});
   };
+  // the recorded outline pass asks first before it's switched on
+  const put = (key: string, v: unknown) =>
+    key === LOOP && v === true ? setAsking(LOOP) : key === 'body_fit' && v === false ? setAsking('body_fit') : void save(key, v);
   const saveMany = async (values: Record<string, unknown>) => {
     if (area) return area.setMany ? area.setMany(values) : Object.entries(values).forEach(([k, v]) => area.set(k, v));
     await store(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v === undefined ? null : v])));
@@ -241,16 +250,22 @@ export function PlannerSimple({
       value={value(key) === undefined ? undefined : value(key) ? 'on' : 'off'}
       like={like(global(key) ? on : off)}
       disabled={state.busy}
-      onChange={(v) => void save(key, v === undefined ? undefined : v === 'on')}
+      onChange={(v) => put(key, v === undefined ? undefined : v === 'on')}
     />
   );
-  // on or off: a switch for all areas
+  // on or off: a switch for all areas, one the planner goes without can't be switched on
   const toggle = (key: string) =>
     area ? (
       either(key, tr('off'), tr('on'))
     ) : (
       <label className={local.switch}>
-        <input type="checkbox" checked={!!value(key)} disabled={state.busy} onChange={(e) => void save(key, e.target.checked)} />
+        <input
+          type="checkbox"
+          aria-label={tr(FIELDS[key]?.label ?? key)}
+          checked={!!value(key)}
+          disabled={state.busy || (!!all[key]?.ignored && !value(key))}
+          onChange={(e) => put(key, e.target.checked)}
+        />
         <span>{value(key) ? tr('on') : tr('off')}</span>
       </label>
     );
@@ -549,9 +564,9 @@ export function PlannerSimple({
               note={
                 auto
                   ? tr('As wide as possible without leaving grass standing.')
-                  : os
-                    ? tr("Smaller overlaps more and takes longer. Empty: the planner's overlap for all areas.")
-                    : tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')
+                  : om
+                    ? tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')
+                    : tr("Smaller overlaps more and takes longer. Empty: the planner's overlap for all areas.")
               }
               source={
                 others('lane_spacing_mode') ||
@@ -597,13 +612,15 @@ export function PlannerSimple({
               {has('angle_strategy') && (
                 <Row
                   label={tr('Automatic direction')}
-                  help={tr(FIELDS.angle_strategy.help)}
-                  note={`${tr('For areas without a mow angle of their own:')} ${tr(STRATEGY_NOTES[all.angle_strategy.stored ? String(global('angle_strategy')) : 'openmower'] ?? '')}`}
+                  help={tr(helpOf(FIELDS.angle_strategy, om))}
+                  note={`${tr('For areas without a mow angle of their own:')} ${tr(
+                    all.angle_strategy.stored ? (STRATEGY_NOTES[String(global('angle_strategy'))] ?? '') : noOwnStrategy(om).text,
+                  )}`}
                   source={areaList(tr('Own direction:'), areasWithDirection(map, all, os))}
                 >
                   <Choice
                     options={[
-                      ['openmower', tr('OpenMower')],
+                      ['openmower', tr(noOwnStrategy(om).label)],
                       ...STRATEGIES.filter((c) => all.angle_strategy.choices?.includes(c)).map((c): [string, string] => [c, tr(FIELDS.angle_strategy.choices![c])]),
                     ]}
                     value={all.angle_strategy.stored ? global('angle_strategy') : 'openmower'}
@@ -647,7 +664,7 @@ export function PlannerSimple({
                       </button>
                     )}
                   </div>
-                  {!!omIncrement && !os && (
+                  {!!omIncrement && om && (
                     <span className={local.error}>
                       {tr('OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up.', {deg: omIncrement})}{' '}
                       <button disabled={state.busy} onClick={() => void zeroOmIncrement()}>
@@ -801,6 +818,23 @@ export function PlannerSimple({
               source={others('perimeter_direction') || ownLine('perimeter_direction')}
             >
               {choice('perimeter_direction', FIELDS.perimeter_direction.choices!)}
+            </Row>
+          )}
+          {/* shown also while the planner goes without it, with why */}
+          {all[LOOP]?.settable && (
+            <Row
+              label={tr(FIELDS[LOOP].label)}
+              help={tr(FIELDS[LOOP].help)}
+              note={
+                !area && all[LOOP].ignored
+                  ? recordedLoopNote(String(all[LOOP].ignored))
+                  : effective(LOOP) === true
+                    ? recordedLoopMeans()
+                    : null
+              }
+              source={others(LOOP) || ownLine(LOOP)}
+            >
+              {toggle(LOOP)}
             </Row>
           )}
         </Section>
@@ -1168,6 +1202,16 @@ export function PlannerSimple({
       </div>
 
       {state.error && <span className={local.error}>{state.error}</span>}
+      {asking === LOOP && <AskSheet {...recordedLoopWarning()} yes={tr('Switch on')} onYes={() => void save(LOOP, true)} onClose={() => setAsking(null)} />}
+      {asking === 'body_fit' && (
+        <AskSheet
+          title={tr('Switch the collision check off?')}
+          lines={[tr('Plans then go as they come: in a tight spot or a turn the body can stick out past a real edge or into an obstacle, with the blade on.')]}
+          yes={tr('Switch off')}
+          onYes={() => void save('body_fit', false)}
+          onClose={() => setAsking(null)}
+        />
+      )}
     </div>
   );
 }

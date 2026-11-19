@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {PlannerSetting} from './mowerBody';
 import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
-import {areasWith, areasWithDirection, osOwn, osSet, osTidy, ownMargins, ownSettings} from './plannerOwn';
+import {areasWith, areasWithDirection, osOwn, osSet, osTidy, ownMargins, ownSettings, plannerAngle} from './plannerOwn';
 
 const setting = (value: unknown, more: Partial<PlannerSetting> = {}): PlannerSetting => ({
   value,
@@ -55,7 +55,7 @@ describe('ownSettings', () => {
     const own = ownSettings({}, {outline_count: 3, outline_offset: 0.2}, all, false);
     expect(own.map((o) => [o.label, o.value, o.idle])).toEqual([
       ['Outline passes (OpenMower)', '3', null],
-      ['Outline offset (OpenMower)', '20 cm', null],
+      ['First pass from the line (OpenMower)', '20 cm', null],
     ]);
   });
 });
@@ -179,5 +179,22 @@ describe('one place for an area value on MowBite OS', () => {
     expect(areasWith(map, 'perimeter_passes', all, true).map((a) => a.value)).toEqual(['3', 'automatic']);
     expect(areasWith(map, 'perimeter_passes', all).map((a) => a.value)).toEqual(['3 from OpenMower', 'automatic']);
     expect(areasWithDirection(map, all, true).map((a) => a.value)).toEqual(['0°']);
+  });
+});
+
+describe('the angle the planner plans with', () => {
+  it("takes the area's planner settings first, on OpenMower mower_logic's angle unless the planner has its own", () => {
+    expect(plannerAngle({angle: 1}, 2, 3, false, false)).toBe(1);
+    expect(plannerAngle({angle_strategy: 'optimal'}, 2, 3, false, false)).toBeNull();
+    expect(plannerAngle({}, 2, 3, true, false)).toBeUndefined();
+    expect(plannerAngle({}, undefined, 3, true, false)).toBe(3);
+    expect(plannerAngle({}, undefined, null, false, false)).toBeUndefined();
+  });
+
+  it("is always the planner's on MowBite OS: the area's angle, the one for all areas, else its strategy", () => {
+    expect(plannerAngle({}, 2, 3, false, true)).toBe(2);
+    expect(plannerAngle({}, undefined, 3, false, true)).toBe(3);
+    expect(plannerAngle({}, NaN, null, false, true)).toBeNull();
+    expect(plannerAngle({angle_strategy: 'optimal'}, 2, 3, false, true)).toBeNull();
   });
 });

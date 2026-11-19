@@ -77,8 +77,11 @@ export function dockText(charge: Charge, confirmed?: boolean | null): {text: str
   return {text: charge === 'done' ? tr('Charged, in the dock') : tr('Charging in the dock'), warn: false};
 }
 
+// a step of the setup program turns the wheels (MowBite OS from api 44)
+export const inSetupStep = (s: {current_state: string; current_sub_state?: string}) => s.current_state === 'IDLE' && s.current_sub_state === 'SETUP';
+
 export function statusText(
-  state: {current_state: string; emergency: number; is_charging: number} | null | undefined,
+  state: {current_state: string; current_sub_state?: string; emergency: number; is_charging: number} | null | undefined,
   docked: boolean,
   charge: Charge,
   confirmed?: boolean | null,
@@ -86,6 +89,7 @@ export function statusText(
   if (!state) return '';
   if (state.emergency) return tr('Emergency');
   if (docked) return dockText(charge, confirmed).text;
+  if (inSetupStep(state)) return tr('Setup step running');
   const names: Record<string, string> = {
     // not in the dock (that's above), as the dashboard says it
     IDLE: 'Waiting on the lawn',

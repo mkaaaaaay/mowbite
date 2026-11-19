@@ -3,13 +3,12 @@
 import {CopyCommand} from './Updates';
 import {tr} from '@/lib/i18n';
 import {plannerSeen} from '@/lib/mowerBody';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useOpenMower} from '@/lib/mowerOs';
 
 // mower_logic sends no state while the rest of OpenMower answers: what to look at on the mower. The planner first when
-// this mower had one here, OpenMower set to it waits for it. none on MowBite OS, these are OpenMower's containers
+// this mower had one here, OpenMower set to it waits for it. only on OpenMower, these are its containers
 export default function LogicHint({className}: {className?: string}) {
-  const os = useMowbiteOs();
-  if (os) return null;
+  if (!useOpenMower()) return null;
   return (
     <div className={className}>
       {plannerSeen() && (

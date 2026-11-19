@@ -121,9 +121,10 @@ describe("MowBite's port on a mower", () => {
     // kept for the next page, until it runs OpenMower again
     const next = await open();
     expect(next.apiBase()).toBe('http://b:80');
+    expect(next.keptOs()).toBe(true);
     next.noteOs(false);
     expect(next.apiBase()).toBe('http://b:8082');
-    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+    expect(next.keptOs()).toBe(false);
   });
 
   it('stays the one typed for it on MowBite OS too', async () => {

@@ -2,6 +2,7 @@
 
 import {clock} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
+import {useOpenMower} from '@/lib/mowerOs';
 import {rosLogAround, rosLogSince, type RosLogLine} from '@/lib/roslog';
 import {useEffect, useState} from 'react';
 import styles from './RosLog.module.css';
@@ -11,6 +12,8 @@ export function RosLogAround({t}: {t: number}) {
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<RosLogLine[] | null | 'failed'>(null);
+  // ROS only by name where the mower runs OpenMower
+  const om = useOpenMower();
 
   // only for a moment the log can reach, a problem from before it was kept would just show nothing
   useEffect(() => {
@@ -27,14 +30,18 @@ export function RosLogAround({t}: {t: number}) {
   return (
     <>
       <button className={styles.link} onClick={toggle}>
-        {open ? tr('Hide ROS log') : tr('ROS log')}
+        {om ? (open ? tr('Hide ROS log') : tr('ROS log')) : open ? tr('Hide mower log') : tr('Mower log')}
       </button>
       {open && (
         <div className={styles.log}>
           {lines === null && <span>{tr('loading…')}</span>}
           {lines === 'failed' && <span>{tr('failed')}</span>}
           {Array.isArray(lines) && lines.length === 0 && (
-            <span>{tr('ROS reported nothing around that time, or it was before the log was kept (the last 14 days).')}</span>
+            <span>
+              {om
+                ? tr('ROS reported nothing around that time, or it was before the log was kept (the last 14 days).')
+                : tr('The mower reported nothing around that time, or it was before the log was kept (the last 14 days).')}
+            </span>
           )}
           {Array.isArray(lines) &&
             lines.map((l, i) => (

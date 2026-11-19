@@ -2,10 +2,11 @@
 
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {CheckIcon, CloseIcon, PlayIcon} from '@/components/icons';
+import {CheckIcon, CloseIcon, GuideIcon, PlayIcon} from '@/components/icons';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
-import {useMowerActions} from '@/hooks/useMowerActions';
+import {useJustReset} from '@/hooks/useEmergencyReset';
+import {lockedAfter, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {loadUpdate} from '@/lib/autoUpdate';
 import {
@@ -76,7 +77,8 @@ function useUpdater(asked: string | null) {
       clearTimeout(t);
     };
   }, [tick, fast]);
-  return {status, again: () => setTick((n) => n + 1)};
+  // again: asked right away, then on the usual interval
+  return {status, again: () => setTick(0)};
 }
 
 // before it starts: what MowBite checks, what the user confirms (driving by hand only)
@@ -196,7 +198,8 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
         ) : missing.length === 2 ? (
           <p className={styles.dim}>{tr('Tick both points above, then it starts.')}</p>
         ) : (
-          <Link href="/guide/calibration" className={styles.link}>
+          <Link href="/guide/calibration" className={`${styles.link} ${styles.guide}`}>
+            <GuideIcon size={16} />
             {tr('Read the guide first (2 min)')}
           </Link>
         )}
@@ -251,6 +254,10 @@ function Calibration() {
   const {state} = link;
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
+  // the start held back like the dashboard's: in an emergency stop, right after its reset and right after a tap
+  const justReset = useJustReset(!!state?.emergency);
+  const [tapped, tap] = useTapLock();
+  const startLocked = !live || !!state?.emergency || justReset || (!!tapped && lockedAfter(tapped, ACTION.startMowing));
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
@@ -433,7 +440,14 @@ function Calibration() {
           <p className={styles.now}>{tr("It mows and measures along. You don't need to do anything.")}</p>
           <p className={styles.dim}>{tr('Ends by itself once there\'s enough, after {n} hours at the latest.', {n: 2})}</p>
           {hasAction(ACTION.startMowing) && (
-            <button className={styles.primary} disabled={!live} onClick={() => publishAction(ACTION.startMowing)}>
+            <button
+              className={styles.primary}
+              disabled={startLocked}
+              onClick={() => {
+                tap(ACTION.startMowing);
+                publishAction(ACTION.startMowing);
+              }}
+            >
               <PlayIcon size={18} />
               {tr('Start mowing')}
             </button>
@@ -520,7 +534,8 @@ function Calibration() {
             <PlayIcon size={20} />
             {tr('Start calibration')}
           </button>
-          <Link href="/guide/calibration" className={styles.link}>
+          <Link href="/guide/calibration" className={`${styles.link} ${styles.guide}`}>
+            <GuideIcon size={16} />
             {tr('Guide: how to drive it right')}
           </Link>
         </section>

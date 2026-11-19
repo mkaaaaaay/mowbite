@@ -61,7 +61,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Simulate the drive',
-    text: "With the MowBite Planner on the mower, Simulate the drive under Mowing settings drives the area's plan the way your mower would: with OpenMower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
+    text: "With the MowBite Planner on the mower, Simulate the drive under Mowing settings drives the area's plan the way your mower would: with the mower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
   },
   {
     title: 'Map style',

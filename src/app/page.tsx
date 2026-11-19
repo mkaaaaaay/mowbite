@@ -1,6 +1,8 @@
 'use client';
 
 import {BrandMark} from '@/components/BrandMark';
+import {DockingTest} from '@/components/DockingTest';
+import {SetupCard} from '@/components/setup/SetupCard';
 import {DontPanic} from '@/components/DontPanic';
 import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LogicHint from '@/components/LogicHint';
@@ -14,12 +16,12 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
 import {useTrackBefore} from '@/hooks/useLeftoversBefore';
-import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {lockedAfter, setsOff, useCommandNote, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
+import {DRIVING, isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
@@ -33,17 +35,19 @@ import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
+import {useOsApi, usePlatform, useStopRelease} from '@/lib/mowerOs';
 import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
+import {useObstacles} from '@/hooks/useObstacles';
+import {ObstacleCard} from '@/components/ObstacleCard';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
 import {settingsStore, showDashCamera} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
+import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, inSetupStep, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
-import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -71,13 +75,11 @@ import {useLeftoverRun} from '@/hooks/useLeftoverRun';
 import MowerSwitch from '@/components/MowerSwitch';
 import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
+import {OsRestart} from '@/components/HostOs';
 import {ACTION, PARAM} from '@/lib/openmower';
 
-// paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
-const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
-
-// skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
-// it back
+// skipping an area or a path drops what's left of it, so it goes out only after a few seconds; a second tap or leaving
+// the page takes it back
 const SKIP_DELAY = 4;
 // the left out start that was closed, by its time
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
@@ -86,6 +88,7 @@ const ACTIONS = [
   {id: ACTION.pause, Icon: PauseIcon, label: 'Pause', tone: 'pause'},
   {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home', tone: 'home'},
   {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area', tone: 'skip'},
+  {id: ACTION.abortDocking, Icon: CloseIcon, label: 'Stop docking', tone: 'stop'},
 ];
 
 
@@ -148,7 +151,7 @@ function headline(state: MowerState, docked: boolean, charger: boolean, charge: 
       // carried into the dock say, it only counts once it's ended there
       return {title: charger ? tr('Paused, in the dock') : tr('Paused'), tone: 'warn'};
     case 'IDLE':
-      return {title: tr('Waiting on the lawn'), tone: 'warn'};
+      return inSetupStep(state) ? {title: tr('Setup step running'), tone: 'live'} : {title: tr('Waiting on the lawn'), tone: 'warn'};
     default:
       return {title: state.current_state.toLowerCase().replace(/_/g, ' '), tone: 'neutral'};
   }
@@ -215,7 +218,7 @@ export default function Home() {
   const choice = useMowerChoice();
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
-  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency);
   // the release with STOP at the mower, where it has one
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
@@ -228,7 +231,9 @@ export default function Home() {
   // the map page's map worked out while this one idles
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
-  const os = useMowbiteOs();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const api = useOsApi();
   // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
   const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
@@ -301,25 +306,8 @@ export default function Home() {
   }, [skip, publishAction]);
   const toggleSkip = (id: string) =>
     setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY, area: state?.current_area, path: state?.current_path});
-  // leaving the page doesn't take a waiting skip back: it goes out right away
-  const waiting = useRef({skip, publishAction});
-  useEffect(() => {
-    waiting.current = {skip, publishAction};
-  });
-  useEffect(
-    () => () => {
-      const {skip, publishAction} = waiting.current;
-      if (skip) publishAction(skip.id, skip);
-    },
-    [],
-  );
   // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
-  const [tapped, setTapped] = useState<string | null>(null);
-  useEffect(() => {
-    if (!tapped) return;
-    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
-    return () => clearTimeout(t);
-  }, [tapped]);
+  const [tapped, setTapped] = useTapLock();
 
   const current = state?.current_state ?? '';
   // asked every minute while it's out, from a container that has it
@@ -332,6 +320,10 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [out]);
   const driving = DRIVING.has(current);
+  // what the obstacle sensors saw, on the map; the one tapped with its photo over it
+  const seen = useObstacles().obstacles;
+  const [seenPicked, setSeenPicked] = useState<number | null>(null);
+  const picked = seen?.find((o) => o.id === seenPicked);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
   // so: one on the next mow leaves recording mode to the areas
   const calibrating = useCalibratingByHand(current === 'AREA_RECORDING');
@@ -349,13 +341,13 @@ export default function Home() {
         ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
         : a,
   ).filter((a) => hasAction(a.id) && !state?.emergency);
-  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
-  // went. paused it still goes out, OpenMower skips once it goes on
+  // a skip button is there while mowing or paused, connected and without an emergency stop
+  const canSkip = (id: string) => live && (current === 'MOWING' || current === 'PAUSED') && hasAction(id) && !state?.emergency;
+  // a waiting skip is dropped once its button is gone or the mower is on another area or path. paused it still goes out,
+  // OpenMower skips once it goes on
   if (
     skip !== null &&
-    (!live ||
-      (current !== 'MOWING' && current !== 'PAUSED') ||
-      !hasAction(skip.id) ||
+    (!canSkip(skip.id) ||
       state?.current_area !== skip.area ||
       (skip.id === ACTION.skipPath && state?.current_path !== skip.path))
   )
@@ -467,26 +459,16 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
-          {cameras && (
-            <button
-              className={styles.cameraSwitch}
-              aria-pressed={!!settings.dashboard?.camera}
-              aria-label={tr('Camera picture')}
-              title={tr('Camera picture')}
-              onClick={() => showDashCamera(!settings.dashboard?.camera)}
-            >
-              <CameraIcon size={20} />
-            </button>
-          )}
           <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
+        <OsRestart banner />
 
         {!state &&
           (link.silent ? (
             <div className={styles.dim}>
               <p className={styles.offline}>
-                {os ? tr("The mower answers, but its state doesn't come.") : tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}
+                {om ? tr("The rest of OpenMower answers, but mower_logic doesn't send its state.") : tr("The mower answers, but its state doesn't come.")}
               </p>
               <LogicHint className={styles.logicHint} />
             </div>
@@ -510,6 +492,17 @@ export default function Home() {
             <div className={styles.statusTop}>
               <BatteryRing percent={battery} />
               <div className={styles.headline}>
+                {cameras && (
+                  <button
+                    className={styles.cameraSwitch}
+                    aria-pressed={!!settings.dashboard?.camera}
+                    aria-label={tr('Camera picture')}
+                    title={tr('Camera picture')}
+                    onClick={() => showDashCamera(!settings.dashboard?.camera)}
+                  >
+                    <CameraIcon size={18} />
+                  </button>
+                )}
                 {/* which mower this is, with more than one to pick from */}
                 {choice.many && <span className={styles.mowerName}>{choice.name}</span>}
                 <h2>{head.title}</h2>
@@ -613,7 +606,7 @@ export default function Home() {
                     )}
                 </div>
               )}
-              {live && (current === 'MOWING' || current === 'PAUSED') && hasAction(ACTION.skipPath) && !state.emergency && (
+              {canSkip(ACTION.skipPath) && (
                 <button
                   className={styles.skipPathButton}
                   title={tr('The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.')}
@@ -648,6 +641,10 @@ export default function Home() {
                     {tr('Drop the interrupted job')}
                   </button>
                 ))}
+              {/* MowBite OS's setup program until it's complete */}
+              <SetupCard />
+              {/* idle in front of the station, where the mower offers it */}
+              <DockingTest styles={styles} live={live} idle={current === 'IDLE' && !state.emergency && !charger} state={current} />
               {/* idle in the dock: what the last mow left, and mowing just that */}
               {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
                 <LeftoversCard
@@ -684,11 +681,15 @@ export default function Home() {
               follow={driving}
               zoomable
               datum={datum}
+              obstacles={seen}
+              obstaclePicked={seenPicked}
+              onObstaclePick={setSeenPicked}
             />
+            {picked && <ObstacleCard obstacle={picked} onClose={() => setSeenPicked(null)} />}
           </section>
         )}
 
-        {/* a camera's picture, switched on at the top or in the settings */}
+        {/* a camera's picture, switched on in the status card or in the settings */}
         {settings.dashboard?.camera && cameras && (
           <section className={styles.cameraCard}>
             <CameraView onHide={() => showDashCamera(false)} />

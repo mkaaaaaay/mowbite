@@ -33,8 +33,12 @@ export function tempLimits(info: SensorInfo): {warn?: number; crit?: number} {
   return {warn: info.max_value > 0 && (crit === undefined || info.max_value < crit) ? info.max_value : undefined, crit};
 }
 
+// OpenMower's battery_critical_high_voltage is where charging stops: a full battery on the charger sits at it, red only
+// this far past it
+const CHARGE_END_SLACK = 0.2;
+
 // a value at or past one of the sensor's critical limits. revolutions count only while mowing with the blade turning
-export function outOfRange(info: SensorInfo | undefined, raw: string | undefined, state: string | undefined): boolean {
+export function outOfRange(info: SensorInfo | undefined, raw: string | undefined, state: string | undefined, charging = false): boolean {
   if (!info || raw === undefined || info.value_type !== 'DOUBLE') return false;
   const revolutions = info.value_description === 'REVOLUTIONS';
   if (revolutions && state !== 'MOWING') return false;
@@ -42,7 +46,8 @@ export function outOfRange(info: SensorInfo | undefined, raw: string | undefined
   const v = revolutions ? Math.abs(Number(raw)) : Number(raw);
   if (Number.isNaN(v) || (revolutions && v < STANDING_RPM)) return false;
   const {low, high} = sensorLimits(info);
-  return (low !== undefined && v <= low) || (high !== undefined && v >= high);
+  const top = high !== undefined && charging && info.sensor_id === 'om_v_battery' ? high + CHARGE_END_SLACK : high;
+  return (low !== undefined && v <= low) || (top !== undefined && v >= top);
 }
 
 export type Tone = 'ok' | 'warn' | 'crit';

@@ -1,0 +1,45 @@
+.wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 20px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  text-align: center;
+}
+
+.sign {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--tint-accent);
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sign svg {
+    animation: turn 1.6s linear infinite;
+  }
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wait h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.wait p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}

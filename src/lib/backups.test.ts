@@ -1,10 +1,11 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-// keep: the list's X-Backups-Keep, when asked with GET and net.list
-const net = vi.hoisted(() => ({status: 200, list: false, keep: null as string | null}));
+// keep: the list's X-Backups-Keep, when asked with GET and net.list; os: what the mower runs (keptOs)
+const net = vi.hoisted(() => ({status: 200, list: false, keep: null as string | null, os: false as boolean | null}));
 vi.mock('./mowers', () => ({
   apiBase: () => '',
   isDemo: () => false,
+  keptOs: () => net.os,
   mowerFetch: async (_url: string, init?: RequestInit) =>
     net.list && init?.method !== 'POST'
       ? new Response('[]', {headers: {'content-type': 'application/json', ...(net.keep ? {'X-Backups-Keep': net.keep} : {})}})
@@ -17,6 +18,7 @@ const {forget} = await import('./fresh');
 describe('deleteBackup', () => {
   beforeEach(() => {
     net.list = false;
+    net.os = false;
   });
 
   it('is done when the container says so', async () => {
@@ -27,6 +29,15 @@ describe('deleteBackup', () => {
   it('fails when the container refuses it', async () => {
     net.status = 500;
     await expect(deleteBackup('a')).rejects.toThrow('error 500');
+  });
+
+  it('names the container only on OpenMower', async () => {
+    net.status = 500;
+    await expect(deleteBackup('a')).rejects.toThrow('container');
+    for (const os of [true, null]) {
+      net.os = os;
+      await expect(deleteBackup('a')).rejects.toThrow(/^The mower answered with error 500\.$/);
+    }
   });
 });
 
@@ -68,6 +79,15 @@ describe('parseMapFile', () => {
     expect(bad({areas: [area], docking_stations: [{}]})).toThrow();
     expect(bad({areas: [area], docking_stations: [{...dock, heading: '1'}]})).toThrow();
     expect(parseMapFile(JSON.stringify({areas: [area], docking_stations: [dock]})).docking_stations).toEqual([dock]);
+  });
+
+  it('refuses areas without an id or with the same one, and leaves out a known property of the wrong type', () => {
+    const bad = (m: object) => () => parseMapFile(JSON.stringify(m));
+    expect(bad({areas: [{...area, id: undefined}]})).toThrow();
+    expect(bad({areas: [{...area, id: ''}]})).toThrow();
+    expect(bad({areas: [area, {...area}]})).toThrow();
+    const odd = {...area, properties: {type: 'mow', angle: '12.5', planner: [1], margin: 0.2, mine: 'kept'}};
+    expect(parseMapFile(JSON.stringify({areas: [odd]})).areas[0].properties).toEqual({type: 'mow', margin: 0.2, mine: 'kept'});
   });
 });
 

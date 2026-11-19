@@ -9,8 +9,22 @@ export type AreaProperties = Area['properties'];
 // change the selected area's properties, undoable = one undo step for this change
 export type UpdateArea = (patch: Partial<AreaProperties>, undoable?: boolean) => void;
 
-// area settings only newer openmower versions keep, older ones drop them when saving (pin too, its square says it then)
-export const NEW_AREA_SETTINGS = ['mowable', 'angle_min', 'angle_max'] as const;
+// the same points, also when they came back from the mower after a save
+export const sameOutline = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y));
+
+// map contract: a ring drawn or reshaped by hand is a hard edge (drawn true), one only recorded by driving is the path of
+// the mower's middle. the rings new or reshaped from prev to next get it, pins aren't rings
+export function markDrawn(next: MowerMap, prev: MowerMap | null): MowerMap {
+  const before = new Map(prev?.areas.map((a) => [a.id, a.outline]));
+  let marked = false;
+  const areas = next.areas.map((a) => {
+    const was = before.get(a.id);
+    if (a.properties.drawn || isPin(a) || (was && sameOutline(was, a.outline))) return a;
+    marked = true;
+    return {...a, properties: {...a.properties, drawn: true}};
+  });
+  return marked ? {...next, areas} : next;
+}
 
 // the outline of a pin standing at x, y: a square PIN_SIDE across along the map's axes, an area other apps can take too
 // (closed it has the 5 points a ring needs)

@@ -3,6 +3,7 @@
 import {useEffect, useState} from 'react';
 import {tr} from '@/lib/i18n';
 import {usePlannerWaiting} from '@/lib/mowerBody';
+import {useOpenMower} from '@/lib/mowerOs';
 import {progressFor, usePlanAsked, usePlanningProgress} from '@/lib/plannerProgress';
 import styles from './PlannerWaiting.module.css';
 
@@ -18,6 +19,7 @@ const duration = (s: number) => (s < 60 ? tr('{s} s', {s}) : `${Math.floor(s / 6
 // a thin bar while the app waits for the planner (busy planning): for a change sent, a plan asked for (how far the
 // planning got and the time left when the planner tells), its settings. An answer within a second shows nothing
 export default function PlannerWaiting() {
+  const om = useOpenMower();
   const wait = usePlannerWaiting();
   const ask = usePlanAsked();
   const progress = progressFor(usePlanningProgress(), ask);
@@ -45,7 +47,9 @@ export default function PlannerWaiting() {
     time = left !== null && left > 0 ? tr('{t} left', {t: duration(left)}) : duration(Math.round(progress.elapsed_s));
   } else {
     const from = wait?.what === 'load' ? wait.since : since;
-    text = wait?.what === 'load' && s(from) >= LONG ? tr("No answer for a long while: is the planner's container running?") : tr('Waiting for the planner');
+    // the planner's container only on OpenMower
+    const long = wait?.what === 'load' && s(from) >= LONG;
+    text = !long ? tr('Waiting for the planner') : om ? tr("No answer for a long while: is the planner's container running?") : tr('No answer from the planner for a long while.');
     time = duration(s(from));
   }
   return (

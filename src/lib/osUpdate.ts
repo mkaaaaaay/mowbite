@@ -1,10 +1,11 @@
 import {useSyncExternalStore} from 'react';
 import {numericDay, shortDay} from './dates';
 import {tr} from './i18n';
-import {onTopic, topicStore} from './mqttClient';
+import {knownSystemInfo, isMowbiteOs} from './mowerOs';
+import {onTopic} from './mqttClient';
 import {RPC, TOPIC, UPDATE_GATED} from './openmower';
 import {callRpc, RpcError} from './rpc';
-import {APP_VERSION, isNewer} from './updates';
+import {APP_VERSION, isNewer, OS_API} from './updates';
 
 // MowBite OS's own updater (its host, masterplan 3.5): each part with what runs, what's new and where the way back goes,
 // the update going on and how the last one ended. The same as the answer of every update.* and retained on its topic.
@@ -26,6 +27,9 @@ export interface Blocked {
 export interface Available extends Version {
   // the oldest app it works with
   min_app: string | null;
+  // os: the api it speaks and its break, null for a bundle that doesn't say
+  api?: number | null;
+  api_break?: number | null;
   blocked: Blocked | null;
   // where it was found: the inbox on the mower or the release index on the net
   from?: 'inbox' | 'net';
@@ -131,10 +135,6 @@ function subscribe(l: () => void) {
 
 export const useUpdateStatus = (): Seen | null => useSyncExternalStore(subscribe, () => seen, () => null);
 
-// the host says online while it answers, its last will says false: undefined until either came
-const hostOnline = topicStore<boolean | undefined>(TOPIC.hostStatus, undefined, (payload) => JSON.parse(payload.toString()).online === true);
-export const useHostOnline = () => useSyncExternalStore(hostOnline.subscribe, hostOnline.get, hostOnline.initial);
-
 // every call names the app's version: the automatic update leaves out what needs a newer app than the one seen last
 const call = (method: string, params: object = {}) =>
   callRpc<UpdateStatus>(method, {...params, app_version: APP_VERSION}).then((s) => {
@@ -227,6 +227,20 @@ export function runSteps(s: UpdateStatus): {steps: Step[]; now: number} {
 
 // this app is older than the version needs
 export const appTooOld = (a: Available | null) => !!a?.min_app && isNewer(a.min_app, APP_VERSION);
+
+// os: why this app doesn't speak the api it names, null when it does or it doesn't say: another break (without one
+// above max) or below min. only a note, the OS brings an app along that fits and the mower serves that one meanwhile
+export function apiMisfit(a: Pick<Available, 'api' | 'api_break'> | null, own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
+  if (!own || typeof a?.api !== 'number') return null;
+  if (a.api < own.min) return 'OS_TOO_OLD';
+  return (typeof a.api_break === 'number' ? a.api_break !== own.break : a.api > own.max) ? 'APP_API_BREAK' : null;
+}
+
+// the MowBite OS that runs and this app: why they don't fit, null where they do or it isn't known yet
+export function runningMisfit(own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
+  const i = knownSystemInfo();
+  return isMowbiteOs(i) ? apiMisfit({api: i!.api ?? null, api_break: i!.api_break ?? null}, own) : null;
+}
 
 // the order the automatic update takes the parts in (masterplan 3.5)
 const AUTO_ORDER = ['host', 'app', 'planner', 'os'];

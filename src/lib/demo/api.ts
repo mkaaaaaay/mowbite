@@ -4,6 +4,7 @@ import {isPin} from '../mowerBody';
 import {CONTAINER_LEVEL} from '../updates';
 import {closedRings} from '../rings';
 import {CALIB_LIST, demoYaml} from './calib';
+import {demoFlags} from './flags';
 import {demoMap, DEMO_SENSORS} from './garden';
 import {DEMO_PLAN, demoMows} from './world';
 
@@ -203,6 +204,7 @@ let updateConf = 'mowbite beta\nmowbite_auto 1\nopenmower edge\nopenmower_auto 0
 // an update asked for: each part goes through its steps within seconds, the way the bar shows a real one. a step:
 // its name, its seconds and of unpacking or building how many
 type DemoStep = [step: string, secs: number, of?: number];
+const OS_THERE: DemoStep[] = [['prepare', 2], ['download', 4], ['extract', 2, 3], ['stop', 2], ['start', 2], ['wait', 3]];
 const DEMO_STEPS: Record<string, DemoStep[]> = {
   openmower: [['prepare', 2]],
   planner: [['prepare', 2], ['build', 12, 9], ['restart', 3], ['wait', 5]],
@@ -210,12 +212,30 @@ const DEMO_STEPS: Record<string, DemoStep[]> = {
   back: [['back', 3], ['restart', 3], ['wait', 4]],
   // the updater itself: its download, then it restarts on the new version (a few seconds without an answer)
   updater: [['prepare', 2], ['download', 5]],
+  // MowBite OS in OpenMower's place, the same not running as it should, and back to OpenMower
+  osThere: OS_THERE,
+  osFails: [...OS_THERE, ['back', 3]],
+  osBack: [['export', 2], ['stop', 2], ['back', 3]],
 };
 let demoRun: {t: number; parts: string[]} | null = null;
+// a look for updates asked for: the demo mower looks for 8 seconds and finds nothing new
+let demoLook = 0;
+// a request as the updater takes it: noted (taken) for 2 seconds before its run, look or deletion shows, like the
+// updater's first look at the mower; deleting and a look for room show nothing else until they're done
+const TAKE = 2;
+let demoTaken: {t: number; word: string; done?: () => void} | null = null;
+const take = (word: string, done?: () => void) => (demoTaken = {t: Date.now() / 1000, word, done});
 const demoDone: Record<string, number> = {};
 function demoProgress(status: Record<string, string>, now: number) {
-  if (!demoRun) return;
-  const part = (p: string) => (p === 'back' ? 'mowbite' : p);
+  if (demoTaken) {
+    if (now - demoTaken.t < TAKE) status.taken = `${Math.round(demoTaken.t)} ${demoTaken.word}`;
+    else {
+      demoTaken.done?.();
+      demoTaken = null;
+    }
+  }
+  if (!demoRun || now < demoRun.t) return;
+  const part = (p: string) => (p === 'back' ? 'mowbite' : p.startsWith('os') ? 'os' : p);
   let t = now - demoRun.t;
   for (const p of demoRun.parts) {
     for (const [step, secs, of] of DEMO_STEPS[p]) {
@@ -225,8 +245,14 @@ function demoProgress(status: Record<string, string>, now: number) {
         // (the updater updates itself after the others, on a bar of its own)
         status.run_parts = p === 'updater' ? p : demoRun.parts.filter((x) => x !== 'updater').map(part).join(' ');
         status.result = 'running';
-        // (the request it took, as the updater tells it)
-        if (p === 'back') status.taken = `${Math.round(demoRun.t)} back:mowbite`;
+        // (where a switch is, as the updater notes it once it's under way)
+        if (p.startsWith('os') && step !== 'prepare')
+          status.switch_os =
+            p === 'osBack'
+              ? `openmower ${step}`
+              : step === 'back'
+                ? `os back rolled_back ${demoFlags().mowbiteDemoOsFails}`
+                : `os ${step === 'download' || step === 'extract' ? 'pull' : step}`;
         return;
       }
       t -= secs;
@@ -234,6 +260,23 @@ function demoProgress(status: Record<string, string>, now: number) {
   }
   for (const p of demoRun.parts) demoDone[p] = Math.round(now);
   demoRun = null;
+}
+
+// MowBite OS in OpenMower's place, offered with window.mowbiteDemoOsSwitch ('on': it runs already, since an hour); the
+// way there doesn't run as it should with window.mowbiteDemoOsFails (a reason of the updater's rolled_back). with
+// window.mowbiteDemoNoUpdater there's none, as on MowBite OS
+let demoOs: {on: number | null; result: string | null; at: number} | null = null;
+function demoOsSwitch(status: Record<string, string>, now: number) {
+  const flag = demoFlags().mowbiteDemoOsSwitch;
+  if (!flag) return;
+  demoOs ??= flag === 'on' ? {on: now - 3600, result: `switched ${now - 3600} import`, at: now - 3600} : {on: null, result: null, at: 0};
+  const t = demoDone.osThere ?? demoDone.osFails ?? demoDone.osBack;
+  if (demoDone.osThere) demoOs = {on: t, result: `switched ${t} import`, at: t};
+  if (demoDone.osFails) demoOs = {on: null, result: `rolled_back ${demoFlags().mowbiteDemoOsFails}`, at: t};
+  if (demoDone.osBack) demoOs = {on: null, result: `back ${t} map`, at: t};
+  for (const p of ['osThere', 'osFails', 'osBack']) delete demoDone[p];
+  status.os_switch = demoOs.on ? `on ${demoOs.on}` : 'yes 230 keep import';
+  if (demoOs.result) Object.assign(status, {os: demoOs.result, os_at: String(demoOs.at)});
 }
 
 // a calibration's values asked to be written (?calib, or back to the copy before): done 4 s later like the updater does
@@ -290,6 +333,8 @@ function demoUpdate(): Record<string, unknown> {
     disk_free: '2380',
     result: 'done',
   };
+  // (a run that ends now: what came of it in the same answer)
+  demoProgress(status, Date.now() / 1000);
   if (demoDone.mowbite) Object.assign(status, {mowbite: `updated ${demoDone.mowbite} ${version}`, mowbite_available: 'no ghcr.io/mkaaaaaay/mowbite:latest'});
   if (demoDone.back) status.mowbite = `back ${demoDone.back} ${version}`;
   if (demoDone.openmower) status.openmower = 'current';
@@ -300,8 +345,10 @@ function demoUpdate(): Record<string, unknown> {
   }
   if (demoDone.planner)
     Object.assign(status, {planner: `updated ${demoDone.planner} 3f2a9c1`, planner_running: `3f2a9c1e5b7d ${day(0)}`, planner_available: 'no main'});
-  demoProgress(status, Date.now() / 1000);
+  if (now >= demoLook && now - demoLook < 8) status.looking = String(demoLook);
+  else if (demoLook && now >= demoLook) status.checked = String(demoLook + 8);
   demoCalib(status, now);
+  demoOsSwitch(status, now);
   return {
     conf: {...c, mowbite_auto: Number(c.mowbite_auto), openmower_auto: Number(c.openmower_auto), planner_auto: Number(c.planner_auto)},
     parts: [
@@ -402,21 +449,37 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
       }
       if (post && q.get('free')) {
         const what = q.get('free')!;
-        if (what === 'cache') cache = 0;
-        else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
+        take(`free:${what.split(':')[0]}`, () => {
+          if (what === 'cache') cache = 0;
+          else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
+        });
         return text('ok');
       }
-      // an update or going back: played through in a few seconds, all of them with the updater itself last. a check: the
-      // demo mower has nothing to look for
+      if (post && q.has('room')) take('room');
+      if (post && q.has('check')) {
+        take('check');
+        demoLook = Math.round(Date.now() / 1000) + TAKE;
+      }
+      // an update or going back: played through in a few seconds after it took it, all of them with the updater itself
+      // last
       if (post && (q.has('now') || q.has('back') || q.has('self')) && !demoRun) {
         const one = q.get('now');
+        take(q.has('back') ? 'back:mowbite' : q.has('self') ? 'self' : one ? `now:${one}` : 'now:all');
         demoRun = {
-          t: Date.now() / 1000,
+          t: Date.now() / 1000 + TAKE,
           parts: q.has('back') ? ['back'] : q.has('self') ? ['updater'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite', 'updater'],
         };
       }
+      // a switch, only the one offered
+      if (post && q.get('switch')) {
+        const to = q.get('switch');
+        const on = demoOs?.on;
+        if (!demoFlags().mowbiteDemoOsSwitch || demoRun || (to === 'os' ? on : to !== 'openmower' || !on)) return text('bad');
+        take(`switch:${to}`);
+        demoRun = {t: Date.now() / 1000 + TAKE, parts: [to === 'openmower' ? 'osBack' : demoFlags().mowbiteDemoOsFails ? 'osFails' : 'osThere']};
+      }
       if (post) return text('ok');
-      return json(demoUpdate());
+      return json(demoFlags().mowbiteDemoNoUpdater ? {} : demoUpdate());
     case '/cgi-bin/sensors':
       return text(sensorHistory());
     case '/cgi-bin/battery':

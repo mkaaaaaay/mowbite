@@ -48,3 +48,6 @@ function save(now,    k, p, tmp) {
   close(tmp)
   system("mv " tmp " " F)
 }
+
+# what came since the last save, when mosquitto_sub ends
+END { if (t) save(t) }

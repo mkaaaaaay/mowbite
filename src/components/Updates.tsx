@@ -22,6 +22,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {ACTION, RPC} from '@/lib/openmower';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useOpenMower} from '@/lib/mowerOs';
 import styles from './Updates.module.css';
 import {DockgeUpdateGuide} from './AutoUpdate';
 import {CreditsTrigger} from './Credits';
@@ -61,9 +62,10 @@ function useOutdated() {
 // what the app leaves out because the mower's OpenMower doesn't have it yet. only when the mower can tell
 // (rpc.methods) and its actions arrived, things only some forks have aren't mentioned
 function NewerOpenMower() {
+  const om = useOpenMower();
   const {knowsAction} = useMowerActions();
   const methods = useRpcMethods();
-  if (!methods || !knowsAction(ACTION.resetEmergency)) return null;
+  if (!om || !methods || !knowsAction(ACTION.resetEmergency)) return null;
   const missing = [
     ...(methods.has(RPC.areaPlan)
       ? []

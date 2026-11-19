@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import { readFileSync } from "node:fs";
 
 // the version from package.json, dev builds add e.g. "dev.42" (VERSION_SUFFIX, set by the github actions)
-const version = JSON.parse(readFileSync("./package.json", "utf8")).version as string;
+const {version, osApi} = JSON.parse(readFileSync("./package.json", "utf8")) as {version: string; osApi: object};
 const suffix = process.env.VERSION_SUFFIX;
 
 const nextConfig: NextConfig = {
@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.DEV_ORIGINS?.split(",") ?? [],
   env: {
     APP_VERSION: suffix ? `${version}-${suffix}` : version,
+    // the api of MowBite OS it works with
+    APP_OS_API: JSON.stringify(osApi),
     // "play" for the build that goes to google play
     APP_STORE: process.env.STORE ?? "",
     // the calibration: in dev and test builds (with a suffix) or with CALIBRATION=1, not yet in releases

@@ -8,7 +8,7 @@ import MapView from '@/components/MapView';
 import Segments, {type Segment} from '@/components/Segments';
 import {chooseCamera, useCameras} from '@/hooks/useCameras';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
-import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
+import {useEmergencyReset, useJustReset, useJustStopped} from '@/hooks/useEmergencyReset';
 import type {OverlayLine} from '@/hooks/useMapOverlay';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -236,9 +236,10 @@ export default function DriveView({
   const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
   const why = useEmergencyReasons(!!state?.emergency);
-  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency);
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
+  const justStopped = useJustStopped(!!state?.emergency);
   const [zoom, setZoom] = useState(2);
   const cams = useCameras();
   const [view, setView] = useState(() => readStored<string>(VIEW_KEY) ?? 'map');
@@ -259,7 +260,7 @@ export default function DriveView({
   const acc = gpsAcc ?? state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const gpsText = `GPS · ${gpsQ === 'none' ? tr('no fix') : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`}`;
-  // the emergency stop is reset right here, driving goes on where it stopped
+  // the emergency stop is reset right here, driving goes on where it stopped. held back for a moment, it's where the stick was
   const reason = why ? emergencyText(why) : '';
   const alarm = (
     <>
@@ -268,7 +269,7 @@ export default function DriveView({
         {refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}
         {stopRelease && ` ${stopReleaseText(stopRelease)}`}
       </span>
-      <button disabled={!live} onClick={reset}>
+      <button disabled={!live || justStopped} onClick={reset}>
         <WarningIcon size={18} />
         {tr('Reset emergency')}
       </button>

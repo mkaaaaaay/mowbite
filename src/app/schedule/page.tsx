@@ -6,12 +6,12 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
-import {useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {usePlatform} from '@/lib/mowerOs';
 import {mowsIntoNight, paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
-import {ACTION} from '@/lib/openmower';
+import {ACTION, RPC} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import PlanRow from './PlanRow';
 import PauseCard from './PauseCard';
@@ -70,10 +70,14 @@ export default function SchedulePage() {
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
   const {knowsAction} = useMowerActions();
-  const canSetParams = useCanSetParams();
   // a start's own mowing direction: MowBite OS's schedule turns the planner's lanes for the job, the container
   // mower_logic's mow_angle_offset
-  const os = useMowbiteOs();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
+  // undefined until the mower has told
+  const methods = useRpcMethods();
+  const canSetParams = !!methods?.has(RPC.setParams);
   const canTurn = fromOs || (canSetParams && !os);
   const ready = useScheduleReady();
   // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
@@ -122,6 +126,8 @@ export default function SchedulePage() {
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
+  // without params.set the scheduler can't set OpenMower's pause at an end time, it sends the mower home for 12 h instead
+  const homeAfterEnd = om && methods !== undefined && !canSetParams && (s.plans.some((p) => p.end) || !!s.handStop);
   const sunOn = datum ? daySun(s.tz, datum) : null;
   // today's sunrise and sunset by the schedule's clock, so the animal hint follows the real night. MowBite OS knows
   // its place itself
@@ -144,7 +150,7 @@ export default function SchedulePage() {
 
         {schedule === null && (
           <p className={styles.dim}>
-            {tr(os ? "MowBite OS doesn't have the schedule yet." : 'The schedule needs MowBite running as its container on the mower.')}
+            {os ? tr("MowBite OS doesn't have the schedule yet.") : om ? tr('The schedule needs MowBite running as its container on the mower.') : null}
           </p>
         )}
         {schedule === undefined && unreachable && <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>}
@@ -213,10 +219,17 @@ export default function SchedulePage() {
               {mowAreas.length > 1 && s.plans.length > 0 && (
                 <p className={styles.dim}>{tr('With only some areas picked, it starts as usual and skips the others when their turn comes.')}</p>
               )}
+              {homeAfterEnd && (
+                <p className={styles.dim}>
+                  {tr(
+                    'With your OpenMower version, for 12 hours after an end time the mower is sent home again within half a minute whenever it starts mowing, also when started with the button on the mower. A start from the app, Home Assistant or OpenMower ends that.',
+                  )}
+                </p>
+              )}
             </section>
 
             {/* on MowBite OS its own schedule has the say */}
-            {hasHandStop && !os && (
+            {hasHandStop && om && (
               <section className={styles.card}>
                 <h2>{tr('Starts by hand')}</h2>
                 <label className={styles.check}>

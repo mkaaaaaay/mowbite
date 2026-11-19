@@ -21,13 +21,17 @@ export interface Part {
 }
 
 export interface Stats {
-  since: number; // unix s counting started, 0: nothing counted yet
+  since: number; // unix s counting started, 0: nothing counted yet, on MowBite OS also before its clock was set
   total: Amounts;
   hours: ({t: number} & Amounts)[]; // oldest first, the hour going on last
   parts: Part[];
 }
 
 const zero = (): Amounts => ({blade: 0, mowed: 0, driven: 0, runs: 0});
+
+// when counting started; null: something is counted, but when isn't known
+export const countedSince = (s: Stats): number | null | undefined =>
+  s.since > 0 ? s.since : s.total.blade || s.total.mowed || s.total.driven || s.total.runs ? null : undefined;
 
 export function parseStats(text: string): Stats {
   const s: Stats = {since: 0, total: zero(), hours: [], parts: []};

@@ -1,0 +1,277 @@
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lock {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--tint-warn);
+  color: var(--soft-warn);
+}
+
+.lock[data-open='true'] {
+  background: var(--tint-good);
+  color: var(--soft-good);
+}
+
+.lock svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+.lock > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lock b {
+  font-weight: 600;
+}
+
+.lock span span {
+  font-size: var(--text-s);
+  line-height: 1.4;
+}
+
+/* each cause on its own, set off by a line */
+.lock [data-cause] {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.count b {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.segments {
+  display: grid;
+  gap: 3px;
+}
+
+.segments i {
+  position: relative;
+  overflow: hidden;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--track);
+}
+
+/* the color of a segment, grown from the left */
+.segments i::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--seg, transparent);
+  content: '';
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left;
+}
+
+.segments i:is([data-state='ok'], [data-state='skipped'], [data-state='running'], [data-state='failed'], [data-state='stale']) {
+  --fill: 1;
+}
+
+.segments i[data-state='ok'] {
+  --seg: var(--success);
+}
+
+.segments i[data-state='skipped'] {
+  --seg: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+}
+
+.segments i[data-state='running'] {
+  --seg: var(--accent);
+}
+
+.segments i[data-state='failed'] {
+  --seg: var(--error);
+}
+
+.segments i[data-state='stale'] {
+  --seg: var(--warning);
+}
+
+.next {
+  composes: button from './Sheet.module.css';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+
+.stages,
+.steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stages {
+  gap: 2px;
+}
+
+.stage,
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--foreground);
+  font-size: var(--text-m);
+  text-align: left;
+}
+
+.stage {
+  min-height: 52px;
+  padding: 6px 10px;
+}
+
+.stage[aria-expanded='true'] {
+  background: var(--tile);
+}
+
+.text {
+  composes: label from './StateMark.module.css';
+}
+
+.text b {
+  font-size: 15px;
+}
+
+li[data-state='locked'] > .stage b {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stage > svg {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform var(--dur-fast, 0.15s) ease;
+}
+
+.stage[aria-expanded='true'] > svg {
+  transform: rotate(90deg);
+}
+
+.steps {
+  margin: 2px 0 4px 22px;
+  padding-left: 12px;
+  border-left: 2px solid var(--track);
+}
+
+.step {
+  min-height: var(--tap);
+  padding: 4px 8px;
+}
+
+.step[aria-current] {
+  background: var(--tint-accent);
+}
+
+.step[aria-current] .name {
+  font-weight: 600;
+}
+
+li[data-state='locked'] > .step .name {
+  color: var(--text-secondary);
+}
+
+.note {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .segments i::after {
+    transition:
+      transform 0.5s var(--ease-out),
+      background-color var(--dur-move) ease;
+  }
+
+  .lock {
+    transition:
+      background-color 0.4s ease,
+      color 0.4s ease;
+  }
+
+  /* the shackle swings open when the measurement just passed */
+  .lock[data-moved][data-open='true'] path {
+    transform-box: fill-box;
+    transform-origin: 0 100%;
+    animation: unlock 0.5s var(--ease-out);
+  }
+
+  /* and a light sweeps over the box once */
+  .lock[data-moved][data-open='true']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--success) 22%, transparent) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: sweep 0.9s 0.2s ease-in-out;
+    pointer-events: none;
+  }
+}
+
+@keyframes sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes unlock {
+  from {
+    transform: rotate(12deg) translateY(2px);
+  }
+}
