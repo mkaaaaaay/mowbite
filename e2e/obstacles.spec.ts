@@ -66,7 +66,15 @@ test.describe('obstacles', () => {
     await page.waitForTimeout(700);
     await group.getByRole('button', {name: 'Sure? Delete all 3'}).click();
     await expect(group).not.toContainText('entries on the mower');
+    // taking the stop away asks first
+    const ask = group.getByText('The mower then no longer stops for what the camera sees');
+    await mode.selectOption('1');
+    await expect(ask).toBeVisible();
+    await group.getByRole('button', {name: 'Keep it'}).click();
+    await expect(ask).toBeHidden();
+    await expect(mode).toHaveValue('2');
     await mode.selectOption('0');
+    await group.getByRole('button', {name: 'Change', exact: true}).click();
     await expect(page.locator('#obstacles summary')).toContainText('off');
     await tab(page, '/map').click();
     await expect(page.locator('polygon[data-area]:visible').first()).toBeVisible();

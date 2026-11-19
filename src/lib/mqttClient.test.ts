@@ -42,13 +42,24 @@ describe('messages held while another page is drawn', () => {
   it('hands an rpc answer on at once', async () => {
     const {m, got, send} = await load();
     m.holdMessages();
-    expect(m.messagesHeld()).toBe(true);
     send('1');
     send('answer', 'rpc/response');
     expect(got).toEqual(['answer']);
     m.passMessages();
-    expect(m.messagesHeld()).toBe(false);
     expect(got).toEqual(['answer', '1']);
+  });
+
+  it('hands the state, the actions and the events on at once, buttons and the emergency stop go by them', async () => {
+    const {m, got, send} = await load();
+    for (const t of ['robot_state/json', 'actions/json', 'events/json']) m.onTopic(t, (p) => got.push(p.toString()));
+    m.holdMessages();
+    send('1');
+    send('state', 'robot_state/json');
+    send('actions', 'actions/json');
+    send('event', 'events/json');
+    expect(got).toEqual(['state', 'actions', 'event']);
+    m.passMessages();
+    expect(got).toEqual(['state', 'actions', 'event', '1']);
   });
 
   it('lets them go by itself after the time', async () => {

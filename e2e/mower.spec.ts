@@ -1,4 +1,4 @@
-import {bladeOn, demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
+import {bladeOn, demoAction, demoAround, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
 import {length} from '@/lib/planProgress';
 
@@ -472,6 +472,19 @@ test('the guide for the docking station opens with the blade off', async ({page}
   await expect(page.getByText('it measures where it charges')).toBeVisible();
   await expect(turning).toBeHidden();
   expect((await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json')).find((a) => a.action_id.endsWith('stop_manual_mowing'))?.enabled).toBeFalsy();
+});
+
+// a float puts the station off by decimetres: it measures only with an rtk fix
+test('the guide for the docking station waits for an rtk fix', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await demoAround(page, {accuracy: 0.12});
+  await page.locator('button:visible', {hasText: /Record (the )?docking station/}).first().click();
+  const waiting = page.getByText('Waiting for an RTK fix');
+  await expect(waiting).toBeVisible();
+  await demoAround(page, {accuracy: 0.02});
+  await expect(page.getByText('it measures where it charges')).toBeVisible();
+  await expect(waiting).toBeHidden();
 });
 
 // with the blade turning a reload asks first: what the page sends while it unloads doesn't get out

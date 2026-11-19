@@ -6,14 +6,14 @@ import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlann
 import {ANGLE_FOR_ALL, FIELDS, helpOf, hidden, noOwnStrategy, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
 import {usePlatform} from '@/lib/mowerOs';
-import {RECORDED_LOOP as LOOP, recordedLoopMeans, recordedLoopNote} from '@/lib/recordedLoop';
+import {RECORDED_LOOP as LOOP, recordedLoopMeans, recordedLoopNote, recordedLoopWarning} from '@/lib/recordedLoop';
 import {ownCount} from '@/lib/mowPlan';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
 import {NoSizesWarning} from './MowerBodySettings';
 import {setOpenMowerParam} from './MowerParamSettings';
-import {RecordedLoopAsk} from './RecordedLoopAsk';
+import {AskSheet} from './AskSheet';
 import local from './PlannerSimple.module.css';
 
 // The planner's settings that matter for a garden, in the same sections for all areas and for one area: the style (a
@@ -162,7 +162,8 @@ export function PlannerSimple({
   const om = platform === 'om';
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // the recorded outline pass asks before it's switched on
-  const [asking, setAsking] = useState(false);
+  // the setting asked about before it's saved: the recorded outline pass on, the collision check off
+  const [asking, setAsking] = useState<typeof LOOP | 'body_fit' | null>(null);
   // want: what's being saved, shown already while the planner hasn't answered (it may be planning for minutes)
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; want?: Record<string, unknown>}>({});
   // "saved" shows for a moment
@@ -195,7 +196,8 @@ export function PlannerSimple({
     await store({[k]: v === undefined ? null : v});
   };
   // the recorded outline pass asks first before it's switched on
-  const put = (key: string, v: unknown) => (key === LOOP && v === true ? setAsking(true) : void save(key, v));
+  const put = (key: string, v: unknown) =>
+    key === LOOP && v === true ? setAsking(LOOP) : key === 'body_fit' && v === false ? setAsking('body_fit') : void save(key, v);
   const saveMany = async (values: Record<string, unknown>) => {
     if (area) return area.setMany ? area.setMany(values) : Object.entries(values).forEach(([k, v]) => area.set(k, v));
     await store(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v === undefined ? null : v])));
@@ -1200,7 +1202,16 @@ export function PlannerSimple({
       </div>
 
       {state.error && <span className={local.error}>{state.error}</span>}
-      {asking && <RecordedLoopAsk onYes={() => void save(LOOP, true)} onClose={() => setAsking(false)} />}
+      {asking === LOOP && <AskSheet {...recordedLoopWarning()} yes={tr('Switch on')} onYes={() => void save(LOOP, true)} onClose={() => setAsking(null)} />}
+      {asking === 'body_fit' && (
+        <AskSheet
+          title={tr('Switch the collision check off?')}
+          lines={[tr('Plans then go as they come: in a tight spot or a turn the body can stick out past a real edge or into an obstacle, with the blade on.')]}
+          yes={tr('Switch off')}
+          onYes={() => void save('body_fit', false)}
+          onClose={() => setAsking(null)}
+        />
+      )}
     </div>
   );
 }

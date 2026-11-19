@@ -140,8 +140,9 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // switching it off waits for a yes
+  // switching it off waits for a yes, so does a choice where confirmChoice asks (the value asked for)
   const [asking, setAsking] = useState(false);
+  const [askTo, setAskTo] = useState<number | null>(null);
   // the sun's times where the mower is, for going home at sunset
   const datum = f.key === 'dock_at_sunset' ? datumFromParams(params) : undefined;
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
@@ -151,6 +152,7 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
 
   const set = async (v: number | boolean) => {
     setAsking(false);
+    setAskTo(null);
     if (v === value) return;
     const conflict = paramConflict(params, f.key, v);
     setError(conflict && tr(conflict));
@@ -170,6 +172,7 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
     setDraft(null);
     if (v !== null) void set(heights ? fitHeight(v, heights) : v);
   };
+  const choose = (v: number) => (f.confirmChoice?.when(value as number, v) ? setAskTo(v) : void set(v));
   const isKept = !!k?.enabled && f.key in k.values;
   const label = tr(f.label);
   const help = f.help;
@@ -191,7 +194,7 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
             aria-label={label}
           />
         ) : f.type === 'choice' ? (
-          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
+          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => choose(Number(e.target.value))} aria-label={label}>
             {f.choices!.slice(0, Math.max(f.max ?? Infinity, value as number) + 1).map((c, i) => (
               <option key={c} value={i}>
                 {tr(c)}
@@ -228,6 +231,15 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
             {tr('Switch off')}
           </button>
           <button onClick={() => setAsking(false)}>{tr('Keep on')}</button>
+        </span>
+      )}
+      {askTo !== null && (
+        <span className={local.ask}>
+          <b>{tr(f.choices![askTo])}</b> {tr(f.confirmChoice!.text)}
+          <button className={local.askOff} onClick={() => void set(askTo)}>
+            {tr('Change')}
+          </button>
+          <button onClick={() => setAskTo(null)}>{tr('Keep it')}</button>
         </span>
       )}
       {isKept && (

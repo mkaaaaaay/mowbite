@@ -40,6 +40,8 @@ export interface ParamField {
   reported?: boolean;
   // switched off only after this question
   confirmOff?: string;
+  // a choice changed only after this question, where when(from, to) says so
+  confirmChoice?: {text: string; when: (from: number, to: number) => boolean};
   // only where system.info has blade_height, in its range (ParamRow)
   bladeHeight?: boolean;
 }
@@ -76,7 +78,7 @@ export const PARAM_FIELDS: ParamField[] = [
     reported: true,
     confirmOff: 'Switch it off? It then mows on into the night, when hedgehogs and other animals are out.',
   },
-  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
+  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can'], confirmChoice: {text: 'Change it? The mower then sets off again by itself, also when nobody is around.', when: (from, to) => to > 0 && to !== from}},
 
   {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, osMin: 1, unit: 's', step: 1},
   {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", osHelp: 'A position less accurate than this counts as no fix. An RTK fix is at a few cm.', type: 'double', min: 0.01, max: 1, def: 0.2, osMax: 0.3, osDef: 0.1, unit: 'cm', scale: 100, step: 1},
@@ -109,6 +111,8 @@ export const PARAM_FIELDS: ParamField[] = [
     type: 'choice',
     def: 0,
     choices: ['Off', 'Show on the map', 'Stop for them', 'Drive around them'],
+    // what stops it for people and animals taken away
+    confirmChoice: {text: 'Change it? The mower then no longer stops for what the camera sees, it mows on.', when: (from, to) => from >= 2 && to < 2},
     reported: true,
   },
   {

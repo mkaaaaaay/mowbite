@@ -96,14 +96,30 @@ describe('the settings of the mower', () => {
   });
 });
 
+describe('a choice that asks first', () => {
+  const asks = (key: string, from: number, to: number) => !!paramField(key)?.confirmChoice?.when(from, to);
+  it('asks before the mower starts by itself, not back to manual', () => {
+    expect([asks('automatic_mode', 0, 1), asks('automatic_mode', 1, 2), asks('automatic_mode', 2, 0)]).toEqual([true, true, false]);
+  });
+  it('asks before the stop for obstacles is taken away, not between stop and drive around or below it', () => {
+    expect([asks('obstacle_mode', 2, 1), asks('obstacle_mode', 3, 0), asks('obstacle_mode', 3, 2), asks('obstacle_mode', 1, 0), asks('obstacle_mode', 0, 2)]).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+});
+
 describe('mower settings by platform', () => {
   it("names nothing of OpenMower on MowBite OS and nothing of MowBite OS on OpenMower", () => {
     for (const f of PARAM_FIELDS) {
-      const om = [f.label, f.help, f.confirmOff, ...(f.choices ?? [])].filter(Boolean).join(' ');
+      const om = [f.label, f.help, f.confirmOff, f.confirmChoice?.text, ...(f.choices ?? [])].filter(Boolean).join(' ');
       if (f.group !== 'journal') expect(om, f.key).not.toMatch(OS_WORDS);
       if (f.group === 'mowing') continue;
       const o = onOs(f, true);
-      const os = [o.label, o.help, o.confirmOff, ...(o.choices ?? [])].filter(Boolean).join(' ');
+      const os = [o.label, o.help, o.confirmOff, o.confirmChoice?.text, ...(o.choices ?? [])].filter(Boolean).join(' ');
       expect(os, f.key).not.toMatch(OM_WORDS);
     }
   });

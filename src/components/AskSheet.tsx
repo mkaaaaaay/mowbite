@@ -1,19 +1,17 @@
 'use client';
 
-import {recordedLoopWarning} from '@/lib/recordedLoop';
 import {tr} from '@/lib/i18n';
 import {createPortal} from 'react-dom';
 import shared from './AutoUpdate.module.css';
-import local from './RecordedLoopAsk.module.css';
+import local from './AskSheet.module.css';
 
-// asked before the recorded outline pass is switched on, for all areas or for one
-export function RecordedLoopAsk({onYes, onClose}: {onYes: () => void; onClose: () => void}) {
-  const warning = recordedLoopWarning();
+// asked before a setting goes where it needs a second thought: the recorded outline pass on, a protection off
+export function AskSheet({title, lines, yes, onYes, onClose}: {title: string; lines: string[]; yes: string; onYes: () => void; onClose: () => void}) {
   return createPortal(
     <div className={local.backdrop} onClick={onClose}>
-      <section className={local.sheet} role="alertdialog" aria-modal="true" aria-label={warning.title} onClick={(e) => e.stopPropagation()}>
-        <h2>{warning.title}</h2>
-        {warning.lines.map((l) => (
+      <section className={local.sheet} role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <h2>{title}</h2>
+        {lines.map((l) => (
           <p key={l}>{l}</p>
         ))}
         <div className={shared.row}>
@@ -24,7 +22,7 @@ export function RecordedLoopAsk({onYes, onClose}: {onYes: () => void; onClose: (
               onYes();
             }}
           >
-            {tr('Switch on')}
+            {yes}
           </button>
           <button className={shared.control} onClick={onClose}>
             {tr('Cancel')}
