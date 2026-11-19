@@ -42,11 +42,22 @@ export function useEmergencyReset(active: boolean): {refused: MowerEvent | null;
 // true for a moment after the emergency stop ended: what sets the mower off takes the reset button's place under the
 // finger, a second tap meant for the reset mustn't hit it
 export function useJustReset(active: boolean): boolean {
-  const [was, setWas] = useState(active);
+  return useJustTurned(!active);
+}
+
+// true for a moment after the emergency stop came: its reset button takes the place of what was under the finger (the
+// stick), a tap meant for that mustn't reset it
+export function useJustStopped(active: boolean): boolean {
+  return useJustTurned(active);
+}
+
+// true for TAP_LOCK_MS after on turned true
+function useJustTurned(on: boolean): boolean {
+  const [was, setWas] = useState(on);
   const [just, setJust] = useState(false);
-  if (was !== active) {
-    setWas(active);
-    setJust(!active);
+  if (was !== on) {
+    setWas(on);
+    setJust(on);
   }
   useEffect(() => {
     if (!just) return;
