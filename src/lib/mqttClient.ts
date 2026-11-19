@@ -60,7 +60,7 @@ export function getMqttClient(): MqttClient {
     client.on('message', (full, payload) => {
       const topic = unprefix(full);
       if (topic === null) return;
-      if (held && !topic.startsWith(TOPIC.rpcResponse)) held.list.push([topic, payload]);
+      if (held && !NEVER_HELD.some((t) => topic.startsWith(t))) held.list.push([topic, payload]);
       else deliver(topic, payload);
     });
   }
@@ -194,11 +194,10 @@ function deliver(topic: string, payload: Buffer) {
 
 // While another page is being drawn the messages wait, at most ms, and come in one go once it's there (passMessages).
 // Each one draws what's open again at once, and react starts the new page over then: a page with the garden's map
-// would only be drawn once its time ran out. An rpc's answer doesn't wait, its call would time out meanwhile
+// would only be drawn once its time ran out. An rpc's answer doesn't wait, its call would time out meanwhile; the
+// state, the actions and the events don't either, buttons and the emergency stop go by them
+const NEVER_HELD = [TOPIC.rpcResponse, TOPIC.robotState, TOPIC.actions, TOPIC.events];
 let held: {list: [string, Buffer][]; timer: ReturnType<typeof setTimeout>} | null = null;
-
-// the messages are waiting: none coming doesn't mean the mower went quiet
-export const messagesHeld = () => held !== null;
 
 export function holdMessages(ms = 10000) {
   if (held) clearTimeout(held.timer);

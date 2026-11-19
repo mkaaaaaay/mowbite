@@ -1,6 +1,6 @@
 'use client';
 
-import {getMqttClient, messagesHeld, onTopic} from '@/lib/mqttClient';
+import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 import {lastSensorAt, useSensorValue} from './useMowerSensors';
@@ -99,8 +99,6 @@ function start() {
     update({resuming: true});
   });
   setInterval(() => {
-    // while another page is drawn the states wait (lib/mqttClient), they aren't missing
-    if (messagesHeld()) return;
     update({
       stale: !!link.state && Date.now() - link.lastAt > STALE_MS,
       resuming: link.resuming && Date.now() - resumedAt < RESUME_MS,
