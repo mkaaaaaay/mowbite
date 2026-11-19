@@ -80,6 +80,15 @@ describe('parseMapFile', () => {
     expect(bad({areas: [area], docking_stations: [{...dock, heading: '1'}]})).toThrow();
     expect(parseMapFile(JSON.stringify({areas: [area], docking_stations: [dock]})).docking_stations).toEqual([dock]);
   });
+
+  it('refuses areas without an id or with the same one, and leaves out a known property of the wrong type', () => {
+    const bad = (m: object) => () => parseMapFile(JSON.stringify(m));
+    expect(bad({areas: [{...area, id: undefined}]})).toThrow();
+    expect(bad({areas: [{...area, id: ''}]})).toThrow();
+    expect(bad({areas: [area, {...area}]})).toThrow();
+    const odd = {...area, properties: {type: 'mow', angle: '12.5', planner: [1], margin: 0.2, mine: 'kept'}};
+    expect(parseMapFile(JSON.stringify({areas: [odd]})).areas[0].properties).toEqual({type: 'mow', margin: 0.2, mine: 'kept'});
+  });
 });
 
 describe('how many are kept', () => {

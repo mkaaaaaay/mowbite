@@ -317,6 +317,17 @@ describe('calls while offline', () => {
     expect(await plan).toBe('plan');
   });
 
+  it("doesn't send the planner's settings again after a drop, another phone may have changed them meanwhile", async () => {
+    const {callRpc} = await load();
+    client.online();
+    void callRpc('planner.settings.set', {body_fit: true}, 600000).catch(() => {});
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, result: ['planner.settings.set']})));
+    await vi.advanceTimersByTimeAsync(0);
+    client.offline();
+    client.online();
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'planner.settings.set']);
+  });
+
   it("doesn't send a save again that timed out while the connection was gone", async () => {
     const {callRpc} = await load();
     client.online();

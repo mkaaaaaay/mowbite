@@ -164,10 +164,11 @@ export async function callRpc<T = unknown>(method: string, params: unknown[] | o
 // instead of after its time
 export const MAX_RPC_BYTES = 1_900_000;
 
-// calls that set a whole state (the map, parameters, the planner's settings), sent twice they leave the same: the
-// connection dropping before their answer sends them again once it's back, the call or its answer may have gone with it
-// (a map save at the station over a weak wifi, the app reconnecting the same second). the others aren't sent twice
-const AGAIN = new Set<string>([RPC.replaceMap, RPC.setParams, RPC.plannerSettingsSet, RPC.plannerAngleReset]);
+// calls that set a whole state (the map, parameters), sent twice they leave the same: the connection dropping before
+// their answer sends them again once it's back, the call or its answer may have gone with it (a map save at the station
+// over a weak wifi, the app reconnecting the same second). the others aren't sent twice, the planner's settings neither:
+// waited for up to ten minutes, a second phone's change meanwhile would be overwritten
+const AGAIN = new Set<string>([RPC.replaceMap, RPC.setParams, RPC.plannerAngleReset]);
 
 // A command to the mower as a call (MowBite OS, masterplan App ↔ OS): never sent again by itself and never waiting for
 // the connection, a start that went out minutes later would drive off then. an answer after the time still comes to

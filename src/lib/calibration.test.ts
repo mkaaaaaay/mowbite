@@ -73,6 +73,9 @@ describe('a calibration', () => {
     const {lines, byHand} = calibLines(r.values, new Set(['ticks_per_m', 'wheel_distance_m', 'antenna_offset_y']), paths);
     expect(lines).toBe('ll/services/diff_drive/ticks_per_m 2031.5\nll/services/diff_drive/wheel_distance_m 0.3612\n');
     expect(byHand).toEqual([]);
+    // never with an exponent, the updater takes plain numbers
+    const tiny = calibLines([{...r.values.find((v) => v.name === 'antenna_offset_y')!, name: 'antenna_offset_x', value: 5e-7, ok: true}], new Set(['antenna_offset_x']), paths);
+    expect(tiny.lines).toMatch(/ 0\.000001\n$/);
     // without the updater's list (an older one, no file found): all by hand
     const none = calibLines(r.values, new Set(['ticks_per_m']), readPaths(undefined));
     expect(none.lines).toBe('');

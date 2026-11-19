@@ -9,6 +9,7 @@ import {
   nextByItself,
   ORIGIN_TEXT,
   partVersion,
+  runningMisfit,
   runSteps,
   runTarget,
   runsByItself,
@@ -22,6 +23,8 @@ import {
 } from './osUpdate';
 
 vi.mock('./updates', async (original) => ({...(await original<typeof import('./updates')>()), APP_VERSION: '1.5.0'}));
+const running = vi.hoisted(() => ({info: null as object | null}));
+vi.mock('./mowerOs', async (original) => ({...(await original<typeof import('./mowerOs')>()), knownSystemInfo: () => running.info}));
 
 const v = (revision: string, version: string | null = null) => ({revision, version, date: 1794000000});
 const part = (id: string, more: Partial<Component> = {}): Component => ({
@@ -101,6 +104,13 @@ describe('what the automatic update installs next', () => {
     expect(apiMisfit(os(34), own)).toBe('APP_API_BREAK');
     expect(apiMisfit(os(null, null), own)).toBeNull();
     expect(apiMisfit(newer('planner'), own)).toBeNull();
+    // the MowBite OS that runs, by the same rule; OpenMower and an OS not known yet never
+    const runs = (info: object | null) => ((running.info = info), runningMisfit(own));
+    expect(runs({name: 'mowbite-os', api: 52, api_break: 1})).toBeNull();
+    expect(runs({name: 'mowbite-os', api: 52, api_break: 2})).toBe('APP_API_BREAK');
+    expect(runs({name: 'mowbite-os', api: 10, api_break: 1})).toBe('OS_TOO_OLD');
+    expect(runs({name: 'OpenMower'})).toBeNull();
+    expect(runs(null)).toBeNull();
     // a note only, the automatic update still takes it
     const s = status([part('os', {available: os(40, 2)})]);
     expect(nextByItself(s)?.id).toBe('os');

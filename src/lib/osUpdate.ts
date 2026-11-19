@@ -1,6 +1,7 @@
 import {useSyncExternalStore} from 'react';
 import {numericDay, shortDay} from './dates';
 import {tr} from './i18n';
+import {knownSystemInfo, isMowbiteOs} from './mowerOs';
 import {onTopic} from './mqttClient';
 import {RPC, TOPIC, UPDATE_GATED} from './openmower';
 import {callRpc, RpcError} from './rpc';
@@ -229,10 +230,16 @@ export const appTooOld = (a: Available | null) => !!a?.min_app && isNewer(a.min_
 
 // os: why this app doesn't speak the api it names, null when it does or it doesn't say: another break (without one
 // above max) or below min. only a note, the OS brings an app along that fits and the mower serves that one meanwhile
-export function apiMisfit(a: Available | null, own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
+export function apiMisfit(a: Pick<Available, 'api' | 'api_break'> | null, own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
   if (!own || typeof a?.api !== 'number') return null;
   if (a.api < own.min) return 'OS_TOO_OLD';
   return (typeof a.api_break === 'number' ? a.api_break !== own.break : a.api > own.max) ? 'APP_API_BREAK' : null;
+}
+
+// the MowBite OS that runs and this app: why they don't fit, null where they do or it isn't known yet
+export function runningMisfit(own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
+  const i = knownSystemInfo();
+  return isMowbiteOs(i) ? apiMisfit({api: i!.api ?? null, api_break: i!.api_break ?? null}, own) : null;
 }
 
 // the order the automatic update takes the parts in (masterplan 3.5)

@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import type {DockingStation, MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
+import {AREA_PROPERTY_TYPES, hasPropertyType} from './geojson';
 import {forget, fresh} from './fresh';
 import {tr} from './i18n';
 import {isPin} from './mowerBody';
@@ -131,18 +132,23 @@ export async function angleChangedSince(areaId: string, since: number, angle: nu
   return false;
 }
 
-// a file picked by the user: at least has to look like a map, its points and docking stations numbers. what a map can
-// do without is filled in
+// a file picked by the user: at least has to look like a map, its points and docking stations numbers, each area with an
+// id of its own. what a map can do without is filled in, a known property of the wrong type left out
 export function parseMapFile(text: string): MowerMap {
   const m = JSON.parse(text);
   const isPoint = (p?: Point | null) => !!p && Number.isFinite(p.x) && Number.isFinite(p.y);
-  const isArea = (a: MapArea | null) => !!a && Array.isArray(a.outline) && a.outline.every(isPoint);
+  const isArea = (a: MapArea | null) => !!a && typeof a.id === 'string' && !!a.id && Array.isArray(a.outline) && a.outline.every(isPoint);
   const isDock = (d: DockingStation | null) => !!d && isPoint(d.position) && Number.isFinite(d.heading);
   if (!m || !Array.isArray(m.areas) || !m.areas.every(isArea) || (Array.isArray(m.docking_stations) && !m.docking_stations.every(isDock)))
     throw new Error('not a map');
+  if (new Set(m.areas.map((a: MapArea) => a.id)).size !== m.areas.length) throw new Error('not a map');
+  const typed = (p: unknown) =>
+    p && typeof p === 'object' && !Array.isArray(p)
+      ? Object.fromEntries(Object.entries(p).filter(([k, v]) => !(k in AREA_PROPERTY_TYPES) || hasPropertyType(v, AREA_PROPERTY_TYPES[k])))
+      : {};
   return openRings({
     ...m,
     docking_stations: Array.isArray(m.docking_stations) ? m.docking_stations : [],
-    areas: m.areas.map((a: {properties?: unknown}) => ({...a, properties: a.properties && typeof a.properties === 'object' ? a.properties : {}})),
+    areas: m.areas.map((a: {properties?: unknown}) => ({...a, properties: typed(a.properties)})),
   });
 }

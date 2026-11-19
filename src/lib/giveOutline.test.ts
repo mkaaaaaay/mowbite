@@ -7,6 +7,8 @@ const fake = vi.hoisted(() => ({
   sent: [] as Record<string, unknown>[],
   app: {} as Record<string, unknown>,
   synced: false,
+  // the shared settings read from the mower (sharedSettings)
+  shared: true,
   // saves that time out before one goes through
   failing: 0,
   // what runs on the mower: OpenMower, MowBite OS (system.info) or not known yet (no answer to rpc.methods)
@@ -37,6 +39,7 @@ vi.mock('./settings', () => ({
   syncSettings: async () => {
     fake.synced = true;
   },
+  sharedSettings: () => fake.shared,
   saveSettings: (next: Record<string, unknown>) => {
     fake.app = next;
   },
@@ -59,6 +62,7 @@ describe('the outline given to the planner on its own', () => {
     fake.sent = [];
     fake.app = {};
     fake.synced = false;
+    fake.shared = true;
     fake.failing = 0;
     fake.os = 'openmower';
   });
@@ -101,6 +105,16 @@ describe('the outline given to the planner on its own', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(fake.sent).toHaveLength(1);
     expect(fake.app.autoOutline).toBe('yf-nx');
+  });
+
+  it('waits for the shared settings from the mower, a rectangle kept there would be passed over', async () => {
+    fake.shared = false;
+    const body = await start();
+    expect(fake.sent).toEqual([]);
+    fake.shared = true;
+    await body.loadPlannerSettings(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fake.sent).toHaveLength(1);
   });
 
   it('leaves the rectangle when it is kept', async () => {
