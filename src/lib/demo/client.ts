@@ -71,11 +71,11 @@ export function demoClient(): MqttClient {
 
   void import('./world').then(({createWorld}) => {
     world = createWorld(deliver);
-    // the click tests (e2e/) reach the demo mower with this, like another phone would. what goes on around it stays
-    // out, that's only for a mock mower
-    const {retained, published, tick, ahead, emergency, refuseReset, cameras} = world;
+    // the click tests (e2e/) reach the demo mower with this, like another phone would, and set what goes on around it
+    // (the gps's accuracy and the like)
+    const {retained, published, tick, ahead, emergency, refuseReset, cameras, set} = world;
     if (typeof window !== 'undefined')
-      (window as {mowbiteDemo?: Partial<World>}).mowbiteDemo = {retained, published, tick, ahead, emergency, refuseReset, cameras};
+      (window as {mowbiteDemo?: Partial<World>}).mowbiteDemo = {retained, published, tick, ahead, emergency, refuseReset, cameras, set};
     client.connected = true;
     emit('connect');
   });

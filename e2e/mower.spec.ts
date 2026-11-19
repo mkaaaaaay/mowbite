@@ -479,7 +479,7 @@ test('the guide for the docking station waits for an rtk fix', async ({page}) =>
   await page.goto('/record/');
   await demoDocked(page);
   await demoAround(page, {accuracy: 0.12});
-  await page.locator('button:visible', {hasText: 'Record docking station'}).first().click();
+  await page.locator('button:visible', {hasText: /Record (the )?docking station/}).first().click();
   const waiting = page.getByText('Waiting for an RTK fix');
   await expect(waiting).toBeVisible();
   await demoAround(page, {accuracy: 0.02});
