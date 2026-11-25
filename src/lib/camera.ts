@@ -20,19 +20,27 @@ export interface Camera {
   height: number;
   protocols: string[];
   available: boolean;
+  // whether it can draw what the mower recognises into its picture (boxes), switched per stream
+  detections?: boolean;
   // why not, the names of CAMERA_REFUSED
   reason?: string;
   detail?: string;
 }
-interface Stream {
+export interface Stream {
   url: string;
   protocol: string;
   // until when the url can be connected to (unix s), once connected it holds until the connection ends
   expires: number;
+  // whether its picture has the boxes (MowBite OS from api 49)
+  detections?: boolean;
 }
 
 export const loadCameras = () => callRpc<Camera[]>(RPC.cameraList);
-export const openStream = (id: string, protocol: string) => callRpc<Stream>(RPC.cameraStream, {id, protocol});
+// a camera locked after a crash while it ran, streaming again (CAMERA_CHANGED follows); reason: what the lock said
+export const unlockCamera = (id: string) => callRpc<{unlocked: boolean; reason: string}>(RPC.cameraUnlock, {id}, 10000);
+// detections: boxes in the picture or not, left out for an older MowBite OS (it turns down a parameter it doesn't know)
+export const openStream = (id: string, protocol: string, detections?: boolean) =>
+  callRpc<Stream>(RPC.cameraStream, detections === undefined ? {id, protocol} : {id, protocol, detections});
 
 const POSITIONS: Record<CameraPosition, string> = {
   front: 'Front camera',
@@ -98,6 +106,10 @@ const PLAYS = ['webrtc', 'mjpeg'];
 export function pickProtocol(protocols: readonly string[], webrtc = typeof RTCPeerConnection !== 'undefined'): string | null {
   return protocols.find((p) => PLAYS.includes(p) && (p !== 'webrtc' || webrtc)) ?? null;
 }
+
+// asked again with mjpeg when the mower turned webrtc down (MowBite OS lists it while its media server isn't ready)
+export const fallbackProtocol = (asked: string | null, protocols: readonly string[]): string | null =>
+  asked === 'webrtc' && protocols.includes('mjpeg') ? 'mjpeg' : null;
 
 // the stream's address with the broker's host: MowBite OS puts its address in the home network there, which a phone
 // over a VPN or the mower's name may not reach while it reaches the broker that runs on the mower (masterplan 3.9 M2).
@@ -290,6 +302,15 @@ export async function readPictures(body: ReadableStream<Uint8Array>, got: (pictu
     got(new Blob([buf.slice(from, from + length)], {type}));
     buf = buf.subarray(from + length);
   }
+}
+
+// a stream given out but no longer wanted (the view went before it connected): connected and closed right away, else its
+// place on the mower stays taken until its address runs out (30 s)
+export async function giveBack(s: Stream, url: string): Promise<void> {
+  if (s.protocol === 'webrtc') return (await playWhep(url, document.createElement('video'), () => {}))();
+  if (s.protocol !== 'mjpeg') return;
+  const stop = new AbortController();
+  await ask(url, {}, stop).finally(() => stop.abort());
 }
 
 // mjpeg, read by the app itself: that way it knows what the address answered and when the pictures end. each picture

@@ -44,6 +44,15 @@
   --text-l: 16px;
   --tap: 44px;
   --dur-fast: 0.12s;
+  --dur-move: 0.3s;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* tinted surfaces, from each theme's own colors */
+  --tile: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  --track: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  --tint-accent: color-mix(in srgb, var(--accent) 12%, transparent);
+  --tint-good: color-mix(in srgb, var(--success) 14%, transparent);
+  --tint-warn: color-mix(in srgb, var(--warning) 15%, transparent);
+  --tint-bad: color-mix(in srgb, var(--error) 13%, transparent);
 }
 
 @media (min-width: 900px) {
@@ -361,6 +370,7 @@ textarea {
   --c-selected: #ff1fa3;
   --c-vertex: #2196f3;
   --c-stripes: #ff1fa3;
+  --c-seen: #ff8a00;
 }
 
 /* buttons give way under the finger like a real one */

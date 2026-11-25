@@ -39,12 +39,24 @@ export const demoFlagNow = (page: Page, name: string, value: unknown) => page.ev
 
 // the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
 // would make one
-type DemoMower = Pick<World, 'retained' | 'published' | 'ahead' | 'emergency' | 'refuseReset' | 'cameras'>;
+type DemoMower = Pick<World, 'retained' | 'published' | 'ahead' | 'emergency' | 'refuseReset' | 'cameras' | 'set'>;
 export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   return page.evaluate((t) => JSON.parse((window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.retained(t)[0][1]), topic);
 };
+
+// the demo mower's state now
+export const demoState = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
 // it's out mowing when the demo opens: sent home, and the way there driven at once
+// the blade by hand in recording mode: on takes two taps, the second counts after a moment
+export async function bladeOn(page: Page) {
+  const on = page.locator('button:visible', {hasText: 'Blade on'});
+  await on.click();
+  await expect(on).toHaveText('Sure? Blade on');
+  await page.waitForTimeout(700);
+  await on.click();
+}
+
 export async function demoDocked(page: Page) {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   await page.evaluate(() => {
@@ -52,7 +64,7 @@ export async function demoDocked(page: Page) {
     demo.published('action', 'mower_logic:mowing/abort_mowing');
     demo.ahead(1800);
   });
-  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
 }
 // an action as another phone would send it
 export const demoAction = (page: Page, action: string) =>
@@ -63,6 +75,11 @@ export const demoEmergency = (page: Page, reasons?: string[]) =>
 // a reset turned down the way MowBite OS does it (EMERGENCY_RESET_REFUSED with these fields), null lets it go again
 export const demoRefuseReset = (page: Page, why: Record<string, unknown> | null) =>
   page.evaluate((w) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.refuseReset(w), why);
+// what goes on around the demo mower (World.set), e.g. the receiver's accuracy
+export const demoAround = (page: Page, change: Parameters<World['set']>[0]) =>
+  page.evaluate((c) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.set(c), change);
+// seconds driven at once
+export const demoAhead = (page: Page, seconds: number) => page.evaluate((s) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.ahead(s), seconds);
 // the cameras' process of MowBite OS coming up or going while the app is open
 export const demoCameras = (page: Page, on: boolean) => page.evaluate((o) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.cameras(o), on);
 export const demoCall = (page: Page, method: string, params: unknown) =>
@@ -189,7 +206,7 @@ export const demoDrive = (page: Page, moves: [number, number, number][]) =>
 // measured there, saved (said: how it compares to the one before), driven in again and recording mode ended
 export async function recordStation(page: Page, said: string) {
   await expect(page.getByText('it measures where it charges')).toBeVisible();
-  expect((await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('AREA_RECORDING');
+  expect(await demoState(page)).toBe('AREA_RECORDING');
   await expect(page.getByText('Back it out straight', {exact: true})).toBeVisible({timeout: 15_000});
   await demoDrive(page, [
     [-0.25, 0, 6],
@@ -207,6 +224,6 @@ export async function recordStation(page: Page, said: string) {
   ]);
   await expect(page.getByText('On the station. Now end recording mode.')).toBeVisible();
   await page.getByRole('button', {name: 'End recording mode'}).click();
-  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
   await expect(page.getByText(said)).toBeVisible();
 }

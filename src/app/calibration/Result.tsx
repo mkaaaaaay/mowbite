@@ -1,13 +1,14 @@
 'use client';
 
+import {HandLines} from '@/components/HandLines';
 import {CheckIcon, HomeIcon, UndoIcon} from '@/components/icons';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {answerTo, calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
-import {copyText} from '@/lib/clipboard';
-import {clock, dayClock} from '@/lib/dates';
+import {readState, stateLine} from '@/lib/autoUpdate';
+import {calibLines, calibRefused, calibText, changeOf, preselected, readLast, readPaths, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
+import {dayClock} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
-import {ACTION} from '@/lib/openmower';
+import {ACTION, paramsYaml} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {useState} from 'react';
 import styles from './page.module.css';
@@ -19,7 +20,12 @@ const NAMES: Record<string, [string, string?]> = {
   wheel_distance_m: ['Wheel distance'],
   antenna_offset_x: ['Antenna ahead of the axle'],
   antenna_offset_y: ['Antenna left of the middle'],
+  // (MowBite OS only: how the IMU sits against the mower)
+  imu_roll: ['IMU tilted to the side'],
+  imu_pitch: ['IMU tilted forward'],
 };
+const ANGLES = ['imu_roll', 'imu_pitch'];
+const deg = (rad: number) => (rad * 180) / Math.PI;
 const KNOWN_PATHS: Record<string, string> = {
   ticks_per_m: 'll/services/diff_drive/ticks_per_m',
   wheel_distance_m: 'll/services/diff_drive/wheel_distance_m',
@@ -34,11 +40,13 @@ const STATION_AGAIN = 0.02;
 const decimals = (v: number) => Math.min(4, (String(v).split('.')[1] ?? '').length);
 export const nameOf = (name: string) => tr(NAMES[name]?.[0] ?? name);
 export function showValue(name: string, v: number): string {
+  if (ANGLES.includes(name)) return `${fmt(deg(v), 1)}°`;
   return name === 'ticks_per_m' ? fmt(v, decimals(v) ? 1 : 0) : `${fmt(v, Math.max(2, decimals(v)))} m`;
 }
 const signed = (v: number, digits: number) => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v), digits);
-// a difference in the unit it reads best in: ticks, mm for the wheels, cm for the antenna
+// a difference in the unit it reads best in: ticks, mm for the wheels, cm for the antenna, degrees for the IMU
 function showDiff(name: string, d: number): string {
+  if (ANGLES.includes(name)) return `${signed(deg(d), 1)}°`;
   if (name === 'ticks_per_m') return signed(d, 1);
   if (name === 'wheel_distance_m') return `${signed(d * 1000, 1)} mm`;
   return `${signed(d * 100, 1)} cm`;
@@ -59,6 +67,66 @@ export function stationAgain(values: {name: string; old: number | null; value: n
   return most > STATION_AGAIN ? most : null;
 }
 
+// a value of the result against the one set now: how far it changes, how sure it is, what the planner says about it.
+// children: what can be done with it
+export function ValueCard({v, children}: {v: CalibValue; children?: React.ReactNode}) {
+  const c = changeOf(v);
+  const quality = v.quality ? (v.ok ? tr(QUALITY[v.quality]) : tr('too inaccurate')) : null;
+  return (
+    <section className={[styles.card, styles.result, c?.big ? styles.big : '', v.ok ? '' : styles.off].join(' ')}>
+      <div className={styles.resultTop}>
+        <div className={styles.name}>
+          {nameOf(v.name)}
+          {NAMES[v.name]?.[1] && <small>{tr(NAMES[v.name][1]!)}</small>}
+        </div>
+        {quality && <span className={[styles.chip, styles[v.ok ? (v.quality ?? 'poor') : 'poor']].join(' ')}>{quality}</span>}
+      </div>
+      <div className={styles.change}>
+        <span className={styles.old}>{v.old !== null ? showValue(v.name, v.old) : '–'}</span>
+        <span>→</span>
+        <span className={styles.new}>{v.value !== null ? showValue(v.name, v.value) : '–'}</span>
+        {c && (
+          <span className={styles.delta}>
+            {showDiff(v.name, c.abs)}
+            {c.pct !== null && !v.name.startsWith('antenna_offset_') && !ANGLES.includes(v.name) && ` · ${signed(c.pct, 1)} %`}
+            {c.big && ` · ${tr('big change')}`}
+          </span>
+        )}
+      </div>
+      {c?.unchanged && v.sigma !== null && (
+        <p className={styles.note}>{tr('Unchanged: the difference is smaller than the measuring accuracy (±{sigma}).', {sigma: showSigma(v.name, v.sigma)})}</p>
+      )}
+      {c?.big && (
+        <p className={styles.note}>
+          {v.name.startsWith('antenna_offset_')
+            ? tr('More than {limit}. Is the antenna still fixed tightly? If so, the old value was probably off.', {limit: BIG_LIMIT[v.name]})
+            : tr('More than {limit}. Check it before you apply it.', {limit: BIG_LIMIT[v.name]})}
+        </p>
+      )}
+      {v.warning && !(c?.big && v.warning.startsWith('large change')) && <p className={styles.note}>{calibText(v.warning)}</p>}
+      {children}
+    </section>
+  );
+}
+
+// what the planner says besides the values: its warnings, the speed driven against the one asked, each wheel on its own
+export function ResultInfo({result}: {result: CalibResult}) {
+  const speed = typeof result.info.speed_ratio === 'number' ? result.info.speed_ratio : null;
+  // each wheel's ticks a metre against RTK (from the wheels' own counters): one value for both is all OpenMower has
+  const sides = typeof result.info.ticks_per_m_left === 'number' && typeof result.info.ticks_per_m_right === 'number' ? [result.info.ticks_per_m_left, result.info.ticks_per_m_right] : null;
+  if (!result.warnings.length && speed === null && !sides) return null;
+  return (
+    <section className={[styles.card, styles.info].join(' ')}>
+      <b>{tr('Just for your information')}</b>
+      {result.warnings.map((w) => (
+        <p key={w}>{calibText(w)}</p>
+      ))}
+      {speed !== null && <p>{tr('It drives at {p} % of the speed asked for.', {p: fmt(speed * 100, 0)})}</p>}
+      {sides && <p>{tr('Each wheel on its own: left {l}, right {r} ticks/m ({d} % apart).', {l: fmt(sides[0], 0), r: fmt(sides[1], 0), d: fmt(Math.abs(sides[0] / sides[1] - 1) * 100, 1)})}</p>}
+    </section>
+  );
+}
+
 // what the planner worked out, each value against the one set now, to tick what to take
 export function ResultView({
   result,
@@ -75,9 +143,6 @@ export function ResultView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const n = result.values.filter((v) => v.ok && chosen.has(v.name)).length;
-  const speed = typeof result.info.speed_ratio === 'number' ? result.info.speed_ratio : null;
-  // each wheel's ticks a metre against RTK (from the wheels' own counters): one value for both is all OpenMower has
-  const sides = typeof result.info.ticks_per_m_left === 'number' && typeof result.info.ticks_per_m_right === 'number' ? [result.info.ticks_per_m_left, result.info.ticks_per_m_right] : null;
   const take = async () => {
     const {lines, byHand} = calibLines(result.values, chosen, paths);
     setBusy(true);
@@ -103,72 +168,29 @@ export function ResultView({
           turns: fmt(result.basedOn.turns, 0),
         })}
       </p>
-      {result.values.map((v) => {
-        const c = changeOf(v);
-        const quality = v.quality ? (v.ok ? tr(QUALITY[v.quality]) : tr('too inaccurate')) : null;
-        return (
-          <section key={v.name} className={[styles.card, styles.result, c?.big ? styles.big : '', v.ok ? '' : styles.off].join(' ')}>
-            <div className={styles.resultTop}>
-              <div className={styles.name}>
-                {nameOf(v.name)}
-                {NAMES[v.name]?.[1] && <small>{tr(NAMES[v.name][1]!)}</small>}
-              </div>
-              {quality && <span className={[styles.chip, styles[v.ok ? (v.quality ?? 'poor') : 'poor']].join(' ')}>{quality}</span>}
-            </div>
-            <div className={styles.change}>
-              <span className={styles.old}>{v.old !== null ? showValue(v.name, v.old) : '–'}</span>
-              <span>→</span>
-              <span className={styles.new}>{v.value !== null ? showValue(v.name, v.value) : '–'}</span>
-              {c && (
-                <span className={styles.delta}>
-                  {showDiff(v.name, c.abs)}
-                  {c.pct !== null && v.name !== 'antenna_offset_x' && v.name !== 'antenna_offset_y' && ` · ${signed(c.pct, 1)} %`}
-                  {c.big && ` · ${tr('big change')}`}
-                </span>
-              )}
-            </div>
-            {c?.unchanged && v.sigma !== null && (
-              <p className={styles.note}>{tr('Unchanged: the difference is smaller than the measuring accuracy (±{sigma}).', {sigma: showSigma(v.name, v.sigma)})}</p>
-            )}
-            {c?.big && (
-              <p className={styles.note}>
-                {v.name.startsWith('antenna_offset_')
-                  ? tr('More than {limit}. Is the antenna still fixed tightly? If so, the old value was probably off.', {limit: BIG_LIMIT[v.name]})
-                  : tr('More than {limit}. Check it before you apply it.', {limit: BIG_LIMIT[v.name]})}
-              </p>
-            )}
-            {v.warning && !(c?.big && v.warning.startsWith('large change')) && <p className={styles.note}>{calibText(v.warning)}</p>}
-            {v.ok ? (
-              <label className={styles.take}>
-                <input
-                  type="checkbox"
-                  checked={chosen.has(v.name)}
-                  onChange={(e) => {
-                    const next = new Set(chosen);
-                    if (e.target.checked) next.add(v.name);
-                    else next.delete(v.name);
-                    setChosen(next);
-                  }}
-                />
-                {c?.unchanged ? tr('Apply anyway') : tr('Apply')}
-              </label>
-            ) : (
-              <p className={styles.note}>{tr("Can't be applied.")}</p>
-            )}
-          </section>
-        );
-      })}
+      {result.values.map((v) => (
+        <ValueCard key={v.name} v={v}>
+          {v.ok ? (
+            <label className={styles.take}>
+              <input
+                type="checkbox"
+                checked={chosen.has(v.name)}
+                onChange={(e) => {
+                  const next = new Set(chosen);
+                  if (e.target.checked) next.add(v.name);
+                  else next.delete(v.name);
+                  setChosen(next);
+                }}
+              />
+              {changeOf(v)?.unchanged ? tr('Apply anyway') : tr('Apply')}
+            </label>
+          ) : (
+            <p className={styles.note}>{tr("Can't be applied.")}</p>
+          )}
+        </ValueCard>
+      ))}
 
-      {(result.warnings.length > 0 || speed !== null || sides) && (
-        <section className={[styles.card, styles.info].join(' ')}>
-          <b>{tr('Just for your information')}</b>
-          {result.warnings.map((w) => (
-            <p key={w}>{calibText(w)}</p>
-          ))}
-          {speed !== null && <p>{tr('It drives at {p} % of the speed asked for.', {p: fmt(speed * 100, 0)})}</p>}
-          {sides && <p>{tr('Each wheel on its own: left {l}, right {r} ticks/m ({d} % apart).', {l: fmt(sides[0], 0), r: fmt(sides[1], 0), d: fmt(Math.abs(sides[0] / sides[1] - 1) * 100, 1)})}</p>}
-        </section>
-      )}
+      <ResultInfo result={result} />
 
       {error && <p className={styles.warn}>{error}</p>}
       <div className={styles.buttons}>
@@ -185,76 +207,13 @@ export function ResultView({
 
 // the values to write into mower_params.yaml by hand, as yaml
 export function ByHand({values}: {values: {name: string; value: number}[]}) {
-  const tree: Record<string, unknown> = {};
-  for (const v of values) {
-    const keys = (KNOWN_PATHS[v.name] ?? v.name).split('/');
-    let at = tree;
-    keys.slice(0, -1).forEach((k) => (at = (at[k] ??= {}) as Record<string, unknown>));
-    at[keys[keys.length - 1]] = v.value;
-  }
-  const yaml = (o: Record<string, unknown>, ind = ''): string =>
-    Object.entries(o)
-      .map(([k, v]) => (typeof v === 'object' ? `${ind}${k}:\n${yaml(v as Record<string, unknown>, ind + '  ')}` : `${ind}${k}: ${v}\n`))
-      .join('');
-  const text = yaml(tree);
-  const [copied, setCopied] = useState(false);
   return (
     <section className={styles.card}>
       <h2>{tr('Values to enter by hand')}</h2>
       <p className={styles.dim}>{tr("Your updater can't write them itself: an older one, or it finds no mower_params.yaml it may write.")}</p>
-      <p>{tr('Enter them in {file} and restart OpenMower ({cmd}).', {file: 'mower_params.yaml', cmd: 'openmower restart'})}</p>
-      <pre className={styles.code}>{text}</pre>
-      <button onClick={() => (copyText(text), setCopied(true))}>{copied ? tr('Copied') : tr('Copy')}</button>
+      <HandLines yaml={paramsYaml(values.map((v) => [KNOWN_PATHS[v.name] ?? v.name, v.value]))} code={styles.code} />
     </section>
   );
-}
-
-// what the updater says about the last request, a line
-function stateLine(
-  calib: string | undefined,
-  asked: string | null,
-  docked: boolean,
-): {what: string; chip: string; text: string; tone: 'fair' | 'good' | 'poor'} | null {
-  const fresh = answerTo(calib, asked);
-  const time = fresh ? clock(fresh.at) : '';
-  // OpenMower takes the gyro's zero from its first seconds, moved then the mower turns by itself afterwards
-  const still = tr("Don't touch the mower in the dock until OpenMower has restarted: it measures the gyro in its first seconds.");
-  if (!fresh)
-    return asked !== null
-      ? {
-          what: 'asked',
-          chip: tr('asked'),
-          text: `${docked ? tr('The updater takes it within a minute.') : tr('The updater writes them once the mower stands quietly in the dock.')} ${still}`,
-          tone: 'fair',
-        }
-      : null;
-  switch (fresh.what) {
-    case 'waiting':
-      return {
-        what: fresh.what,
-        chip: tr('waiting'),
-        text: `${tr('Takes effect after a restart of OpenMower. The updater restarts it by itself once the mower stands quietly in the dock.')} ${still}`,
-        tone: 'fair',
-      };
-    case 'written':
-      return {what: fresh.what, chip: tr('in effect'), text: tr('Restarted, in effect since {time}.', {time}), tone: 'good'};
-    case 'back':
-      return {what: fresh.what, chip: tr('in effect'), text: tr('Set back, OpenMower restarted at {time}.', {time}), tone: 'good'};
-    case 'refused':
-      return {what: fresh.what, chip: tr('not written'), text: tr('The updater wrote nothing: {why}', {why: (fresh.why ?? '').replace(/_/g, ' ')}), tone: 'poor'};
-    default:
-      return {
-        what: fresh.what,
-        chip: tr('not written'),
-        text:
-          fresh.why === 'not_docked'
-            ? tr("The mower wasn't idle in the dock within 30 minutes, nothing was written. Try again once it's in the dock.")
-            : fresh.why === 'not_running'
-              ? tr("OpenMower didn't come up again with the new values, the file before is back.")
-              : tr('The updater could not hold the schedule, nothing was written.'),
-        tone: 'poor',
-      };
-  }
 }
 
 // after taking them: what was asked to be written, what the updater did with it. the antenna moved: the docking station
@@ -275,7 +234,7 @@ export function Sent({
   const link = useMowerState();
   const {hasAction} = useMowerActions();
   const asked = sent.values.filter((v) => !sent.byHand.includes(v));
-  const line = stateLine(status?.calib, sent.before, docked);
+  const line = stateLine(status?.calib, sent.before, docked, calibRefused);
   const written = line?.what === 'written';
   const moved = stationAgain(asked);
   const paths = readPaths(status?.calib_paths);
@@ -394,7 +353,7 @@ export function LastCalibration({
   const last = readLast(status?.calib_last);
   const paths = readPaths(status?.calib_paths);
   const state = readState(status?.calib);
-  const line = asked !== null ? stateLine(status?.calib, asked, docked) : null;
+  const line = asked !== null ? stateLine(status?.calib, asked, docked, calibRefused) : null;
   // set back since: the values before apply again (the copy stays, setting back again changes nothing)
   const reverted = !!last && state?.what === 'back' && state.at >= last.at;
   return (

@@ -7,10 +7,11 @@ const BEEP = join(__dirname, 'fixtures', 'beep.mp3');
 test.describe('sounds', () => {
   test.skip(SIM, 'the demo mower only');
 
-  test('not on a mower without them', async ({page}) => {
+  test("not on a mower without them, OpenMower's own in their place", async ({page}) => {
     await page.goto('/settings/');
     await expect(page.locator('#update')).toBeVisible();
-    await expect(page.locator('#sounds')).toHaveCount(0);
+    await expect(page.locator('#sounds [data-om-sounds]')).toHaveCount(1);
+    await expect(page.locator('#sounds [data-sound]')).toHaveCount(0);
   });
 
   test('each situation to listen to, one without a sound, the volume', async ({page}) => {
@@ -19,6 +20,7 @@ test.describe('sounds', () => {
     const group = page.locator('#sounds');
     await group.locator('summary').click();
     await expect(group.locator('[data-sound]')).toHaveCount(4);
+    await expect(page.locator('[data-om-sounds]')).toHaveCount(0);
 
     const start = group.locator('[data-sound="MOWING_START"]');
     await expect(start).toContainText('Mowing starts');

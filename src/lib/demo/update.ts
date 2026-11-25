@@ -6,12 +6,18 @@ import {demoFlags} from './flags';
 // and the planner with a version to go back to, one update at a time through its steps. The demo is an OpenMower and
 // has none, a test switches it on before the page loads (window.mowbiteDemoUpdates). A test sets
 // window.mowbiteDemoUpdateGate to a reason to have the gate wait with it (JOB_OPEN lets an update with reset_jobs
-// through), and window.mowbiteDemoUpdateFails to have the new version not come up, the mower then goes back. Its release
-// index on the net answers each look with window.mowbiteDemoUpdateNet (a result word), ok without it
+// through, SCHEDULED_START starts in 20 minutes), and window.mowbiteDemoUpdateFails to have the new version not come up,
+// the mower then goes back. Its release index on the net answers each look with window.mowbiteDemoUpdateNet (a result
+// word), ok without it
 
 const DAY = 86400;
 const STEP_MS = 300;
-const IDLE: Pick<UpdateStatus, 'phase' | 'component' | 'revision' | 'reason'> = {phase: 'idle', component: null, revision: null, reason: null};
+const IDLE: Pick<UpdateStatus, 'phase' | 'component' | 'revision' | 'reason' | 'at' | 'percent' | 'bytes'> = {
+  phase: 'idle',
+  component: null,
+  revision: null,
+  reason: null,
+};
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // a refusal with the host's code and data (the demo passes them on)
@@ -79,6 +85,9 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
     said();
   };
 
+  // how far the copy of the bundle or the unpacking is, else none
+  const copying = (phase: UpdateStatus['phase']) =>
+    phase === 'verifying' || phase === 'unpacking' ? {percent: 40, bytes: 180e6} : {percent: null, bytes: null};
   // going back has nothing to check or unpack
   const phases = (back: boolean): UpdateStatus['phase'][] => (back ? ['waiting_gate', 'switching', 'checking'] : ['verifying', 'unpacking', 'waiting_gate', 'switching', 'checking']);
   const advance = () => {
@@ -87,7 +96,7 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
     const gate = demoFlags().mowbiteDemoUpdateGate as string | undefined;
     if (run.phase === 'waiting_gate' && UPDATE_GATED.includes(c.id) && gate && !(gate === 'JOB_OPEN' && resetJobs)) {
       if (run.reason !== gate) {
-        run = {...run, reason: gate};
+        run = {...run, reason: gate, at: gate === 'SCHEDULED_START' ? now() + 1200 : null};
         said();
       }
     } else if (run.phase === 'checking') {
@@ -104,7 +113,8 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
       return end('installed', null);
     } else {
       const order = phases(back);
-      run = {...run, phase: order[order.indexOf(run.phase) + 1], reason: null};
+      const phase = order[order.indexOf(run.phase) + 1];
+      run = {...run, phase, reason: null, at: null, ...copying(phase)};
       said();
     }
     timer = setTimeout(advance, STEP_MS);
@@ -118,7 +128,7 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
     if (!target) throw back ? refuse('NO_PREVIOUS', 'no earlier installation') : refuse('NO_NEWER', 'no newer revision found');
     if (!back && revision && revision !== target.revision) throw refuse('UNKNOWN_REVISION', `revision ${revision} of ${component} was not found`);
     work = {c, target: {revision: target.revision, version: target.version, date: target.date}, back, resetJobs: reset_jobs === true};
-    run = {phase: phases(back)[0], component: c.id, revision: target.revision, reason: null};
+    run = {phase: phases(back)[0], component: c.id, revision: target.revision, reason: null, ...copying(phases(back)[0])};
     said();
     timer = setTimeout(advance, STEP_MS);
     return status();

@@ -1,11 +1,22 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-const rpc = vi.hoisted(() => ({methods: new Set<string>() as Set<string> | null, unknown: false, answer: null as unknown, asked: [] as string[]}));
+const rpc = vi.hoisted(() => ({
+  methods: new Set<string>() as Set<string> | null,
+  unknown: false,
+  answer: null as unknown,
+  asked: [] as string[],
+  heard: [] as ((m: Set<string> | null) => void)[],
+}));
 vi.mock('./rpc', async (real) => ({
   RpcError: (await real<typeof import('./rpc')>()).RpcError,
   isMissingMethod: (await real<typeof import('./rpc')>()).isMissingMethod,
+  askUntilAnswered: (await real<typeof import('./rpc')>()).askUntilAnswered,
   rpcMethods: async () => rpc.methods,
   methodsUnknown: () => rpc.unknown,
+  onMethodsChanged: (l: (m: Set<string> | null) => void) => {
+    rpc.heard.push(l);
+    return () => {};
+  },
   callRpc: async (method: string) => {
     rpc.asked.push(method);
     if (rpc.answer instanceof Error) throw rpc.answer;
@@ -116,6 +127,40 @@ describe('systemInfo without an answer', () => {
     rpc.answer = new RpcError('system.info', -32601, 'method not found');
     expect(await systemInfo()).toBeNull();
   });
+
+  it('is undecided while MowBite OS lists system.info but its node is not up yet', async () => {
+    const {RpcError} = await import('./rpc');
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = Object.assign(new RpcError('system.info', -32601, 'The node that answers "system.info" is gone'), {listed: true});
+    const {systemInfo} = await load();
+    expect(await systemInfo()).toBeUndefined();
+    rpc.answer = {name: 'mowbite-os'};
+    expect(await systemInfo()).toEqual({name: 'mowbite-os'});
+  });
+
+  it('asks again once system.info shows up in the list after it was taken for OpenMower', async () => {
+    rpc.heard = [];
+    rpc.methods = new Set(['params.set']);
+    rpc.answer = {name: 'mowbite-os', api: 53};
+    const os = await load();
+    expect(await os.systemInfo()).toBeNull();
+    rpc.methods = new Set(['params.set', 'system.info']);
+    rpc.heard.forEach((l) => l(rpc.methods));
+    await vi.waitFor(() => expect(os.runsMowbiteOs()).toBe(true));
+  });
+});
+
+describe('MowBite OS back as another mower', () => {
+  it('asks system.info anew and takes the new answer', async () => {
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = {name: 'mowbite-os', platform: ''};
+    const os = await load();
+    expect((await os.systemInfo())?.platform).toBe('');
+    rpc.answer = {name: 'mowbite-os', platform: 'airseekers_tron'};
+    expect((await os.systemInfo())?.platform).toBe('');
+    os.askSystemInfoAgain();
+    await vi.waitFor(() => expect(os.knownSystemInfo()?.platform).toBe('airseekers_tron'));
+  });
 });
 
 describe('"method not found" for a method the mower lists', () => {
@@ -147,5 +192,31 @@ describe('osSpacing', () => {
     expect(osSpacing({mower_width: {value: 0.2}})).toBe(0.2);
     expect(osSpacing({overlap: {value: 0.1}})).toBeUndefined();
     expect(osSpacing(undefined)).toBeUndefined();
+  });
+});
+
+describe('a docking test as a series', () => {
+  it('only once it is known what runs on the mower, on MowBite OS from its api on', async () => {
+    const {dockTestSeries} = await load();
+    expect(dockTestSeries(undefined)).toBe(false);
+    expect(dockTestSeries(null)).toBe(true);
+    expect(dockTestSeries({name: 'mowbite-os'})).toBe(false);
+    expect(dockTestSeries({name: 'mowbite-os', api: 36})).toBe(false);
+    expect(dockTestSeries({name: 'mowbite-os', api: 37})).toBe(true);
+  });
+});
+
+describe('the gesture for the setup WLAN', () => {
+  it("is the mower's own from api 68, else a Tron's from api 64, none elsewhere", async () => {
+    const {setupWifiGesture} = await load();
+    const os = {name: 'mowbite-os', platform: 'airseekers_tron', api: 64};
+    expect(setupWifiGesture({...os, setup_wifi_gesture: {button: 'on_ok', presses: 3, within_s: 4, open_s: 600}})).toEqual({button: 'on_ok', presses: 3, within_s: 4, open_s: 600});
+    expect(setupWifiGesture({...os, api: 68, setup_wifi_gesture: null})).toBeNull();
+    expect(setupWifiGesture({...os, setup_wifi_gesture: {button: null, presses: 0, within_s: 5, open_s: 600}})).toBeNull();
+    expect(setupWifiGesture(os)).toEqual({button: 'on_ok', presses: 5, within_s: 5, open_s: 1800});
+    expect(setupWifiGesture({...os, api: 63})).toBeNull();
+    expect(setupWifiGesture({...os, platform: 'nx60i'})).toBeNull();
+    expect(setupWifiGesture({name: 'openmower'})).toBeNull();
+    expect(setupWifiGesture(null)).toBeNull();
   });
 });

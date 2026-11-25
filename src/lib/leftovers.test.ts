@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {keepArmed, leftoverAreas, leftoverPaths, leftoversHandedOut, readLeftovers, stillArmed} from './leftovers';
+import {askLeftovers, keepArmed, leftoverAreas, leftoverPaths, leftoversHandedOut, readLeftovers, stillArmed} from './leftovers';
 
 const rpc = vi.hoisted(() => ({lines: [] as {t: number; msg: string}[], asked: [] as unknown[], areas: {} as Record<string, unknown>}));
 vi.mock('./rpc', () => ({
@@ -7,6 +7,10 @@ vi.mock('./rpc', () => ({
   callRpc: async (method: string, params: unknown) => {
     rpc.asked.push([method, params]);
     return method === 'planner.leftovers' ? {areas: rpc.areas} : {lines: rpc.lines};
+  },
+  callCommand: async (method: string, params: unknown) => {
+    rpc.asked.push([`command ${method}`, params]);
+    return {areas: rpc.areas};
   },
 }));
 
@@ -96,5 +100,17 @@ describe('leftovers armed while the card was gone', () => {
     expect(stillArmed('j', 1900)).toBeNull();
     keepArmed('j', null);
     expect(stillArmed('j', 1300)).toBeNull();
+  });
+});
+
+describe('asking for the leftovers', () => {
+  it('arms them only as a command, sent while connected and never later; a look is a plain call', async () => {
+    rpc.asked = [];
+    await askLeftovers({jobId: 'j'});
+    await askLeftovers({jobId: 'j', arm: true});
+    expect(rpc.asked).toEqual([
+      ['planner.leftovers', {job_id: 'j'}],
+      ['command planner.leftovers', {job_id: 'j', arm: true}],
+    ]);
   });
 });

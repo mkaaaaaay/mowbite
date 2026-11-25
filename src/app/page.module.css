@@ -128,7 +128,9 @@
 }
 
 .headline {
+  position: relative;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
@@ -393,13 +395,37 @@
 }
 
 .controls .resetJobButton,
-.controls .skipPathButton {
+.controls .skipPathButton,
+.controls .dockTestButton {
   grid-column: 1 / -1;
+}
+
+/* MowBite OS's calibration drive on its way: its stop over the whole width, the way to its page under it */
+.controls .calibrationDrive {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.controls .calibrationDrive a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
+  font-size: var(--text-s);
+  font-weight: 500;
+  text-decoration: none;
 }
 
 /* the smaller ones under them: lower and plainer, the same family */
 .controls .resetJobButton,
 .controls .skipPathButton,
+.controls .dockTestButton,
 .controls .leftoversButton {
   min-height: var(--tap);
   padding: 8px 12px;
@@ -434,6 +460,13 @@
 
 .controls .resetJob span {
   flex: 1 1 100%;
+}
+
+.controls .dockTestRuns {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* left in recording mode: back to its page, or out of it */
@@ -520,6 +553,7 @@
 }
 
 .map {
+  position: relative;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid var(--card-border);
@@ -718,11 +752,20 @@
 }
 
 /* the camera's picture on or off, round like the mower switch beside it */
+/* small and round at the top right of the status card, beside the first line of the headline */
 .cameraSwitch {
   composes: round from '../components/MowerSwitch.module.css';
-  flex: none;
+  position: absolute;
+  top: -7px;
+  right: 0;
+  width: 30px;
+  height: 30px;
   padding: 0;
   cursor: pointer;
+}
+
+.cameraSwitch + * {
+  padding-right: 38px;
 }
 
 /* (it doesn't stay pressed in after a tap) */

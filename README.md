@@ -61,6 +61,13 @@ On [Google Play](https://play.google.com/store/apps/details?id=io.github.mkaaaaa
 [releases](https://github.com/mkaaaaaay/mowbite/releases). On the first start it asks for your mower's address.
 MowBite has to run on the mower too, the app talks to it over your home network.
 
+## MowBite OS for the Airseekers Tron
+
+MowBite also runs on a system of its own for the Airseekers Tron, in place of the mower's own software, put on with
+the [MowBite installer](https://github.com/mkaaaaaay/mowbite-installer). It isn't ready for everyday use yet.
+
+MowBite isn't affiliated with Airseekers. Airseekers and Tron are only named to say which mower it's for.
+
 ## Troubleshooting
 
 - **"waiting for map..." forever**: the browser can't reach MQTT. Check that `ws://<your-mower>:9001` is reachable from

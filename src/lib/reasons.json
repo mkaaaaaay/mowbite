@@ -13,6 +13,16 @@
     {
      "when": {
       "state": "PAUSED",
+      "reason": "MANUAL",
+      "client": "button"
+     },
+     "en": "Paused at the mower",
+     "with_reason": false,
+     "de": "Am Mäher pausiert"
+    },
+    {
+     "when": {
+      "state": "PAUSED",
       "reason": "MANUAL"
      },
      "en": "Paused",
@@ -37,6 +47,24 @@
      "en": "Paused",
      "severity": "warning",
      "de": "Pausiert"
+    },
+    {
+     "when": {
+      "state": "IDLE",
+      "sub_state": "SETUP"
+     },
+     "en": "Setup step running",
+     "with_reason": false,
+     "de": "Einrichtungsschritt läuft"
+    },
+    {
+     "when": {
+      "state": "SETUP",
+      "sub_state": "PLATFORM"
+     },
+     "en": "Waiting for the choice of the mower",
+     "with_reason": false,
+     "de": "Wartet auf die Wahl des Mähers"
     },
     {
      "when": {
@@ -169,6 +197,38 @@
      "de": "Fläche übersprungen"
     },
     {
+     "when": {
+      "reason": "BODY_OUT"
+     },
+     "en": "Area skipped",
+     "severity": "warning",
+     "de": "Fläche übersprungen"
+    },
+    {
+     "when": {
+      "reason": "NO_PLAN"
+     },
+     "en": "Area skipped",
+     "severity": "warning",
+     "de": "Fläche übersprungen"
+    },
+    {
+     "when": {
+      "reason": "START_UNREACHABLE"
+     },
+     "en": "Area skipped",
+     "severity": "warning",
+     "de": "Fläche übersprungen"
+    },
+    {
+     "when": {
+      "reason": "OBSTACLES_COVER_REST"
+     },
+     "en": "Rest of the area left out",
+     "severity": "warning",
+     "de": "Rest der Fläche ausgelassen"
+    },
+    {
      "en": "Area skipped",
      "with_reason": false,
      "de": "Fläche übersprungen"
@@ -200,6 +260,15 @@
    "severity": "info",
    "reader_logic": true,
    "variants": [
+    {
+     "when": {
+      "reason": "MANUAL",
+      "client": "button"
+     },
+     "en": "Sent home at the mower",
+     "with_reason": false,
+     "de": "Am Mäher heimgeschickt"
+    },
     {
      "when": {
       "reason": "MANUAL"
@@ -256,6 +325,14 @@
      "de": "Fährt nach Hause"
     },
     {
+     "when": {
+      "reason": "TEST"
+     },
+     "en": "Docking test by camera",
+     "with_reason": false,
+     "de": "Andock-Test nach Kamera"
+    },
+    {
      "en": "Heading home",
      "de": "Fährt nach Hause"
     }
@@ -281,6 +358,15 @@
     {
      "en": "Heading straight home",
      "de": "Fährt auf geradem Weg nach Hause"
+    }
+   ]
+  },
+  "DOCKING_WITHOUT_MARKER": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Docking without the dock camera",
+     "de": "Andocken ohne Dock-Kamera"
     }
    ]
   },
@@ -326,9 +412,49 @@
     }
    ]
   },
+  "DOCKING_TEST_RUN": {
+   "severity": "error",
+   "variants": [
+    {
+     "when": {
+      "ok": true
+     },
+     "en": "Run {run} of {of}: docked",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Durchgang {run} von {of}: angedockt"
+    },
+    {
+     "when": {
+      "reason": "STOPPED"
+     },
+     "en": "Run {run} of {of}",
+     "severity": "info",
+     "de": "Durchgang {run} von {of}"
+    },
+    {
+     "en": "Run {run} of {of}",
+     "de": "Durchgang {run} von {of}"
+    }
+   ]
+  },
   "DOCKED": {
    "severity": "info",
    "variants": [
+    {
+     "when": {
+      "guide": "marker"
+     },
+     "en": "Docked by the dock camera",
+     "de": "Angedockt nach der Dock-Kamera"
+    },
+    {
+     "when": {
+      "guide": "position"
+     },
+     "en": "Docked by position",
+     "de": "Angedockt nach der Position"
+    },
     {
      "en": "Docked",
      "de": "Angedockt"
@@ -737,12 +863,55 @@
     }
    ]
   },
+  "INCIDENT": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "safety": true
+     },
+     "en": "Safety incident kept",
+     "de": "Sicherheitsvorfall festgehalten"
+    },
+    {
+     "en": "Incident kept",
+     "de": "Vorfall festgehalten"
+    }
+   ]
+  },
   "STORAGE": {
    "severity": "error",
    "variants": [
     {
      "en": "Storage problem",
      "de": "Speicherproblem"
+    }
+   ]
+  },
+  "DATA_ROLLBACK": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "what": "confirmed"
+     },
+     "en": "Map confirmed after the restore",
+     "with_reason": false,
+     "de": "Karte nach dem Zurücksetzen bestätigt"
+    },
+    {
+     "when": {
+      "confirm": true
+     },
+     "en": "Older backup restored, the map waits to be confirmed",
+     "severity": "warning",
+     "with_reason": false,
+     "de": "Ältere Sicherung zurückgeholt, die Karte wartet auf Bestätigung"
+    },
+    {
+     "en": "Older backup restored",
+     "with_reason": false,
+     "de": "Ältere Sicherung zurückgeholt"
     }
    ]
   },
@@ -826,6 +995,106 @@
     {
      "en": "No camera picture",
      "de": "Kein Kamerabild"
+    }
+   ]
+  },
+  "CAMERA_UNLOCK_REFUSED": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Camera not unlocked",
+     "de": "Kamera nicht entsperrt"
+    }
+   ]
+  },
+  "OBSTACLE_SEEN": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "kind": "PERSON"
+     },
+     "en": "Person seen",
+     "with_reason": false,
+     "de": "Person gesehen"
+    },
+    {
+     "when": {
+      "kind": "ANIMAL"
+     },
+     "en": "Animal seen",
+     "with_reason": false,
+     "de": "Tier gesehen"
+    },
+    {
+     "when": {
+      "kind": "OBJECT"
+     },
+     "en": "Obstacle seen",
+     "with_reason": false,
+     "de": "Hindernis gesehen"
+    },
+    {
+     "en": "Something seen",
+     "with_reason": false,
+     "de": "Etwas gesehen"
+    }
+   ]
+  },
+  "OBSTACLE_AVOIDED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "area_name": {
+       "present": true
+      }
+     },
+     "en": "Drove around an obstacle in \"{area_name}\"",
+     "with_reason": false,
+     "de": "Hindernis in „{area_name}“ umfahren"
+    },
+    {
+     "en": "Drove around an obstacle",
+     "with_reason": false,
+     "de": "Hindernis umfahren"
+    }
+   ]
+  },
+  "OBSTACLES_CLEARED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "obstacle_id": {
+       "present": false
+      }
+     },
+     "en": "All seen obstacles deleted",
+     "with_reason": false,
+     "de": "Alle gesehenen Hindernisse gelöscht"
+    },
+    {
+     "en": "A seen obstacle deleted",
+     "with_reason": false,
+     "de": "Ein gesehenes Hindernis gelöscht"
+    }
+   ]
+  },
+  "OBSTACLE_SIGHT": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "ok": true
+     },
+     "en": "Obstacle detection sees again",
+     "with_reason": false,
+     "de": "Hinderniserkennung sieht wieder"
+    },
+    {
+     "en": "Obstacle detection can't see",
+     "de": "Hinderniserkennung sieht nichts"
     }
    ]
   },
@@ -1074,8 +1343,111 @@
      "de": "Maße geändert"
     },
     {
+     "when": {
+      "reason": "SHAPE_OUTSIDE"
+     },
+     "en": "Sizes changed",
+     "severity": "warning",
+     "de": "Maße geändert"
+    },
+    {
      "en": "Sizes changed",
      "de": "Maße geändert"
+    }
+   ]
+  },
+  "SETUP_STEP": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "state": "ok"
+     },
+     "en": "Setup step passed",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Einrichtungsschritt bestanden"
+    },
+    {
+     "when": {
+      "state": "skipped"
+     },
+     "en": "Setup step skipped",
+     "severity": "info",
+     "de": "Einrichtungsschritt übersprungen"
+    },
+    {
+     "en": "Setup step failed",
+     "de": "Einrichtungsschritt nicht bestanden"
+    }
+   ]
+  },
+  "SETUP": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "what": "complete"
+     },
+     "en": "Setup complete",
+     "with_reason": false,
+     "de": "Einrichtung abgeschlossen"
+    },
+    {
+     "when": {
+      "what": "reset"
+     },
+     "en": "Setup started anew",
+     "with_reason": false,
+     "de": "Einrichtung neu begonnen"
+    },
+    {
+     "when": {
+      "what": "safety_closed"
+     },
+     "en": "Safety step failed, the mower drives only while you watch",
+     "severity": "warning",
+     "with_reason": false,
+     "de": "Sicherheitsschritt durchgefallen, der Mäher fährt nur unter Aufsicht"
+    },
+    {
+     "when": {
+      "what": "safety_opened"
+     },
+     "en": "Safety measured, the mower drives by itself again",
+     "with_reason": false,
+     "de": "Sicherheit gemessen, der Mäher fährt wieder selbstständig"
+    },
+    {
+     "when": {
+      "what": "platform"
+     },
+     "en": "Mower chosen: {platform}",
+     "with_reason": false,
+     "de": "Mäher gewählt: {platform}"
+    },
+    {
+     "en": "Setup stage done",
+     "with_reason": false,
+     "de": "Einrichtungsabschnitt fertig"
+    }
+   ]
+  },
+  "SETUP_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Setup step refused",
+     "de": "Einrichtungsschritt abgelehnt"
+    }
+   ]
+  },
+  "SETUP_BLOCKED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Setup step waiting",
+     "de": "Einrichtungsschritt wartet"
     }
    ]
   },
@@ -1122,7 +1494,52 @@
   ],
   "dock_failed": [
    {
+    "en": "marker lost",
+    "when": {
+     "cause": "MARKER_LOST"
+    },
+    "de": "Marker verloren"
+   },
+   {
+    "en": "marker not found",
+    "when": {
+     "cause": "MARKER_NOT_SEEN"
+    },
+    "de": "Marker nicht gefunden"
+   },
+   {
+    "en": "dock camera not measuring",
+    "when": {
+     "cause": "MARKER_UNAVAILABLE"
+    },
+    "de": "Dock-Kamera misst nicht"
+   },
+   {
+    "en": "marker does not match the map",
+    "when": {
+     "cause": "MARKER_MISMATCH"
+    },
+    "de": "Marker passt nicht zur Karte"
+   },
+   {
+    "en": "docking test refused",
+    "when": {
+     "cause": "TEST_START"
+    },
+    "unless": {
+     "message": {
+      "present": true
+     }
+    },
+    "de": "Andocktest abgelehnt"
+   },
+   {
     "en": "no contact with the charger",
+    "unless": {
+     "message": {
+      "present": true
+     }
+    },
     "de": "kein Ladekontakt"
    }
   ],
@@ -1133,6 +1550,68 @@
    }
   ],
   "BUSY": [
+   {
+    "en": "the mower is driving, let it stand first",
+    "when": {
+     "type": "SETUP_REFUSED",
+     "state": "DRIVING"
+    },
+    "de": "der Mäher fährt, erst stehen lassen"
+   },
+   {
+    "en": "a calibration is running",
+    "when": {
+     "type": "SETUP_REFUSED",
+     "state": "CALIBRATING"
+    },
+    "de": "eine Kalibrierung läuft"
+   },
+   {
+    "en": "an update holds the mower right now",
+    "when": {
+     "type": "SETUP_REFUSED",
+     "state": "HOLD"
+    },
+    "de": "ein Update hält den Mäher gerade an"
+   },
+   {
+    "en": "another step runs or the mower is on its way",
+    "when": {
+     "type": "SETUP_REFUSED"
+    },
+    "de": "ein anderer Schritt läuft oder der Mäher ist unterwegs"
+   },
+   {
+    "en": "the mower is driving, let it stand first",
+    "when": {
+     "type": "SETUP_BLOCKED",
+     "state": "DRIVING"
+    },
+    "de": "der Mäher fährt, erst stehen lassen"
+   },
+   {
+    "en": "a calibration is running",
+    "when": {
+     "type": "SETUP_BLOCKED",
+     "state": "CALIBRATING"
+    },
+    "de": "eine Kalibrierung läuft"
+   },
+   {
+    "en": "an update holds the mower right now",
+    "when": {
+     "type": "SETUP_BLOCKED",
+     "state": "HOLD"
+    },
+    "de": "ein Update hält den Mäher gerade an"
+   },
+   {
+    "en": "another step runs or the mower is on its way",
+    "when": {
+     "type": "SETUP_BLOCKED"
+    },
+    "de": "ein anderer Schritt läuft oder der Mäher ist unterwegs"
+   },
    {
     "en": "another sound is being uploaded or checked",
     "when": {
@@ -1176,6 +1655,27 @@
     "de": "beschäftigt: fährt"
    },
    {
+    "en": "busy: calibration drive",
+    "when": {
+     "state": "calibrating"
+    },
+    "de": "beschäftigt: Kalibrierfahrt"
+   },
+   {
+    "en": "busy: a setup step",
+    "when": {
+     "state": "setup"
+    },
+    "de": "beschäftigt: Einrichtungsschritt"
+   },
+   {
+    "en": "busy: checking its position on the docking station",
+    "when": {
+     "state": "checking"
+    },
+    "de": "beschäftigt: prüft die Position auf der Ladestation"
+   },
+   {
     "en": "busy: {state}",
     "when": {
      "state": {
@@ -1190,6 +1690,20 @@
    }
   ],
   "STILL_STOPPING": [
+   {
+    "en": "the last calibration drive is still stopping, try again in a moment",
+    "when": {
+     "type": "CALIBRATION_REFUSED"
+    },
+    "de": "die letzte Kalibrierfahrt wird noch beendet, gleich noch einmal versuchen"
+   },
+   {
+    "en": "the last drive is still stopping, try again in a moment",
+    "when": {
+     "type": "DRIVE_REFUSED"
+    },
+    "de": "die letzte Fahrt wird noch beendet, gleich noch einmal versuchen"
+   },
    {
     "en": "the last job is still stopping, try again in a moment",
     "de": "der letzte Mähvorgang wird noch beendet, gleich noch einmal versuchen"
@@ -1245,8 +1759,78 @@
   ],
   "EMERGENCY": [
    {
+    "en": "emergency stop",
+    "when": {
+     "type": "INCIDENT"
+    },
+    "de": "Notaus"
+   },
+   {
     "en": "emergency stop, reset it first",
     "de": "Notaus, erst zurücksetzen"
+   }
+  ],
+  "UNEXPECTED_RESTART": [
+   {
+    "en": "restarted without being stopped",
+    "de": "neu gestartet, ohne gestoppt zu sein"
+   }
+  ],
+  "CRASH": [
+   {
+    "en": "a process of MowBite OS ended by itself",
+    "de": "ein Prozess von MowBite OS hat sich von selbst beendet"
+   }
+  ],
+  "CALIBRATION_FAILED": [
+   {
+    "en": "calibration drive failed",
+    "de": "Kalibrierfahrt gescheitert"
+   }
+  ],
+  "DOCKING_FAILED": [
+   {
+    "en": "docking failed",
+    "de": "Andocken gescheitert"
+   }
+  ],
+  "MOW_MOTOR_SPINUP_FAILED": [
+   {
+    "en": "the blade didn't come up to speed",
+    "de": "das Messer kam nicht auf Drehzahl"
+   }
+  ],
+  "UNDOCKING_FAILED": [
+   {
+    "en": "leaving the dock failed",
+    "de": "Abdocken gescheitert"
+   }
+  ],
+  "POSITION_JUMP": [
+   {
+    "en": "position jumped {distance:2} m",
+    "when": {
+     "distance": {
+      "present": true
+     }
+    },
+    "de": "Position um {distance:2} m gesprungen"
+   },
+   {
+    "en": "position jumped",
+    "de": "Position gesprungen"
+   }
+  ],
+  "MARK": [
+   {
+    "en": "marked by you",
+    "de": "von dir markiert"
+   }
+  ],
+  "STOP": [
+   {
+    "en": "stopped without a command, no event told why",
+    "de": "ohne Befehl angehalten, kein Ereignis nannte den Grund"
    }
   ],
   "NO_SAFETY_MEASUREMENT": [
@@ -1256,6 +1840,20 @@
    }
   ],
   "ON_DOCK": [
+   {
+    "en": "on the docking station, take it off first",
+    "when": {
+     "type": "SETUP_REFUSED"
+    },
+    "de": "steht auf der Ladestation, erst herunternehmen"
+   },
+   {
+    "en": "on the docking station, take it off first",
+    "when": {
+     "type": "SETUP_BLOCKED"
+    },
+    "de": "steht auf der Ladestation, erst herunternehmen"
+   },
    {
     "en": "on the docking station, drive it off by remote control first",
     "de": "steht im Dock, erst per Fernsteuerung herausfahren"
@@ -1299,6 +1897,39 @@
     "de": "nicht im Dock, ein geplanter Start geht nur von dort"
    }
   ],
+  "BODY_OUT": [
+   {
+    "en": "on its plan the mower would stick out past the area's edges",
+    "de": "auf dem Plan würde der Mäher über die Ränder der Fläche hinausragen"
+   }
+  ],
+  "NO_PLAN": [
+   {
+    "en": "the planner can't make a plan for this area",
+    "de": "der Planer kann für diese Fläche keinen Plan erstellen"
+   }
+  ],
+  "START_UNREACHABLE": [
+   {
+    "en": "no part of the plan can be reached from the mower",
+    "de": "kein Teil des Plans ist vom Mäher aus erreichbar"
+   }
+  ],
+  "OBSTACLES_COVER_REST": [
+   {
+    "en": "obstacles kept in mind cover the rest of the area, {left_out:0} m of paths left out",
+    "when": {
+     "left_out": {
+      "present": true
+     }
+    },
+    "de": "gemerkte Hindernisse decken den Rest der Fläche ab, {left_out:0} m Bahnen ausgelassen"
+   },
+   {
+    "en": "obstacles kept in mind cover the rest of the area",
+    "de": "gemerkte Hindernisse decken den Rest der Fläche ab"
+   }
+  ],
   "CLOCK_UNSAFE": [
    {
     "en": "the mower's clock was never set",
@@ -1327,6 +1958,19 @@
    }
   ],
   "BATTERY_LOW": [
+   {
+    "en": "battery at {battery_percentage} %, the calibration drive needs {limit:0} %",
+    "when": {
+     "type": "CALIBRATION_REFUSED",
+     "battery_percentage": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "Akku bei {battery_percentage} %, die Kalibrierfahrt braucht {limit:0} %"
+   },
    {
     "en": "battery low ({battery_voltage:1} V)",
     "when": {
@@ -1633,10 +2277,28 @@
     "de": "der Bahnfolger läuft nicht"
    }
   ],
+  "MARKER_UNAVAILABLE": [
+   {
+    "en": "the camera towards the docking station cannot measure the marker right now",
+    "de": "die Kamera zur Ladestation kann den Marker gerade nicht messen"
+   }
+  ],
+  "NO_CHARGE_CONTACTS": [
+   {
+    "en": "no charge contacts are set for this mower, it cannot dock",
+    "de": "für diesen Mäher sind keine Ladekontakte eingetragen, er kann nicht andocken"
+   }
+  ],
   "MANUAL": [
    {
     "en": "by hand",
     "de": "von Hand"
+   }
+  ],
+  "TEST": [
+   {
+    "en": "docking test by camera",
+    "de": "Andock-Test nach Kamera"
    }
   ],
   "CROSS_TRACK": [
@@ -1658,6 +2320,13 @@
      "type": "CALIBRATION_FAILED"
     },
     "de": "hat zu lange gedauert"
+   },
+   {
+    "en": "the camera didn't answer in time, the camera list shows whether it worked",
+    "when": {
+     "type": "CAMERA_UNLOCK_REFUSED"
+    },
+    "de": "die Kamera hat nicht rechtzeitig geantwortet, die Kameraliste zeigt, ob es geklappt hat"
    },
    {
     "en": "not making progress, maybe stuck",
@@ -1843,6 +2512,12 @@
     "de": "Speichern fehlgeschlagen"
    }
   ],
+  "SHAPE_OUTSIDE": [
+   {
+    "en": "the outline leaves out parts of the mower, it may touch things with them",
+    "de": "der Umriss lässt Teile des Mähers aus, damit kann er anstoßen"
+   }
+  ],
   "BELOW_DEFAULT": [
    {
     "en": "smaller than from the factory, the planner's body check works with the smaller outline",
@@ -1904,6 +2579,18 @@
    {
     "en": "a new emergency reason came up",
     "de": "ein neuer Notaus-Grund kam dazu"
+   }
+  ],
+  "SILENT": [
+   {
+    "en": "the mower is checking that it stops by itself without its controller, wait a moment and reset again",
+    "de": "der Mäher prüft gerade, ob er ohne Steuerung von selbst anhält, kurz warten und dann erneut freigeben"
+   }
+  ],
+  "LEARNING": [
+   {
+    "en": "the mower is assigning its inputs, finish or stop that in the setup",
+    "de": "der Mäher ordnet gerade seine Eingänge zu, das in der Einrichtung abschließen oder abbrechen"
    }
   ],
   "FOREIGN_HOST": [
@@ -2046,14 +2733,48 @@
   ],
   "LOCKED_AFTER_CRASH": [
    {
-    "en": "the mower's system crashed while this camera ran, it stays off until its lock on the mower is deleted",
-    "de": "das System des Mähers ist abgestürzt, während diese Kamera lief, sie bleibt aus, bis ihre Sperre auf dem Mäher gelöscht ist"
+    "en": "the mower's system crashed while this camera ran, it stays off until it's unlocked",
+    "de": "das System des Mähers ist abgestürzt, während diese Kamera lief, sie bleibt aus, bis sie entsperrt ist"
    }
   ],
   "NOT_SET_UP": [
    {
     "en": "the camera is not set up on the mower",
     "de": "die Kamera ist auf dem Mäher nicht eingerichtet"
+   }
+  ],
+  "NOT_LOCKED": [
+   {
+    "en": "this camera isn't locked after a crash",
+    "de": "diese Kamera ist nicht nach einem Absturz gesperrt"
+   }
+  ],
+  "NOT_AT_REST": [
+   {
+    "en": "only while the mower stands, does nothing and the blade is still",
+    "de": "nur wenn der Mäher steht, nichts tut und das Messer still steht"
+   }
+  ],
+  "FAILED": [
+   {
+    "en": "the mower couldn't make the change, try again",
+    "when": {
+     "type": "UPDATE_REFUSED"
+    },
+    "de": "der Mäher konnte die Änderung nicht übernehmen, noch einmal versuchen"
+   },
+   {
+    "en": "the lock of the camera couldn't be deleted: {detail}",
+    "when": {
+     "detail": {
+      "present": true
+     }
+    },
+    "de": "die Sperre der Kamera ließ sich nicht löschen: {detail}"
+   },
+   {
+    "en": "the lock of the camera couldn't be deleted",
+    "de": "die Sperre der Kamera ließ sich nicht löschen"
    }
   ],
   "BLADE_RUNNING": [
@@ -2072,6 +2793,100 @@
    {
     "en": "the camera gives no picture right now",
     "de": "die Kamera liefert gerade kein Bild"
+   }
+  ],
+  "TOO_DARK": [
+   {
+    "en": "too dark to see",
+    "de": "zu dunkel zum Sehen"
+   }
+  ],
+  "TOO_BRIGHT": [
+   {
+    "en": "too bright, glare or a low sun",
+    "de": "zu hell, Blendung oder tiefe Sonne"
+   }
+  ],
+  "COVERED": [
+   {
+    "en": "the lens is covered or dirty",
+    "de": "die Linse ist verdeckt oder schmutzig"
+   }
+  ],
+  "MAP_CHANGED": [
+   {
+    "en": "the mowing areas changed while mowing, Continue plans anew",
+    "de": "die Mähflächen haben sich beim Mähen geändert, Weiter plant neu"
+   }
+  ],
+  "DOCK_CONTACT": [
+   {
+    "en": "touched the docking station while mowing",
+    "de": "beim Mähen die Ladestation berührt"
+   }
+  ],
+  "POSITION_UNSTABLE": [
+   {
+    "en": "lost the position {times} times in a row without getting on",
+    "when": {
+     "times": {
+      "present": true
+     }
+    },
+    "de": "{times}-mal hintereinander die Position verloren, ohne voranzukommen"
+   },
+   {
+    "en": "lost the position again and again without getting on",
+    "de": "immer wieder die Position verloren, ohne voranzukommen"
+   }
+  ],
+  "OBSTACLE": [
+   {
+    "en": "the camera still sees a person in the way",
+    "when": {
+     "type": "MOWING_REFUSED",
+     "kind": "PERSON"
+    },
+    "de": "die Kamera sieht noch eine Person im Weg"
+   },
+   {
+    "en": "the camera still sees an animal in the way",
+    "when": {
+     "type": "MOWING_REFUSED",
+     "kind": "ANIMAL"
+    },
+    "de": "die Kamera sieht noch ein Tier im Weg"
+   },
+   {
+    "en": "the camera still sees an obstacle in the way",
+    "when": {
+     "type": "MOWING_REFUSED"
+    },
+    "de": "die Kamera sieht noch ein Hindernis im Weg"
+   },
+   {
+    "en": "a person in the way",
+    "when": {
+     "kind": "PERSON"
+    },
+    "de": "eine Person im Weg"
+   },
+   {
+    "en": "an animal in the way",
+    "when": {
+     "kind": "ANIMAL"
+    },
+    "de": "ein Tier im Weg"
+   },
+   {
+    "en": "an obstacle in the way",
+    "de": "ein Hindernis im Weg"
+   }
+  ],
+  "DATA_ROLLBACK": [
+   {
+    "en": "the map of the restored backup isn't confirmed yet",
+    "de": "die Karte der zurückgeholten Sicherung ist noch nicht bestätigt"
    }
   ],
   "SELF_TEST": [
@@ -2112,6 +2927,20 @@
    }
   ],
   "STORAGE_NOT_WRITABLE": [
+   {
+    "en": "the mower can't save the state of the setup",
+    "when": {
+     "type": "SETUP_REFUSED"
+    },
+    "de": "der Mäher kann den Stand der Einrichtung nicht speichern"
+   },
+   {
+    "en": "the mower can't save the state of the setup",
+    "when": {
+     "type": "SETUP_BLOCKED"
+    },
+    "de": "der Mäher kann den Stand der Einrichtung nicht speichern"
+   },
    {
     "en": "the mower can't write to its storage, starting is blocked until it can",
     "de": "der Mäher kann seinen Speicher nicht beschreiben, Starten ist gesperrt, bis es wieder geht"
@@ -2174,6 +3003,12 @@
     "de": "diese Version der App braucht ein neueres MowBite OS"
    }
   ],
+  "APP_API_BREAK": [
+   {
+    "en": "this version of the app was built for another break of the interface than the MowBite OS on the mower",
+    "de": "diese Version der App ist für eine andere Bruchstufe der Schnittstelle gebaut als das MowBite OS auf dem Mäher"
+   }
+  ],
   "PLANNER_INTERFACE": [
    {
     "en": "this version of the planner doesn't speak the interface of the MowBite OS on the mower",
@@ -2192,6 +3027,21 @@
     "de": "wartet, bis der begonnene Mähauftrag fertig oder zurückgesetzt ist"
    }
   ],
+  "SCHEDULED_START": [
+   {
+    "en": "the schedule starts mowing at {at_clock}",
+    "when": {
+     "at_clock": {
+      "present": true
+     }
+    },
+    "de": "der Zeitplan startet um {at_clock} zum Mähen"
+   },
+   {
+    "en": "the schedule starts mowing soon",
+    "de": "der Zeitplan startet gleich zum Mähen"
+   }
+  ],
   "BAD_BUNDLE": [
    {
     "en": "the update file is damaged",
@@ -2208,6 +3058,18 @@
    {
     "en": "the update isn't signed with a known key",
     "de": "das Update ist mit keinem bekannten Schlüssel signiert"
+   }
+  ],
+  "PLATFORM_MISMATCH": [
+   {
+    "en": "the update is built for another mower model",
+    "de": "das Update ist für ein anderes Mähermodell gebaut"
+   }
+  ],
+  "PLATFORM_CONFIG": [
+   {
+    "en": "values of this mower model are missing",
+    "de": "Werte dieses Mähermodells fehlen"
    }
   ],
   "BASE_TOO_OLD": [
@@ -2229,6 +3091,13 @@
    }
   ],
   "INTERRUPTED": [
+   {
+    "en": "MowBite OS restarted while the step ran",
+    "when": {
+     "type": "SETUP_STEP"
+    },
+    "de": "MowBite OS ist während des Schritts neu gestartet"
+   },
    {
     "en": "the switch was interrupted twice, the mower is back on the version before",
     "de": "das Umschalten wurde zweimal unterbrochen, der Mäher ist wieder bei der vorigen Version"
@@ -2276,6 +3145,46 @@
     "de": "nicht genug Platz auf dem Mäher, um das Update zu entpacken"
    }
   ],
+  "START_NOT_OK": [
+   {
+    "en": "the newly installed mower isn't fully up yet: {message}",
+    "when": {
+     "message": {
+      "present": true
+     }
+    },
+    "de": "der neu installierte Mäher läuft noch nicht ganz: {message}"
+   },
+   {
+    "en": "the newly installed mower isn't fully up yet: a service failed, the WLAN is missing or MowBite OS isn't running",
+    "de": "der neu installierte Mäher läuft noch nicht ganz: ein Dienst ist ausgefallen, das WLAN fehlt oder MowBite OS läuft noch nicht"
+   }
+  ],
+  "UNSUPPORTED": [
+   {
+    "en": "this camera can't be unlocked from the app",
+    "when": {
+     "type": "CAMERA_UNLOCK_REFUSED"
+    },
+    "de": "diese Kamera lässt sich nicht aus der App entsperren"
+   },
+   {
+    "en": "this mower or its system can't do this",
+    "de": "dieser Mäher oder sein System kann das nicht"
+   }
+  ],
+  "WIFI_FAILED": [
+   {
+    "en": "the mower couldn't join this WLAN, the previous connection stays",
+    "de": "der Mäher konnte sich nicht mit diesem WLAN verbinden, die bisherige Verbindung bleibt"
+   }
+  ],
+  "NO_PASSWORD": [
+   {
+    "en": "root has no password yet, set one to turn SSH on",
+    "de": "root hat noch kein Passwort, zum Einschalten von SSH eines setzen"
+   }
+  ],
   "NOT_UPDATING": [
    {
     "en": "no update is running",
@@ -2301,6 +3210,13 @@
    }
   ],
   "NO_RTK": [
+   {
+    "en": "the exact position (RTK fix) was lost on the way",
+    "when": {
+     "type": "SETUP_STEP"
+    },
+    "de": "die genaue Position (RTK-Fix) ging unterwegs verloren"
+   },
    {
     "en": "no RTK fix",
     "de": "kein RTK-Fix"
@@ -2414,6 +3330,18 @@
     "de": "das Gyroskop misst die Drehung andersherum als die Räder"
    }
   ],
+  "GYRO_OFFSET": [
+   {
+    "en": "the gyro measures turning while the mower stands",
+    "de": "das Gyroskop misst eine Drehung, obwohl der Mäher steht"
+   }
+  ],
+  "NOT_STANDING": [
+   {
+    "en": "the mower moved while it should stand still",
+    "de": "der Mäher hat sich bewegt, obwohl er stillstehen sollte"
+   }
+  ],
   "NOT_MOVING": [
    {
     "en": "doesn't move",
@@ -2424,6 +3352,12 @@
    {
     "en": "doesn't turn",
     "de": "dreht sich nicht"
+   }
+  ],
+  "TURN_SLIDE": [
+   {
+    "en": "slid away while turning on the spot",
+    "de": "beim Drehen auf der Stelle weggerutscht"
    }
   ],
   "OVERSPEED": [
@@ -2500,6 +3434,344 @@
     "en": "its response topic is not rpc/response/ and a token",
     "de": "ihr Antwort-Topic ist nicht rpc/response/ mit einem Token"
    }
+  ],
+  "NOT_SEEN": [
+   {
+    "en": "the mower didn't notice the action",
+    "de": "der Mäher hat den Handgriff nicht bemerkt"
+   }
+  ],
+  "WRONG_INPUT": [
+   {
+    "en": "input {seen} switched instead of the one expected",
+    "when": {
+     "seen": {
+      "present": true
+     }
+    },
+    "de": "Eingang {seen} hat statt des erwarteten geschaltet"
+   },
+   {
+    "en": "another input switched than the one expected",
+    "de": "ein anderer Eingang als der erwartete hat geschaltet"
+   }
+  ],
+  "NO_EMERGENCY": [
+   {
+    "en": "the input switched, but no emergency stop came in time",
+    "de": "der Eingang hat geschaltet, aber der Notaus kam nicht rechtzeitig"
+   }
+  ],
+  "STOPPED_EARLY": [
+   {
+    "en": "a short trigger brought the emergency stop already",
+    "de": "schon ein kurzes Auslösen brachte den Notaus"
+   }
+  ],
+  "WRONG_SIGN": [
+   {
+    "en": "the motion sensor reported the move the other way round",
+    "de": "der Lagesensor meldete die Bewegung andersherum"
+   }
+  ],
+  "LIMIT": [
+   {
+    "en": "a value is out of its bounds",
+    "de": "ein Wert liegt außerhalb seiner Grenzen"
+   }
+  ],
+  "NO_DATA": [
+   {
+    "en": "no data from the inputs of the board",
+    "when": {
+     "source": "hw/inputs"
+    },
+    "de": "keine Daten von den Eingängen der Platine"
+   },
+   {
+    "en": "no data from board, motion sensor or GPS",
+    "de": "keine Daten von Platine, Lagesensor oder GPS"
+   }
+  ],
+  "INPUT_ACTIVE": [
+   {
+    "en": "the input is still switched, let go of it first",
+    "de": "der Eingang ist noch ausgelöst, erst loslassen"
+   }
+  ],
+  "LINE_SILENT": [
+   {
+    "en": "line {lines} did not switch with any action",
+    "when": {
+     "lines": {
+      "present": true
+     }
+    },
+    "de": "Leitung {lines} hat bei keiner Aktion geschaltet"
+   },
+   {
+    "en": "a line of this input did not switch",
+    "de": "eine Leitung dieses Eingangs hat nicht geschaltet"
+   }
+  ],
+  "NO_LINE": [
+   {
+    "en": "none of the lines watched changed",
+    "de": "keine der beobachteten Leitungen hat sich geändert"
+   }
+  ],
+  "AMBIGUOUS": [
+   {
+    "en": "more than one line changed at once ({lines})",
+    "when": {
+     "lines": {
+      "present": true
+     }
+    },
+    "de": "mehr als eine Leitung hat gleichzeitig geschaltet ({lines})"
+   },
+   {
+    "en": "more than one line changed at once",
+    "de": "mehr als eine Leitung hat gleichzeitig geschaltet"
+   }
+  ],
+  "FLUTTER": [
+   {
+    "en": "line {lines} changed while nothing was touched",
+    "when": {
+     "lines": {
+      "present": true
+     }
+    },
+    "de": "Leitung {lines} hat geschaltet, ohne dass etwas berührt wurde"
+   },
+   {
+    "en": "a line changed while nothing was touched",
+    "de": "eine Leitung hat geschaltet, ohne dass etwas berührt wurde"
+   }
+  ],
+  "NOT_APPLIED": [
+   {
+    "en": "the mower does not use what the step wrote, {key} is set by hand in the device file",
+    "when": {
+     "key": {
+      "present": true
+     }
+    },
+    "de": "der Mäher nutzt nicht, was der Schritt eingetragen hat, {key} ist in der Gerätedatei von Hand gesetzt"
+   },
+   {
+    "en": "the mower does not use what the step wrote after the restart",
+    "de": "der Mäher nutzt nach dem Neustart nicht, was der Schritt eingetragen hat"
+   }
+  ],
+  "RESTART_FAILED": [
+   {
+    "en": "MowBite OS was not back within {limit:0} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "MowBite OS war nicht innerhalb von {limit:0} s zurück"
+   },
+   {
+    "en": "MowBite OS was not back in time",
+    "de": "MowBite OS war nicht rechtzeitig zurück"
+   }
+  ],
+  "CONFIRM_MISSING": [
+   {
+    "en": "not every point is confirmed",
+    "de": "nicht alle Punkte bestätigt"
+   }
+  ],
+  "INVALID_VALUE": [
+   {
+    "en": "the value doesn't fit this step",
+    "de": "der Wert passt nicht zu diesem Schritt"
+   }
+  ],
+  "LOCKED": [
+   {
+    "en": "another step has to pass first",
+    "de": "erst muss ein anderer Schritt bestanden sein"
+   }
+  ],
+  "NOT_SKIPPABLE": [
+   {
+    "en": "this step can't be skipped",
+    "de": "dieser Schritt lässt sich nicht überspringen"
+   }
+  ],
+  "UNKNOWN_STEP": [
+   {
+    "en": "the mower has no such step",
+    "de": "der Mäher kennt diesen Schritt nicht"
+   }
+  ],
+  "PLATFORM_FIXED": [
+   {
+    "en": "the installation sets which mower this is",
+    "de": "die Installation legt fest, welcher Mäher das ist"
+   }
+  ],
+  "UNKNOWN_PLATFORM": [
+   {
+    "en": "this version of MowBite OS doesn't know the mower",
+    "de": "diese Version von MowBite OS kennt den Mäher nicht"
+   }
+  ],
+  "VERSION": [
+   {
+    "en": "the setup changed in the meantime, try again",
+    "de": "die Einrichtung hat sich inzwischen geändert, noch einmal versuchen"
+   }
+  ],
+  "WRONG_METHOD": [
+   {
+    "en": "this step is done another way",
+    "de": "dieser Schritt geht anders"
+   }
+  ],
+  "NOT_OFFERED": [
+   {
+    "en": "the board of this mower doesn't offer this check",
+    "de": "die Platine dieses Mähers bietet diese Prüfung nicht an"
+   }
+  ],
+  "RESTARTS_LOW": [
+   {
+    "en": "the driver restarted several times lately, restart MowBite OS first",
+    "de": "der Treiber ist zuletzt mehrmals neu gestartet, erst MowBite OS neu starten"
+   }
+  ],
+  "SAFETY_INPUTS": [
+   {
+    "en": "STOP button, lifting and bumper have to pass standing first",
+    "de": "erst müssen STOP-Taste, Anheben und Stoßfänger im Stand bestanden sein"
+   }
+  ],
+  "BLADE_NOT_ALLOWED": [
+   {
+    "en": "the driver doesn't let the blade turn ({key} is false)",
+    "when": {
+     "key": {
+      "present": true
+     }
+    },
+    "de": "der Treiber lässt das Messer nicht drehen ({key} steht auf false)"
+   },
+   {
+    "en": "the driver doesn't let the blade turn",
+    "de": "der Treiber lässt das Messer nicht drehen"
+   }
+  ],
+  "SAFETY_AIR": [
+   {
+    "en": "the steps with the mower jacked up have to pass first",
+    "de": "erst müssen die Schritte mit aufgebocktem Mäher bestanden sein"
+   }
+  ],
+  "SAFETY_STEPS": [
+   {
+    "en": "every safety check has to pass first, skipped ones don't count",
+    "de": "erst muss jede Sicherheitsprüfung bestanden sein, übersprungene zählen nicht"
+   }
+  ],
+  "NO_STANDSTILL": [
+   {
+    "en": "the mower didn't come to a standstill after the stop",
+    "de": "der Mäher kam nach dem Stopp nicht zum Stillstand"
+   }
+  ],
+  "DRIVER_REFUSED": [
+   {
+    "en": "the board refused the check, the mower charges or the blade runs",
+    "de": "die Platine hat die Prüfung abgelehnt, der Mäher lädt oder das Messer läuft"
+   }
+  ],
+  "LOGIC_REFUSED": [
+   {
+    "en": "the mower didn't take the step: it is on its way, charges or has an emergency stop",
+    "de": "der Mäher hat den Schritt nicht angenommen: er ist unterwegs, lädt oder steht im Notaus"
+   }
+  ],
+  "NOT_DONE": [
+   {
+    "en": "the action wasn't done, the check doesn't count",
+    "de": "der Handgriff wurde nicht gemacht, die Prüfung zählt nicht"
+   }
+  ],
+  "OUTDATED": [
+   {
+    "en": "a new calibration drive ran or its values were changed since",
+    "when": {
+     "step": "calibration"
+    },
+    "de": "seitdem lief eine neue Kalibrierfahrt oder ihre Werte wurden geändert"
+   },
+   {
+    "en": "what the step checked no longer holds",
+    "de": "was der Schritt geprüft hat, gilt nicht mehr"
+   }
+  ],
+  "NOT_RELEASED": [
+   {
+    "en": "the emergency stop of the step couldn't be released",
+    "de": "der Notaus des Schritts ließ sich nicht aufheben"
+   }
+  ],
+  "NO_START": [
+   {
+    "en": "the wheels or the blade didn't turn on the command",
+    "de": "Räder oder Messer haben sich auf den Befehl nicht gedreht"
+   }
+  ],
+  "NO_RESTART": [
+   {
+    "en": "after the release the wheels didn't turn again",
+    "de": "nach der Freigabe haben sich die Räder nicht wieder gedreht"
+   }
+  ],
+  "NO_RETURN": [
+   {
+    "en": "the driver of the board wasn't back within {limit:0} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Treiber der Platine war nicht innerhalb von {limit:0} s zurück"
+   },
+   {
+    "en": "the driver of the board wasn't back in time",
+    "de": "der Treiber der Platine war nicht rechtzeitig zurück"
+   }
+  ],
+  "RELEASED": [
+   {
+    "en": "the app stopped following the step, the mower stopped",
+    "de": "die App hat den Schritt nicht mehr begleitet, der Mäher hat angehalten"
+   }
+  ],
+  "STARTED_AGAIN": [
+   {
+    "en": "a wheel or the blade turned while it had to stand",
+    "de": "ein Rad oder das Messer hat sich gedreht, obwohl es stehen musste"
+   }
+  ],
+  "WRONG_DIRECTION": [
+   {
+    "en": "a wheel turned the other way round than asked",
+    "de": "ein Rad hat sich anders herum gedreht als verlangt"
+   }
+  ],
+  "WRONG_WHEEL": [
+   {
+    "en": "another wheel than the right one turned, the motors are swapped",
+    "de": "es hat sich ein anderes Rad gedreht als das rechte, die Motoren sind vertauscht"
+   }
   ]
  },
  "wrappers": {},
@@ -2559,7 +3831,9 @@
   "18": "WHEEL_RUNAWAY",
   "19": "FOREIGN_HOST",
   "20": "DRIVER_STALL",
-  "21": "UNEXPECTED_RESTART"
+  "21": "UNEXPECTED_RESTART",
+  "22": "INPUTS_LEARNING",
+  "23": "BOARD_NOT_HEARD"
  },
  "emergency_text": {
   "STOP": {
@@ -2645,6 +3919,14 @@
   "UNEXPECTED_RESTART": {
    "en": "unexpected restart",
    "de": "unerwarteter Neustart"
+  },
+  "INPUTS_LEARNING": {
+   "en": "assigning its inputs",
+   "de": "ordnet seine Eingänge zu"
+  },
+  "BOARD_NOT_HEARD": {
+   "en": "board not answering",
+   "de": "Platine meldet sich nicht"
   },
   "UNKNOWN": {
    "en": "unknown reason",

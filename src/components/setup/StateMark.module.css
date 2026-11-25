@@ -1,0 +1,162 @@
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.mark svg {
+  width: 62%;
+  height: 62%;
+}
+
+.mark[data-size='small'] {
+  width: 22px;
+  height: 22px;
+}
+
+.mark[data-size='big'] {
+  width: 48px;
+  height: 48px;
+}
+
+.mark[data-state='ok'] {
+  background: var(--success);
+  color: var(--accent-foreground);
+}
+
+.mark[data-state='failed'] {
+  background: var(--error);
+  color: var(--accent-foreground);
+}
+
+.mark[data-state='skipped'] {
+  background: var(--track);
+  color: var(--text-secondary);
+}
+
+.mark[data-state='stale'] {
+  background: var(--tint-warn);
+  color: var(--soft-warn);
+}
+
+.mark[data-state='locked'] {
+  color: var(--text-secondary);
+}
+
+.mark[data-state='open'] {
+  border: 2px solid color-mix(in srgb, var(--text-secondary) 60%, transparent);
+}
+
+.mark[data-state='running'],
+.mark[data-state='waiting'] {
+  border: 2.5px solid var(--accent);
+}
+
+.mark[data-state='waiting'] {
+  border-style: dashed;
+}
+
+.mark[data-state='running']::after {
+  content: '';
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* a name with a line under it, beside a mark */
+.label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.label b {
+  font-weight: 600;
+}
+
+.label span {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mark[data-state='waiting'] {
+    animation: turn 4s linear infinite;
+  }
+
+  .mark[data-state='running']::after {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  /* passed: the mark pops up, the tick draws itself */
+  .mark[data-moved][data-state='ok'] {
+    animation: pop var(--dur-move) var(--ease-out);
+  }
+
+  .mark[data-moved][data-state='ok'] path {
+    stroke-dasharray: 22;
+    animation: draw var(--dur-move) 0.1s ease-out backwards;
+  }
+
+  /* failed: pops up and shakes once */
+  .mark[data-moved][data-state='failed'] {
+    animation:
+      pop var(--dur-move) var(--ease-out),
+      shake 0.36s var(--dur-move) ease-in-out;
+  }
+
+  .mark[data-moved][data-state='skipped'] svg {
+    animation: nudge var(--dur-move) var(--ease-out);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+  }
+
+  60% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-3px);
+  }
+
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes nudge {
+  from {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.6;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}

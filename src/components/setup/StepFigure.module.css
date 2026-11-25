@@ -1,0 +1,78 @@
+.figure {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 16px;
+  border-radius: var(--radius-l);
+  background: var(--tile);
+  overflow: hidden;
+}
+
+.image {
+  position: relative;
+  width: 100%;
+  max-width: 200px;
+  aspect-ratio: 1;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  background: var(--foreground);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
+.image .layer:first-child {
+  opacity: 0.85;
+}
+
+.accent {
+  background: var(--accent);
+}
+
+.symbol {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: var(--tint-accent);
+  color: var(--accent);
+}
+
+.tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.figure .clock {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+/* a mower's drawing in the choice of the mower, in the colour of the tile's text */
+.drawing {
+  width: 85%;
+  height: 85%;
+  background: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}

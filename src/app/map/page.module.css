@@ -1081,15 +1081,71 @@
   display: none;
 }
 
-/* an obstacle's own distance, in the area card */
-.marginInput {
-  width: 56px;
+/* a value of the area's own or the one for all (OwnValue): two choices side by side, the own one with its field */
+.ownValue {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.ownLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.ownChoice {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.ownChoice > button,
+.ownChoice > label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-height: var(--tap);
+  padding: 4px 8px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: var(--tile);
+  box-shadow: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ownChoice b {
+  font-weight: 600;
+}
+
+.ownChoice > button[aria-pressed='true'],
+.ownChoice > label[data-on] {
+  border-color: var(--accent);
+  background: var(--tint-accent);
+  color: var(--foreground);
+}
+
+.ownChoice input {
+  width: 52px;
+  min-height: 32px;
   padding: 4px 8px;
   border-radius: 8px;
   border: 1px solid var(--card-border);
   background: transparent;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: 14px;
+  text-align: center;
 }
 
 /* an area's direction (MowSettings): in the planner menu like its other settings, without the planner in the card */

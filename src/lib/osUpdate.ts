@@ -1,10 +1,11 @@
 import {useSyncExternalStore} from 'react';
 import {numericDay, shortDay} from './dates';
 import {tr} from './i18n';
-import {onTopic, topicStore} from './mqttClient';
+import {knownSystemInfo, isMowbiteOs} from './mowerOs';
+import {onTopic} from './mqttClient';
 import {RPC, TOPIC, UPDATE_GATED} from './openmower';
-import {callRpc, RpcError} from './rpc';
-import {APP_VERSION, isNewer} from './updates';
+import {callCommand, callRpc, RpcError} from './rpc';
+import {APP_VERSION, isNewer, OS_API} from './updates';
 
 // MowBite OS's own updater (its host, masterplan 3.5): each part with what runs, what's new and where the way back goes,
 // the update going on and how the last one ended. The same as the answer of every update.* and retained on its topic.
@@ -26,6 +27,9 @@ export interface Blocked {
 export interface Available extends Version {
   // the oldest app it works with
   min_app: string | null;
+  // os: the api it speaks and its break, null for a bundle that doesn't say
+  api?: number | null;
+  api_break?: number | null;
   blocked: Blocked | null;
   // where it was found: the inbox on the mower or the release index on the net
   from?: 'inbox' | 'net';
@@ -92,6 +96,11 @@ export interface UpdateStatus {
   revision: string | null;
   // why the gate waits
   reason: string | null;
+  // with reason SCHEDULED_START: when the plan starts (unix s, api 55 on)
+  at?: number | null;
+  // in verifying and unpacking: how far, 0 to 100, and the bytes so far (api 55 on)
+  percent?: number | null;
+  bytes?: number | null;
   components: Component[];
   auto: Auto;
   last: Last | null;
@@ -131,16 +140,15 @@ function subscribe(l: () => void) {
 
 export const useUpdateStatus = (): Seen | null => useSyncExternalStore(subscribe, () => seen, () => null);
 
-// the host says online while it answers, its last will says false: undefined until either came
-const hostOnline = topicStore<boolean | undefined>(TOPIC.hostStatus, undefined, (payload) => JSON.parse(payload.toString()).online === true);
-export const useHostOnline = () => useSyncExternalStore(hostOnline.subscribe, hostOnline.get, hostOnline.initial);
-
-// every call names the app's version: the automatic update leaves out what needs a newer app than the one seen last
-const call = (method: string, params: object = {}) =>
-  callRpc<UpdateStatus>(method, {...params, app_version: APP_VERSION}).then((s) => {
+// every call names the app's version: the automatic update leaves out what needs a newer app than the one seen last.
+// command: sent only while connected, never later after a reconnect (a start or rollback)
+const call = (method: string, params: object = {}, command = false) => {
+  const p = {...params, app_version: APP_VERSION};
+  return (command ? callCommand<UpdateStatus>(method, p, 10000) : callRpc<UpdateStatus>(method, p)).then((s) => {
     take(s);
     return s;
   });
+};
 
 // when the last result came as an update was started from here (null: none yet), undefined before the first
 let startedAfter: number | null | undefined;
@@ -155,10 +163,10 @@ export const askUpdateStatus = () => call(RPC.updateStatus);
 export const checkUpdates = () => call(RPC.updateCheck);
 // the newest version of a part, or the one named. reset_jobs (planner only): not waiting for an open mowing job
 export const startUpdate = (component: string, opts: {revision?: string; reset_jobs?: boolean} = {}) =>
-  call(RPC.updateStart, {component, ...opts}).then(started);
+  call(RPC.updateStart, {component, ...opts}, true).then(started);
 export const abortUpdate = () => call(RPC.updateAbort);
 export const rollBack = (component: string, resetJobs = false) =>
-  call(RPC.updateRollback, {component, ...(resetJobs && {reset_jobs: true})}).then(started);
+  call(RPC.updateRollback, {component, ...(resetJobs && {reset_jobs: true})}, true).then(started);
 export const setAutoUpdate = (auto: Partial<Auto>) => call(RPC.updateSetAuto, auto);
 // stable releases only or previews too, the mower then looks on the net again
 export const setChannel = (channel: Channel) => call(RPC.updateSetChannel, {channel});
@@ -227,6 +235,20 @@ export function runSteps(s: UpdateStatus): {steps: Step[]; now: number} {
 
 // this app is older than the version needs
 export const appTooOld = (a: Available | null) => !!a?.min_app && isNewer(a.min_app, APP_VERSION);
+
+// os: why this app doesn't speak the api it names, null when it does or it doesn't say: another break (without one
+// above max) or below min. only a note, the OS brings an app along that fits and the mower serves that one meanwhile
+export function apiMisfit(a: Pick<Available, 'api' | 'api_break'> | null, own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
+  if (!own || typeof a?.api !== 'number') return null;
+  if (a.api < own.min) return 'OS_TOO_OLD';
+  return (typeof a.api_break === 'number' ? a.api_break !== own.break : a.api > own.max) ? 'APP_API_BREAK' : null;
+}
+
+// the MowBite OS that runs and this app: why they don't fit, null where they do or it isn't known yet
+export function runningMisfit(own = OS_API): 'APP_API_BREAK' | 'OS_TOO_OLD' | null {
+  const i = knownSystemInfo();
+  return isMowbiteOs(i) ? apiMisfit({api: i!.api ?? null, api_break: i!.api_break ?? null}, own) : null;
+}
 
 // the order the automatic update takes the parts in (masterplan 3.5)
 const AUTO_ORDER = ['host', 'app', 'planner', 'os'];

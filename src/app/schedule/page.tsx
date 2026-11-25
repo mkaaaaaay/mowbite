@@ -1,17 +1,19 @@
 'use client';
 
+import {DataRollbackCard} from '@/components/DataRollbackCard';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {useDataRollback} from '@/lib/dataRollback';
 import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
-import {useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {usePlatform} from '@/lib/mowerOs';
 import {mowsIntoNight, paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
-import {ACTION} from '@/lib/openmower';
+import {ACTION, RPC} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import PlanRow from './PlanRow';
 import PauseCard from './PauseCard';
@@ -19,6 +21,8 @@ import {
   cachedSchedule,
   cachedScheduleLog,
   changedElsewhere,
+  refusedText,
+  ScheduleRefused,
   clockText,
   daySun,
   EMPTY_SCHEDULE,
@@ -32,11 +36,13 @@ import {
   osSun,
   posixTz,
   readyText,
-  saveSchedule,
   scheduleNow,
+  sameSchedule,
+  scheduleSaver,
   type LogEntry,
   type Schedule,
   scheduleLogLine,
+  tzUnreadable,
   useScheduleReady,
 } from '@/lib/schedule';
 import {useEffect, useMemo, useRef, useState} from 'react';
@@ -70,10 +76,14 @@ export default function SchedulePage() {
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
   const {knowsAction} = useMowerActions();
-  const canSetParams = useCanSetParams();
   // a start's own mowing direction: MowBite OS's schedule turns the planner's lanes for the job, the container
   // mower_logic's mow_angle_offset
-  const os = useMowbiteOs();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
+  // undefined until the mower has told
+  const methods = useRpcMethods();
+  const canSetParams = !!methods?.has(RPC.setParams);
   const canTurn = fromOs || (canSetParams && !os);
   const ready = useScheduleReady();
   // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
@@ -87,8 +97,19 @@ export default function SchedulePage() {
   const load = (again = false) =>
     void loadSchedule(again).then((s) => {
       setUnreachable(s === undefined);
-      if (s !== undefined && !touched.current) setSchedule(s);
+      if (s === undefined || touched.current) return;
+      // the same plans: the page keeps its own, with what the mower says about starting now
+      setSchedule((shown) => {
+        if (!shown || !s || !sameSchedule(shown, s)) return s;
+        return JSON.stringify(shown.os) === JSON.stringify(s.os) ? shown : {...shown, os: s.os};
+      });
     });
+  // the map of an older backup was confirmed: asked again, the schedule may start the mower again
+  const rollbackOpen = !!useDataRollback()?.confirm;
+  const heldByRollback = schedule?.os?.reason === 'data_rollback';
+  useEffect(() => {
+    if (!rollbackOpen && heldByRollback) load(true);
+  }, [rollbackOpen, heldByRollback]);
   useEffect(() => {
     load();
     void loadScheduleLog().then(setLog);
@@ -105,23 +126,33 @@ export default function SchedulePage() {
     };
   }, []);
 
-  // every change is saved right away
+  // every change is saved right away, one after another. once the last one is through or failed the page shows what
+  // the mower has
+  const saver = useRef<ReturnType<typeof scheduleSaver> | null>(null);
   const update = (next: Schedule) => {
     touched.current = true;
     setSchedule(next);
     setError(null);
-    // the position also gives the scheduler the sun times
-    saveSchedule(next, datum ?? undefined).catch((e) => {
-      if (!changedElsewhere(e))
-        return setError(tr("The schedule couldn't be saved on the mower ({why}). Check the connection and try again.", {why: rpcErrorText(e)}));
-      // MowBite OS: another phone or Home Assistant changed it in between, shown as the mower has it now
-      setError(tr('The schedule was changed elsewhere meanwhile, this is how the mower has it now. Make the change again.'));
+    saver.current ??= scheduleSaver(() => {
       touched.current = false;
       load(true);
     });
+    // the position also gives the scheduler the sun times
+    saver.current(next, datum ?? undefined).catch((e) =>
+      setError(
+        e instanceof ScheduleRefused
+          ? refusedText(e)
+          : changedElsewhere(e)
+            ? // MowBite OS: another phone or Home Assistant changed it in between
+              tr('The schedule was changed elsewhere meanwhile, this is how the mower has it now. Make the change again.')
+            : tr("The schedule couldn't be saved on the mower ({why}). This is how the mower has it now.", {why: rpcErrorText(e)}),
+      ),
+    );
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
+  // without params.set the scheduler can't set OpenMower's pause at an end time, it sends the mower home for 12 h instead
+  const homeAfterEnd = om && methods !== undefined && !canSetParams && (s.plans.some((p) => p.end) || !!s.handStop);
   const sunOn = datum ? daySun(s.tz, datum) : null;
   // today's sunrise and sunset by the schedule's clock, so the animal hint follows the real night. MowBite OS knows
   // its place itself
@@ -129,8 +160,10 @@ export default function SchedulePage() {
   const next = nextStart(s, undefined, sunOn ?? sun, mowAreas.map((a) => a.id));
   // the forecast and the cold need the garden's place, MowBite OS has its own
   const placed = !!datum || fromOs;
-  // saved from a phone in another time zone: the times are the schedule's, not this phone's
+  // saved from a phone in another time zone: the times are the schedule's, not this phone's. one that can't be read here
+  // counts in this phone's
   const otherZone = useMemo(() => inOtherZone(s.tz), [s.tz]);
+  const unreadZone = tzUnreadable(s.tz);
 
   return (
     <div className={styles.page}>
@@ -144,7 +177,7 @@ export default function SchedulePage() {
 
         {schedule === null && (
           <p className={styles.dim}>
-            {tr(os ? "MowBite OS doesn't have the schedule yet." : 'The schedule needs MowBite running as its container on the mower.')}
+            {os ? tr("MowBite OS doesn't have the schedule yet.") : om ? tr('The schedule needs MowBite running as its container on the mower.') : null}
           </p>
         )}
         {schedule === undefined && unreachable && <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>}
@@ -164,7 +197,15 @@ export default function SchedulePage() {
                     : tr('Switched off, the mower only mows when you start it.')}
               </p>
               {s.enabled && ready && <p className={ready.ok ? styles.dim : styles.error}>{readyText(ready)}</p>}
-              {s.os && !s.os.available && <p className={styles.error}>{tr("MowBite OS doesn't let the schedule start the mower on this platform yet.")}</p>}
+              {s.os && !s.os.available && !heldByRollback && (
+                <p className={styles.error}>{tr("MowBite OS doesn't let the schedule start the mower on this platform yet.")}</p>
+              )}
+              {heldByRollback && (
+                <>
+                  <DataRollbackCard />
+                  <p className={styles.dim}>{tr('The plans can still be changed.')}</p>
+                </>
+              )}
               {s.os?.clockReason && (
                 <p className={styles.error}>
                   {tr("No plan starts until the mower's clock is confirmed: {why}.", {why: clockText(s.os.clockReason)})}
@@ -182,8 +223,10 @@ export default function SchedulePage() {
 
             {otherZone && (
               <section className={styles.card}>
-                <p className={styles.dim}>
-                  {tr("This phone is in another time zone than the schedule. The times are the schedule's, the mower starts by those.")}
+                <p className={unreadZone ? styles.error : styles.dim}>
+                  {unreadZone
+                    ? tr("The schedule's time zone ({tz}) can't be read here. The mower starts by the times in that zone, the next start shown here counts in this phone's.", {tz: s.tz!})
+                    : tr("This phone is in another time zone than the schedule. The times are the schedule's, the mower starts by those.")}
                 </p>
                 <button className={styles.add} onClick={() => update({...s, tz: posixTz()})}>
                   {tr("Use this phone's time zone")}
@@ -213,10 +256,17 @@ export default function SchedulePage() {
               {mowAreas.length > 1 && s.plans.length > 0 && (
                 <p className={styles.dim}>{tr('With only some areas picked, it starts as usual and skips the others when their turn comes.')}</p>
               )}
+              {homeAfterEnd && (
+                <p className={styles.dim}>
+                  {tr(
+                    'With your OpenMower version, for 12 hours after an end time the mower is sent home again within half a minute whenever it starts mowing, also when started with the button on the mower. A start from the app, Home Assistant or OpenMower ends that.',
+                  )}
+                </p>
+              )}
             </section>
 
             {/* on MowBite OS its own schedule has the say */}
-            {hasHandStop && !os && (
+            {hasHandStop && om && (
               <section className={styles.card}>
                 <h2>{tr('Starts by hand')}</h2>
                 <label className={styles.check}>
@@ -318,7 +368,13 @@ export default function SchedulePage() {
                 ) : (
                   tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')
                 )}
+                {!os && ` ${tr("Without an answer from there it starts anyway, the log says so.")}`}
               </p>
+              {!os && (
+                <p className={styles.dim}>
+                  {tr("A start only goes out with the mower in the dock and its clock set by time sync, also when it's tried again after a failed undocking.")}
+                </p>
+              )}
               {canSetParams && (
                 <p className={styles.dim}>
                   {tr('Rain while it mows is up to the mower: {mode}.', {

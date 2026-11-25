@@ -1,7 +1,30 @@
-import {describe, expect, it} from 'vitest';
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import de from './i18n/de';
 import {
+  OS_TEXTS,
+  loadOsModels,
+  osBackLeft,
+  osModelMissing,
+  osModelOf,
+  osModelsOf,
+  osOnItsPage,
+  osResult,
+  osStepWords,
+  osSteps,
+  osSwitchOf,
+  osWayOf,
+  lookingSince,
+  missingOf,
+  noKeep,
+  taken,
+  working,
   freeMb,
+  answerTo,
   kindOf,
+  lacksPlanner,
   openMowerChoices,
   outOfReach,
   reachLine,
@@ -9,6 +32,7 @@ import {
   partResult,
   partsOf,
   progressOf,
+  readState,
   roomLoose,
   roomTotal,
   runResult,
@@ -35,6 +59,18 @@ const state = (status: Record<string, string>, openmower = 'edge'): UpdateState 
 });
 
 describe('the updater on the mower', () => {
+  it("reads its state after a request to write mower_params.yaml", () => {
+    expect(readState('waiting 1793700000')).toEqual({what: 'waiting', at: 1793700000, why: null});
+    expect(readState('refused 1793700000 anchors_ll/x')).toEqual({what: 'refused', at: 1793700000, why: 'anchors_ll/x'});
+    expect(readState('done 1')).toBeNull();
+    // an answer is a change after the request, whatever its time says
+    expect(answerTo('written 1793700000', 'written 1793700000')).toBeNull();
+    expect(answerTo('waiting 1693700000', 'written 1793700000')).toEqual({what: 'waiting', at: 1693700000, why: null});
+    expect(answerTo('written 1793700000', '')).toEqual({what: 'written', at: 1793700000, why: null});
+    expect(answerTo(undefined, '')).toBeNull();
+    expect(answerTo('back 1793700000', null)).toEqual({what: 'back', at: 1793700000, why: null});
+  });
+
   it('deletes all of what nothing needs but the ways back, those one at a time', () => {
     const item = (id: string, kind: RoomItem['kind'], bytes: number): RoomItem => ({id, kind, bytes, refs: `x:${id}`});
     const s = {
@@ -43,6 +79,34 @@ describe('the updater on the mower', () => {
     };
     expect(roomLoose(s).map((i) => i.id)).toEqual(['c', 'd', 'e']);
     expect(roomTotal(roomLoose(s))).toBe(120);
+  });
+
+  it("is on something from a request until it's done with it: asked, taken, a run, a look", () => {
+    const now = 10_000;
+    const at = (status: Record<string, string>, requested = false) => working({...state({alive: String(now), ...status}), requested}, now);
+    expect(at({}, true)).toBe(true);
+    // (taken before its run or look shows, and room and free all the time)
+    expect(taken(state({taken: `${now - 5} free:img`}), now)).toEqual({since: now - 5, what: ['free:img']});
+    expect(at({taken: `${now - 5} room`})).toBe(true);
+    expect(at({result: 'running'})).toBe(true);
+    expect(at({looking: String(now - 20)})).toBe(true);
+    expect(at({updater: `restarting ${now - 20}`, updater_running: '7cce417 2026-11-14'})).toBe(true);
+    expect(at({result: 'done'})).toBe(false);
+    // (one left from a stop halfway an hour ago isn't)
+    expect(at({taken: `${now - 4000} now:mowbite`})).toBe(false);
+    expect(taken(state({taken: ''}), now)).toBeNull();
+  });
+
+  it("offers OpenMower without a copy with what goes, or says why not, and how it's put back by hand", () => {
+    const s = state({openmower_nokeep: 'yes 5800 planner rb-1:x,mowbite_planner:edge -'});
+    expect(noKeep(s, 'openmower')).toEqual({ok: true, size: '6.1 GB', parts: ['MowBite Planner'], back: ['rb-1:x', 'mowbite_planner:edge'], gone: []});
+    expect(noKeep(state({openmower_nokeep: 'no room 7179 2942'}), 'openmower')).toEqual({ok: false, why: expect.stringContaining('needs about 7.5 GB')});
+    expect(noKeep(state({}), 'openmower')).toBeNull();
+    const m = missingOf(state({openmower_missing: '2 - new ghcr.io/x/om:edge ghcr.io/x/om@sha256:1 ghcr.io/x/om:edge /opt/stacks/openmower'}))!;
+    expect(m.next).toBeNull();
+    expect(m.fresh).toBe('docker pull ghcr.io/x/om:edge && cd /opt/stacks/openmower && docker compose up -d');
+    expect(m.before).toBe('docker pull ghcr.io/x/om@sha256:1 && docker tag ghcr.io/x/om@sha256:1 ghcr.io/x/om:edge && cd /opt/stacks/openmower && docker compose up -d');
+    expect(partInfo(state({openmower_running: 'missing'}), 'openmower').running).toContain("isn't on the mower");
   });
 
   it('counts as there while it wrote alive lately, longer while it updates', () => {
@@ -56,6 +120,10 @@ describe('the updater on the mower', () => {
     expect(updaterAlive(state({alive: '1000', taken: '1100 now:all'}), 2000)).toBe(true);
     expect(updaterAlive(state({alive: '1000', looking: '1100'}), 5000)).toBe(false);
     expect(updaterAlive(state({alive: '1000', looking: ''}), 2000)).toBe(false);
+    // looking for updates now: while it says so, not one left from a look that never ended
+    expect(lookingSince(state({looking: '1100'}), 1200)).toBe(1100);
+    expect(lookingSince(state({looking: ''}), 1200)).toBeNull();
+    expect(lookingSince(state({looking: '1100'}), 5000)).toBeNull();
     expect(silentSince(state({alive: '1792831337'}))).toBeTruthy();
     expect(silentSince(state({}))).toBeNull();
   });
@@ -72,7 +140,7 @@ describe('the updater on the mower', () => {
     });
     expect(partInfo(s, 'mowbite')).toMatchObject({available: 'yes'});
     expect(partInfo(s, 'mowbite').running).toContain('1.4.0-beta.11');
-    expect(partInfo(s, 'openmower').running).toContain('edge');
+    expect(partInfo(s, 'openmower').running).toContain('Edge');
     expect(partInfo(s, 'planner')).toMatchObject({available: 'unknown', source: 'github'});
     expect(partInfo(s, 'planner').running).toContain('b187b88');
     expect(partInfo(state({}), 'openmower').running).toBeNull();
@@ -97,18 +165,26 @@ describe('the updater on the mower', () => {
     expect(freeMb(state({disk_free: 'x'}))).toBeNull();
   });
 
+  it('says the planner needs another OpenMower only for a release before 1.5.0', () => {
+    for (const tag of ['edge', 'latest', 'v1.5.0', '1.5.0', 'v1.6', '2.0.1']) expect(lacksPlanner(tag)).toBe(false);
+    // one that isn't a version can't be told
+    for (const tag of ['v1.4.2', '1.4.0', 'pr-363', 'releases-v1']) expect(lacksPlanner(tag)).toBe(true);
+  });
+
   it('shows the step it is on while a run goes on, with its percent, how many of how many or the time', () => {
     const run = (progress: string, run_parts = 'openmower planner mowbite') => state({result: 'running', run_parts, progress});
     const download = progressOf(run('openmower download 37 1000'))!;
     expect(download).toMatchObject({part: 'openmower', step: 'download', pct: 37, since: 1000});
-    expect(stepDetail(download)).toBe('37 %');
-    expect(stepDetail(progressOf(run('openmower extract 50 1000 3 12'))!)).toBe('3 of 12 layers');
-    expect(stepDetail(progressOf(run('planner build 44 1000 4 9'))!)).toBe('step 5 of 9');
+    expect(stepDetail(download, 1000)).toBe('37 % · 0:00');
+    expect(stepDetail(progressOf(run('openmower extract 50 1000 3 12'))!, 1010)).toBe('3 of 12 layers · 0:10');
+    expect(stepDetail(progressOf(run('planner build 44 1000 4 9'))!, 1000)).toBe('step 5 of 9 · 0:00');
     // no telling how far: the time it has taken
     const wait = progressOf(run('openmower wait - 1000'))!;
     expect(wait.pct).toBeNull();
     expect(stepLabel(wait)).toContain('OpenMower');
     expect(stepDetail(wait, 1075)).toBe('1:15');
+    // without a time not known
+    expect(stepDetail({part: '', step: 'prepare', pct: null, since: 0}, 1075)).toBe('');
     expect(runResult(run('planner build 44 1000 4 9'))).toBe('Updating MowBite Planner (2 of 3)…');
     // only while it runs, and only what it knows
     expect(progressOf(state({result: 'done', progress: 'mowbite download 37 1000'}))).toBeNull();
@@ -117,16 +193,16 @@ describe('the updater on the mower', () => {
   });
 
   it('lists the steps of a run by how the part is made, a way back after the wait', () => {
-    const at = (progress: string, more: Record<string, string> = {}) => {
-      const s = state({result: 'running', run_parts: 'mowbite planner', progress, ...more});
-      return runSteps(s, progressOf(s)!);
+    const at = (progress: string, asked = false) => {
+      const s = state({result: 'running', run_parts: 'mowbite planner', progress});
+      return runSteps(s, progressOf(s)!, asked);
     };
     expect(at('mowbite download 37 1000')).toEqual({steps: ['prepare', 'download', 'extract', 'restart', 'wait'], now: 1, back: false});
     expect(at('planner build 44 1000 4 9')).toEqual({steps: ['prepare', 'build', 'restart', 'wait'], now: 1, back: false});
     // the new version didn't come up
     expect(at('mowbite back - 1000')).toEqual({steps: ['prepare', 'download', 'extract', 'restart', 'wait', 'back'], now: 5, back: true});
     // asked to go back
-    expect(at('mowbite restart - 1000', {taken: '1000 back:mowbite'})).toEqual({steps: ['back', 'restart', 'wait'], now: 1, back: true});
+    expect(at('mowbite restart - 1000', true)).toEqual({steps: ['back', 'restart', 'wait'], now: 1, back: true});
   });
 
   it('says when it went back, or could not', () => {
@@ -156,6 +232,7 @@ describe('the updater on the mower', () => {
     expect(r({mowbite: 'error pull', mowbite_at: '1792831337'}).at).toBeTruthy();
     expect(r({mowbite: 'error pull', mowbite_at: 'x'}).at).toBeNull();
     expect(r({planner: 'error github'}, 'planner').text).toContain('GitHub');
+    expect(r({openmower: 'error planner'}, 'openmower')).toMatchObject({level: 'error', text: "nothing changed: the planner couldn't be built on the new version first"});
     expect(r({openmower: 'error registry'}, 'openmower').text).toContain('internet');
     expect(r({mowbite: 'error compose'}).text).toContain('compose file');
     expect(r({updater: 'error compose'}, 'updater').text).toContain("can't update itself");
@@ -200,8 +277,10 @@ describe('the updater on the mower', () => {
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'restarting 1000'}), 1400)!.restarting).toBeNull();
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'updated 1792831337 70cb346'}))!.result!.text).toContain('70cb346');
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'rolled_back 1792831337'}))!.result!.text).toContain("didn't start");
+    // asked and nothing new: said once
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'current', updater_at: '1792831337'}))!.result).toMatchObject({level: 'ok', text: 'nothing new, it was up to date'});
     const run = state({result: 'running', run_parts: 'updater', progress: 'updater download 40 1000'});
-    expect(runResult(run)).toBe('Updating MowBite Updater (1 of 1)…');
+    expect(runResult(run)).toBe('Updating MowBite Updater…');
   });
 
   it("says what the updater can't reach, with the line that gives it the folder", () => {
@@ -211,5 +290,136 @@ describe('the updater on the mower', () => {
     expect(outOfReach(state({updater_away: '/home/openmower/mowbite'}))!.self).toBe('/home/openmower/mowbite');
     expect(outOfReach(state({updater_away: '-'}))).toBeNull();
     expect(reachLine('/home/openmower/mowbite')).toBe('      - /home/openmower/mowbite:/home/openmower/mowbite');
+  });
+});
+
+// the MowBite Updater's contract as it has it (test/contract.txt), copied from the commit below. a newer one: copy it
+// over updater-contract.txt and put its commit and checksum here, the tests then say which texts are missing
+const PINNED = {
+  repo: 'mkaaaaaay/mowbite-updater',
+  path: 'test/contract.txt',
+  commit: 'a12a888b12a0ec327b028773bc987af0a61400bc',
+  sha256: 'a198f6282f4ff6886180c2ced584196db8771d462ee31b9dd8f6a627abbcae73',
+};
+const contract = readFileSync(join(__dirname, 'updater-contract.txt'));
+const form = (key: string) => contract.toString().split('\n').filter((l) => l.startsWith(`form status ${key} `)).map((l) => l.slice(`form status ${key} `.length));
+// the words of "a|b <value>|c": a, b and c
+const words = (alternatives: string) => alternatives.split('|').map((x) => x.split(' ')[0]);
+
+// MowBite OS in OpenMower's place: the updater's os_switch, switch_os, progress os and os as its form lines say
+describe("MowBite OS in OpenMower's place", () => {
+  it('is the copy of the commit pinned', () => {
+    expect(createHash('sha256').update(contract).digest('hex'), `${PINNED.repo} ${PINNED.path} @ ${PINNED.commit}`).toBe(PINNED.sha256);
+  });
+
+  it('has a text in english and german for every reason of the form lines', () => {
+    const no = form('os_switch').find((f) => f.startsWith('no '))!.slice(3);
+    const os = form('os');
+    const rolledBack = os.map((f) => f.match(/rolled_back ((?:[a-z_]+\|)*[a-z_]+)\|back /)?.[1]).find(Boolean)!;
+    const error = os.find((f) => f.startsWith('error '))!.slice(6);
+    const reasons = {no: words(no), rolled_back: words(rolledBack), error: words(error)};
+    for (const [kind, list] of Object.entries(reasons) as [keyof typeof OS_TEXTS, string[]][]) {
+      expect(list.length, kind).toBeGreaterThan(2);
+      expect(list.filter((r) => !OS_TEXTS[kind][r] || !de[OS_TEXTS[kind][r]]), kind).toEqual([]);
+    }
+  });
+
+  it('reads the offer, why not, and MowBite OS running', () => {
+    expect(osSwitchOf(state({}))).toBeNull();
+    expect(osSwitchOf(state({os_switch: 'yes 230 keep import'}))).toEqual({state: 'yes', size: '241 MB', drop: false, kept: false});
+    expect(osSwitchOf(state({os_switch: 'yes 0 drop kept'}))).toEqual({state: 'yes', size: null, drop: true, kept: true});
+    expect(osSwitchOf(state({os_switch: 'no datum'}))).toEqual({state: 'no', code: 'datum', why: OS_TEXTS.no.datum});
+    expect(osSwitchOf(state({os_switch: 'no room 2300 1400'}))).toMatchObject({why: expect.stringContaining('needs about 2.4 GB, 1.5 GB there')});
+    expect(osSwitchOf(state({os_switch: 'on 1792831337'}))!.state).toBe('on');
+    expect(osBackLeft(state({switch_os: 'openmower stop old'}))).toBe(true);
+    expect(osBackLeft(state({switch_os: 'openmower stop old', result: 'running'}))).toBe(false);
+    expect(osBackLeft(state({switch_os: 'os wait'}))).toBe(false);
+  });
+
+  it('reads the models that fit, the one chosen, and locks the switch without one', () => {
+    const chose = (os_model: string, status: Record<string, string>) => {
+      const s = state(status);
+      return {...s, conf: {...s.conf, os_model}};
+    };
+    expect(osModelsOf(state({}))).toBeNull();
+    expect(osModelsOf(state({os_models: '-'}))).toEqual([]);
+    expect(osModelsOf(state({os_models: 'nx60i,openmower-v2,Bad key,sa_650'}))).toEqual(['nx60i', 'openmower-v2']);
+    expect(osModelOf(chose('openmower-v2', {os_models: 'nx60i,openmower-v2'}))).toBe('openmower-v2');
+    // (one chosen before that doesn't fit any more)
+    expect(osModelOf(chose('sa650', {os_models: 'nx60i'}))).toBeNull();
+    expect(osModelMissing(chose('sa650', {os_models: 'nx60i'}))).toBe(true);
+    expect(osModelMissing(chose('nx60i', {os_models: 'nx60i'}))).toBe(false);
+    expect(osModelMissing(state({os_models: '-'}))).toBe(true);
+    // (an updater without the choice: nothing locked)
+    expect(osModelMissing(state({os_switch: 'yes 230 keep import'}))).toBe(false);
+    expect(osSwitchOf(state({os_switch: 'no model', os_models: 'nx60i'}))).toEqual({state: 'no', code: 'model', why: OS_TEXTS.no.model});
+    expect(osSwitchOf(state({os_switch: 'no model', os_models: '-'}))).toEqual({state: 'no', code: 'model', why: 'none of its models fits this mower yet'});
+    expect(de[OS_TEXTS.no.model]).toBeTruthy();
+    expect(de['none of its models fits this mower yet']).toBeTruthy();
+  });
+
+  it('loads the models listed, their words by language and whether each has a picture', async () => {
+    const answer = {
+      release: 'os-0123456789ab',
+      models: {
+        'openmower-v2': {texts: {en: {name: 'OpenMower v2', board: 'xCore', warning: 'Only xCore'}, de: {board: 'xCore-Platine'}}, image: {type: 'image/png'}},
+        nx60i: {texts: {en: {name: 'NX60i', text: 'A YardForce'}}, image: {type: 'text/html'}},
+        sa650: {texts: {en: {name: 'SA650'}}},
+      },
+    };
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify(answer)));
+    expect(await loadOsModels(['nx60i', 'openmower-v2', 'gone'])).toEqual([
+      {key: 'nx60i', texts: {en: {name: 'NX60i', text: 'A YardForce'}}, picture: false, warning: {}},
+      {key: 'openmower-v2', texts: {en: {name: 'OpenMower v2', board: 'xCore'}, de: {board: 'xCore-Platine'}}, picture: true, warning: {en: 'Only xCore'}},
+    ]);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('shows the steps of each way, OpenMower going first with drop, back alone when MowBite OS failed', () => {
+    const p = (step: string) => progressOf(state({result: 'running', progress: `os ${step} - 1000`}))!;
+    const run = (status: Record<string, string>) => state({result: 'running', run_parts: 'os', ...status});
+    expect(osWayOf(run({}), p('prepare'), 'switch:os')).toBe('there');
+    expect(osSteps(run({switch_os: 'os pull'}), p('download'), 'there')).toEqual({steps: ['prepare', 'download', 'extract', 'stop', 'start', 'wait'], now: 1});
+    expect(osSteps(run({switch_os: 'os drop', os_drop: 'x@sha256:1 x:edge'}), p('drop'), 'there')).toEqual({
+      steps: ['prepare', 'stop', 'drop', 'download', 'extract', 'start', 'wait'],
+      now: 2,
+    });
+    // (going back from the way there, as the updater notes it: from OpenMower's stop on on the updater's page)
+    expect(osWayOf(run({switch_os: 'os stop'}), p('stop'))).toBe('there');
+    expect(osWayOf(run({switch_os: 'os back rolled_back health'}), p('stop'))).toBe('undo');
+    expect(osWayOf(run({switch_os: 'os back error broker'}), p('download'))).toBe('undo');
+    expect(osSteps(run({}), p('stop'), 'undo')).toEqual({steps: ['back'], now: 0});
+    expect(osOnItsPage(run({switch_os: 'os pull'}), p('download'), 'there')).toBe(false);
+    expect(osOnItsPage(run({switch_os: 'os stop'}), p('stop'), 'there')).toBe(true);
+    expect(osOnItsPage(run({switch_os: 'os stop', os_drop: 'x@sha256:1 x:edge'}), p('stop'), 'there')).toBe(true);
+    expect(osOnItsPage(run({}), p('back'), 'undo')).toBe(true);
+    // (OpenMower downloaded again on the way back after drop: a step not in the list)
+    expect(osSteps(run({switch_os: 'openmower om map'}), p('download'), 'back').now).toBe(-1);
+    expect(osOnItsPage(run({switch_os: 'openmower om map'}), p('download'), 'back')).toBe(false);
+    expect(osWayOf(run({switch_os: 'openmower export'}), p('export'))).toBe('back');
+    expect(osWayOf(run({os_switch: 'on 1'}), null, 'switch:openmower')).toBe('back');
+    expect(osSteps(run({switch_os: 'openmower om map'}), p('back'), 'back')).toEqual({steps: ['export', 'stop', 'back'], now: 2});
+    expect(osStepWords(p('stop'), 'there')[0]).toBe('Stopping OpenMower');
+    expect(osStepWords(p('stop'), 'back')[0]).toBe('Stopping MowBite OS');
+    expect(runResult(run({switch_os: 'os pull', progress: 'os download 40 1000'}))).toBe('Switching to MowBite OS…');
+  });
+
+  it('says what came of a switch', () => {
+    const r = (os: string) => osResult(state({os, os_at: '1792831337'}))!;
+    expect(osResult(state({}))).toBeNull();
+    expect(r('switched 1792831337 import')).toMatchObject({level: 'ok', text: expect.stringContaining("It took OpenMower's map")});
+    expect(r('back 1792831337 map')).toMatchObject({level: 'ok', text: expect.stringContaining('with the map from MowBite OS.')});
+    expect(r('back 1792831337 map lost').level).toBe('warn');
+    expect(r('back 1792831337 map lost').text).toContain('some of the map is missing');
+    expect(r('back 1792831337 old').text).toContain('what was changed in MowBite OS is lost');
+    expect(r('rolled_back health').text).toContain("its health check didn't pass");
+    expect(r('error busy')).toMatchObject({level: 'warn', text: "Not done: MowBite OS isn't idle, it stays."});
+    expect(r('error back').level).toBe('error');
+    expect(r('error schedule 1792831337').text).not.toContain('{when}');
+    expect(r('error battery 50')).toMatchObject({level: 'warn', text: expect.stringContaining('below 50 %')});
+    expect(r('error firmware').text).toContain('firmware');
+    expect(r('error new_one').text).toContain('new_one');
+    // (a part left alone while MowBite OS runs)
+    expect(partResult(state({openmower: 'error os'}), 'openmower')!.text).toContain('MowBite OS runs in place of OpenMower');
   });
 });

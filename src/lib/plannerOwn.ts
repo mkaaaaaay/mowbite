@@ -180,3 +180,13 @@ export function ownMargins(map: MowerMap | null | undefined, within?: MowerMap['
   }
   return out;
 }
+
+// the angle the planner plans an area with when it picks the direction itself, null by its strategy, undefined where it
+// takes mower_logic's: the area's planner settings, then the area's angle and the one for all areas. On MowBite OS
+// always itself, mowing sends no angle there
+export function plannerAngle(own: Record<string, unknown>, areaAngle: number | undefined, all: number | null, ownAngles: boolean, os: boolean): number | null | undefined {
+  if (typeof own.angle === 'number') return own.angle;
+  if (typeof own.angle_strategy === 'string') return null;
+  if (os) return typeof areaAngle === 'number' && Number.isFinite(areaAngle) ? areaAngle : all;
+  return ownAngles && areaAngle === undefined ? all : undefined;
+}

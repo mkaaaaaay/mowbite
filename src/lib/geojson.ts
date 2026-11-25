@@ -10,8 +10,8 @@ import {toUtm, utmZone} from './utm';
 // 1e-8 degrees, about a millimeter
 const round = (v: number) => Math.round(v * 1e8) / 1e8;
 
-// the area properties read from a file, with what each has to be. styles other apps add (stroke, fill) stay out
-const KNOWN: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
+// the area properties of a map with what each has to be
+export const AREA_PROPERTY_TYPES: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
   name: 'string',
   type: 'string',
   active: 'boolean',
@@ -27,6 +27,12 @@ const KNOWN: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
   margin: 'number',
   pin: 'boolean',
 };
+export const hasPropertyType = (v: unknown, kind: string) =>
+  typeof v === kind && v !== null && !Array.isArray(v) && !(kind === 'number' && !Number.isFinite(v));
+// what a geojson file brings in. styles other apps add (stroke, fill) stay out, so do the planner's settings and the
+// margin of an area: set in the app, where switching them asks first (an area of the map keeps its own)
+const LEFT_OUT = ['planner', 'margin'];
+const FROM_FILE = Object.keys(AREA_PROPERTY_TYPES).filter((k) => !LEFT_OUT.includes(k));
 const TYPES = ['mow', 'nav', 'obstacle', 'decor', 'draft'];
 // farther from the datum than this a file is for another place (or has latitude and longitude swapped)
 const FAR = 2000; // m
@@ -105,13 +111,18 @@ const near = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) < SAME;
 const sameOutline = (a: Point[], b: Point[]) => a.length === b.length && a.every((p, i) => near(p, b[i]));
 
 // What a geojson file gives the map: base with the file's areas and docking stations in it, what didn't change keeps
-// its object. Throws a GeoJsonError when there's nothing to take or it lies somewhere else
-export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | null): {map: MowerMap; changed: number; added: number} {
+// its object, left the areas whose margin or planner settings in the file didn't come along. Throws a GeoJsonError when
+// there's nothing to take or it lies somewhere else
+export function mapFromGeoJson(
+  json: unknown,
+  datum: Datum,
+  base: MowerMap | null,
+): {map: MowerMap; changed: number; added: number; left: number} {
   const {toLocal} = frame(datum);
   const features: Feature[] = (json as {type?: string}).type === 'Feature' ? [json as Feature] : ((json as {features?: Feature[]}).features ?? []);
   const areas = [...(base?.areas ?? [])];
   const docks = [...(base?.docking_stations ?? [])];
-  let [changed, added, found, far, projected] = [0, 0, 0, 0, 0];
+  let [changed, added, found, far, projected, left] = [0, 0, 0, 0, 0, 0];
   const ringOf = (r: unknown): Point[] | null => {
     if (!Array.isArray(r) || !r.every(isPosition)) return null;
     if (!r.every(isLonLat)) {
@@ -127,10 +138,7 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
   };
   const props = (from: Record<string, unknown> | null | undefined) => {
     const out: Record<string, unknown> = {};
-    for (const [k, kind] of Object.entries(KNOWN)) {
-      const v = from?.[k];
-      if (typeof v === kind && v !== null && !Array.isArray(v) && !(kind === 'number' && !Number.isFinite(v))) out[k] = v;
-    }
+    for (const k of FROM_FILE) if (hasPropertyType(from?.[k], AREA_PROPERTY_TYPES[k])) out[k] = from![k];
     if (typeof out.type === 'string' && !TYPES.includes(out.type)) delete out.type;
     return out as MapArea['properties'];
   };
@@ -140,11 +148,13 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
   // the one docking station of a file for a map with one is that one, also when another app didn't keep its id
   const isDock = (f: Feature) => f.geometry?.type === 'Point' && f.properties?.type === 'docking_station';
   const oneDock = docks.length === 1 && features.filter(isDock).length === 1;
-  const put = (id: string | null, properties: MapArea['properties'], outline: Point[]) => {
+  const put = (id: string | null, properties: MapArea['properties'], outline: Point[], from?: Record<string, unknown> | null) => {
     found++;
     if (id && taken.has(id)) id = null;
     if (id) taken.add(id);
     const i = id ? areas.findIndex((a) => a.id === id) : -1;
+    const own = i >= 0 ? (areas[i].properties as Record<string, unknown>) : {};
+    if (LEFT_OUT.some((k) => from?.[k] !== undefined && JSON.stringify(from[k]) !== JSON.stringify(own[k]))) left++;
     if (i >= 0) {
       const was = areas[i];
       const merged = {...was.properties, ...properties};
@@ -169,11 +179,15 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
         continue;
       }
       const [lon, lat] = g.coordinates;
-      const heading = typeof f.properties.heading === 'number' && Number.isFinite(f.properties.heading) ? f.properties.heading : 0;
-      const dock: DockingStation = {id: id ?? generateId(), position: toLocal(lon, lat), heading};
-      if (Math.hypot(dock.position.x, dock.position.y) > FAR) far++;
+      // without one a station keeps its own, a new one can't be docked to
+      const given = typeof f.properties.heading === 'number' && Number.isFinite(f.properties.heading) ? f.properties.heading : null;
+      const position = toLocal(lon, lat);
+      if (Math.hypot(position.x, position.y) > FAR) far++;
       found++;
-      const i = oneDock ? 0 : docks.findIndex((d) => d.id === dock.id);
+      const i = oneDock ? 0 : docks.findIndex((d) => d.id === (id ?? ''));
+      if (i < 0 && given === null) throw new GeoJsonError('A docking station in the file has no heading. Record it with the mower instead.');
+      const heading = given ?? docks[i].heading;
+      const dock: DockingStation = {id: id ?? generateId(), position, heading};
       if (i < 0) {
         docks.push(dock);
         added++;
@@ -191,7 +205,7 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
       if (!outline) return;
       const p = props(f.properties);
       // the first polygon is the area with the id, more of the same feature come in as new ones
-      put(k === 0 ? id : null, p, outline);
+      put(k === 0 ? id : null, p, outline, f.properties);
       for (const hole of rings.slice(1)) {
         const o = ringOf(hole);
         if (o) put(null, {type: 'obstacle'}, o);
@@ -201,5 +215,5 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
   if (projected) throw new GeoJsonError("The file's coordinates aren't longitude and latitude, it's likely in a projected system like UTM. Save it in WGS84 (EPSG:4326).");
   if (far) throw new GeoJsonError("The file's areas lie more than 2 km from the mower's map, it's likely for another place.");
   if (!found) throw new GeoJsonError('No areas in the file.');
-  return {map: {...(base ?? {areas: [], docking_stations: []}), areas, docking_stations: docks}, changed, added};
+  return {map: {...(base ?? {areas: [], docking_stations: []}), areas, docking_stations: docks}, changed, added, left};
 }

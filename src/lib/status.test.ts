@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import {clock} from './dates';
 import {setLangChoice} from './i18n';
-import {chargeOf, chargeStateText, dockText, gpsQuality, staleText, statusText} from './status';
+import {chargeOf, chargeStateText, dockText, gpsQuality, inCalibration, plainIdle, staleText, statusText} from './status';
 
 describe('gpsQuality', () => {
   it('tells fix, float and too inaccurate by the accuracy, against the mower limit', () => {
@@ -24,6 +24,15 @@ describe('gpsQuality', () => {
   });
 });
 
+describe('plainIdle', () => {
+  it("is idle with nothing of MowBite OS's own running under it", () => {
+    expect(plainIdle({current_state: 'IDLE'})).toBe(true);
+    expect(plainIdle({current_state: 'IDLE', current_sub_state: ''})).toBe(true);
+    for (const sub of ['CALIBRATING', 'DRIVING', 'SETUP']) expect(plainIdle({current_state: 'IDLE', current_sub_state: sub})).toBe(false);
+    expect(plainIdle({current_state: 'DOCKING', current_sub_state: ''})).toBe(false);
+  });
+});
+
 describe('statusText', () => {
   const docked = {current_state: 'IDLE', emergency: 0, is_charging: 0};
   it("says in the dock as the dashboard does, with MowBite OS's word on charging", () => {
@@ -32,6 +41,15 @@ describe('statusText', () => {
     expect(statusText(docked, true, 'charging', false)).toBe('In the dock, not charging');
     expect(statusText(docked, true, 'charging', null)).toBe('In the dock');
     expect(statusText(docked, true, 'charging', true)).toBe('Charging in the dock');
+  });
+  it("says MowBite OS's calibration drive, idle by its state", () => {
+    const driving = {current_state: 'IDLE', current_sub_state: 'CALIBRATING', emergency: 0, is_charging: 0};
+    expect(inCalibration(driving)).toBe(true);
+    expect(inCalibration({current_state: 'IDLE', current_sub_state: ''})).toBe(false);
+    expect(statusText(driving, false, 'unknown')).toBe('Calibration drive running');
+  });
+  it('says a MowBite OS that runs as no mower yet waits for the choice', () => {
+    expect(statusText({current_state: 'SETUP', current_sub_state: 'PLATFORM', emergency: 0, is_charging: 0}, false, 'unknown')).toBe('Choose the mower');
   });
 });
 

@@ -68,7 +68,7 @@ export function BatteryIcon({size = 20}: IconProps) {
   );
 }
 
-const line = {fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'} as const;
+export const line = {fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'} as const;
 
 export function PencilIcon({size = 20}: IconProps) {
   return (
@@ -228,11 +228,17 @@ export function RecordIcon({size = 20}: IconProps) {
 }
 
 // the blade from above
+export const BLADE = (
+  <>
+    <circle cx="12" cy="12" r="2" />
+    <path d="M12 10c0-4 1.5-6 4-7-1 3-1 5-3 7M14 12c4 0 6 1.5 7 4-3-1-5-1-7-3M12 14c0 4-1.5 6-4 7 1-3 1-5 3-7M10 12c-4 0-6-1.5-7-4 3 1 5 1 7 3" />
+  </>
+);
+
 export function BladeIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
-      <circle cx="12" cy="12" r="2" />
-      <path d="M12 10c0-4 1.5-6 4-7-1 3-1 5-3 7M14 12c4 0 6 1.5 7 4-3-1-5-1-7-3M12 14c0 4-1.5 6-4 7 1-3 1-5 3-7M10 12c-4 0-6-1.5-7-4 3 1 5 1 7 3" />
+      {BLADE}
     </svg>
   );
 }
@@ -332,6 +338,17 @@ export function CameraIcon({size = 20, off = false}: IconProps & {off?: boolean}
   );
 }
 
+// corners of a box around a dot: what the mower recognises in its picture
+export function DetectIcon({size = 20, off = false}: IconProps & {off?: boolean}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
 export function PushPinIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
@@ -346,6 +363,37 @@ export function ChevronIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
       <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+// a clock turned back: an older state was brought back
+export function TurnedBackIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line} aria-hidden="true">
+      <path d="M4 12a8 8 0 1 0 2.34-5.66" />
+      <path d="M4 4v5h5" />
+      <path d="M12 8v4l3 2" />
+    </svg>
+  );
+}
+
+// an open book, in front of a link to a guide
+export function GuideIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line} aria-hidden="true">
+      <path d="M3 5h5a4 4 0 0 1 4 4v11a3 3 0 0 0-3-3H3z" />
+      <path d="M21 5h-5a4 4 0 0 0-4 4v11a3 3 0 0 1 3-3h6z" />
+    </svg>
+  );
+}
+
+// a padlock, its shackle open or shut; without a size the page's style sizes it
+export function LockIcon({open, size}: IconProps & {open: boolean}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line} aria-hidden="true">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d={open ? 'M8 11V7a4 4 0 0 1 7.5-2' : 'M8 11V7a4 4 0 0 1 8 0v4'} />
     </svg>
   );
 }

@@ -32,6 +32,8 @@ export interface Plan {
   // degrees: the mowing direction turned by this for the start (mower_logic/mow_angle_offset, set before it
   // starts). needs a mower that takes params.set
   angle?: number;
+  // words of a newer container (key=value) this app doesn't know, saved again as they came
+  more?: string[];
 }
 
 // days the schedule leaves out, entirely or some areas, from now up to and including the last day
@@ -60,9 +62,12 @@ export interface Schedule {
   // HH:MM, local: a start not by the schedule (the app, Home Assistant, OpenMower's page) before it goes home then,
   // also with the schedule switched off. none: no end time for those
   handStop?: string;
-  // MowBite OS only, as it answered: whether it lets the schedule start the mower, why its clock isn't safe (null: it
-  // is) and today's sunrise and sunset (unix s) at its own position
-  os?: {available: boolean; clockReason: string | null; sun: {rise: number | null; set: number | null} | null};
+  // MowBite OS only, as it answered: whether the schedule may start the mower now and why not (platform_off,
+  // data_rollback from api 58), why its clock isn't safe (null: it is) and today's sunrise and sunset (unix s) at its
+  // own position
+  os?: {available: boolean; reason: string | null; clockReason: string | null; sun: {rise: number | null; set: number | null} | null};
+  // lines of a newer container this app doesn't know, saved again as they came
+  more?: string[];
 }
 
 export const FORECAST_HOURS = [1, 2, 3];
@@ -85,28 +90,36 @@ export function parseSchedule(text: string): Schedule {
   const s: Schedule = {...EMPTY_SCHEDULE, plans: []};
   for (const line of text.split('\n')) {
     const [key, a, b, ...rest] = line.trim().split(' ');
-    if (key === 'enabled') s.enabled = a === '1';
-    if (key === 'minbattery') s.minBattery = Number(a) || 0;
-    if (key === 'skiprain') s.skipRain = a === '1';
-    if (key === 'skipforecast') s.skipForecast = a === '1';
-    if (key === 'forecasthours' && FORECAST_HOURS.includes(Number(a))) s.forecastHours = Number(a);
-    if (key === 'skipcold') s.skipCold = a === '1';
-    if (key === 'mintemp' && COLD_TEMPS.includes(Number(a))) s.minTemp = Number(a);
-    if (key === 'pause' && a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')};
-    if (key === 'tz' && a) s.tz = a;
-    if (key === 'pos' && a && b) s.pos = `${a} ${b}`;
-    if (key === 'handstop' && /^\d\d:\d\d$/.test(a ?? '')) s.handStop = a;
-    if (key === 'plan' && a && b) {
-      const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
-      for (const r of rest) {
-        if (r.startsWith('end=')) plan.end = r.slice(4);
-        else if (r === 'dark=1') plan.dark = true;
-        else if (r === 'sunset=1') plan.sunset = true;
-        else if (r === 'fresh=1') plan.fresh = true;
-        else if (/^angle=-?\d{1,3}$/.test(r)) plan.angle = Number(r.slice(6));
-        else if (r) plan.areas = r.split(',');
+    switch (key) {
+      case 'enabled': s.enabled = a === '1'; break;
+      case 'minbattery': s.minBattery = Number(a) || 0; break;
+      case 'skiprain': s.skipRain = a === '1'; break;
+      case 'skipforecast': s.skipForecast = a === '1'; break;
+      case 'forecasthours': if (FORECAST_HOURS.includes(Number(a))) s.forecastHours = Number(a); break;
+      case 'skipcold': s.skipCold = a === '1'; break;
+      case 'mintemp': if (COLD_TEMPS.includes(Number(a))) s.minTemp = Number(a); break;
+      case 'pause': if (a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')}; break;
+      case 'tz': if (a) s.tz = a; break;
+      case 'pos': if (a && b) s.pos = `${a} ${b}`; break;
+      case 'handstop': if (/^\d\d:\d\d$/.test(a ?? '')) s.handStop = a; break;
+      case 'plan': {
+        if (!a || !b) break;
+        const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
+        for (const r of rest) {
+          if (r.startsWith('end=')) plan.end = r.slice(4);
+          else if (r === 'dark=1') plan.dark = true;
+          else if (r === 'sunset=1') plan.sunset = true;
+          else if (r === 'fresh=1') plan.fresh = true;
+          else if (/^angle=-?\d{1,3}$/.test(r)) plan.angle = Number(r.slice(6));
+          // (a word with = is never a list of areas)
+          else if (r.includes('=')) plan.more = [...(plan.more ?? []), r];
+          else if (r) plan.areas = r.split(',');
+        }
+        s.plans.push(plan);
+        break;
       }
-      s.plans.push(plan);
+      // a line the container doesn't know (docker/schedule.cgi) is kept as it is
+      default: if (key) s.more = [...(s.more ?? []), line.trim()];
     }
   }
   return s;
@@ -128,14 +141,24 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
       .filter((p) => p.days.length)
       .map(
         (p) =>
-          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}${p.dark ? ' dark=1' : ''}${p.sunset ? ' sunset=1' : ''}${p.fresh ? ' fresh=1' : ''}${p.angle !== undefined ? ` angle=${Math.round(p.angle)}` : ''}`,
+          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}${p.dark ? ' dark=1' : ''}${p.sunset ? ' sunset=1' : ''}${p.fresh ? ' fresh=1' : ''}${p.angle !== undefined ? ` angle=${Math.round(p.angle)}` : ''}${planMore(p)}`,
       ),
     ...(s.pause && (s.pause.areas === 'all' || s.pause.areas.length)
       ? [`pause ${s.pause.until} ${s.pause.areas === 'all' ? 'all' : s.pause.areas.join(',')}`]
       : []),
     ...(s.handStop ? [`handstop ${s.handStop}`] : []),
+    ...(s.more ?? []),
     '',
   ].join('\n');
+}
+
+// a plan's words this app doesn't know, without one for a key it writes itself
+function planMore(p: Plan): string {
+  const own = [p.end && 'end', p.dark && 'dark', p.sunset && 'sunset', p.fresh && 'fresh', p.angle !== undefined && 'angle'];
+  return (p.more ?? [])
+    .filter((w) => !own.includes(w.slice(0, w.indexOf('='))))
+    .map((w) => ` ${w}`)
+    .join('');
 }
 
 // the last answer, so a page opened again shows it right away while it asks the mower
@@ -158,6 +181,7 @@ interface OsPlan {
 interface OsSchedule {
   version: number;
   available: boolean;
+  reason?: string | null;
   clock_ok: boolean;
   clock_reason: string | null;
   schedule: {
@@ -179,6 +203,27 @@ interface OsSchedule {
 let osVersion: number | undefined;
 const onOs = async () => !!(await rpcMethods())?.has(RPC.scheduleGet);
 export const changedElsewhere = (e: unknown) => e instanceof RpcError && e.code === -32001;
+
+// the container turned a save down, nothing changed: a line it can't read ("bad plan") or times without the zone ("no tz")
+export class ScheduleRefused extends Error {
+  constructor(readonly why: string) {
+    super(`schedule ${why}`);
+  }
+}
+
+const REFUSED_LINE: Record<string, () => string> = {
+  plan: () => tr('a start time'),
+  pause: () => tr('a pause'),
+  handstop: () => tr('the end of starts by hand'),
+  tz: () => tr('the time zone'),
+};
+export function refusedText(e: ScheduleRefused): string {
+  if (!e.why.startsWith('bad ')) return tr("The mower didn't take the schedule, its time zone was missing. Nothing was changed, this is how the mower has it.");
+  const line = e.why.slice(4);
+  return tr("The mower didn't take the schedule, it can't read {line} in it. Nothing was changed, this is how the mower has it.", {
+    line: REFUSED_LINE[line]?.() ?? line,
+  });
+}
 
 export function fromOs(r: OsSchedule): Schedule {
   const s = r.schedule;
@@ -202,7 +247,7 @@ export function fromOs(r: OsSchedule): Schedule {
       ...(p.angle_offset_deg !== undefined ? {angle: p.angle_offset_deg} : {}),
     })),
     ...(s.pause ? {pause: s.pause} : {}),
-    os: {available: r.available, clockReason: r.clock_ok ? null : (r.clock_reason ?? 'unknown'), sun: r.sun},
+    os: {available: r.available, reason: r.reason ?? null, clockReason: r.clock_ok ? null : (r.clock_reason ?? 'unknown'), sun: r.sun},
   };
 }
 
@@ -259,6 +304,19 @@ export function loadSchedule(again = false): Promise<Schedule | null | undefined
   });
 }
 
+// the same as far as the mower keeps it: a page keeps showing its own then (a plan's open question stays)
+const kept = (s: Schedule) => JSON.stringify([toOs(s), s.handStop ?? null, s.more ?? [], s.plans.filter((p) => p.days.length).map((p) => p.more ?? [])]);
+export const sameSchedule = (a: Schedule, b: Schedule) => kept(a) === kept(b);
+
+// saveSchedule for a page: once the last change is through, or failed, done is called, so it shows what the mower has
+export function scheduleSaver(done: () => void) {
+  let open = 0;
+  return (s: Schedule, pos?: {lat: number; lon: number}) => {
+    open++;
+    return saveSchedule(s, pos).finally(() => --open || done());
+  };
+}
+
 // saved one after another, of a slider's many steps only the last one still waiting goes out
 let sending: Promise<void> = Promise.resolve();
 let waiting: {s: Schedule; pos?: {lat: number; lon: number}} | null = null;
@@ -280,6 +338,7 @@ export function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Pro
         return;
       }
       const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeSchedule(w.s, w.pos)});
+      if (res.status === 400) throw new ScheduleRefused((await res.text()).trim());
       if (!res.ok) throw new Error(`schedule ${res.status}`);
       // (only once it's on the mower: a page opened while it couldn't be saved shows what the mower has)
       lastSchedule = w.s;
@@ -331,11 +390,11 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   undock_failed: 'Undocking failed{reason}, starts again in {more} minutes',
   start_retry: 'Started again (start {detail} of {more})',
   stopped_hand: 'Sent home, the time for starts by hand reached',
-  // MowBite OS's own words
   skip_clock: "Not started, the mower's clock wasn't confirmed",
   skip_missed: 'Not started, the start time passed while the mower was off or its clock jumped',
   skip_no_position: 'Not started, no position for the sun times',
   skip_not_docked: "Not started, the mower wasn't in the dock",
+  // MowBite OS's own words
   stopped_paused: 'Sent home, the areas left are paused',
   stopped_rain: 'Sent home for rain',
   start_canceled: 'Scheduled start canceled',
@@ -368,6 +427,14 @@ const RETRY_SKIP: Record<string, string> = {
   busy: 'Not started again, the mower was busy',
   undocked: 'Not started again, the mower was no longer in the dock',
   hold: 'Not started again, an update was running',
+  clock: "Not started again, the mower's clock wasn't confirmed",
+  paused: 'Not started again, paused for today',
+  rain: "Not started again, the mower's rain sensor was wet",
+  dark: 'Not started again, it was dark (hedgehogs)',
+  battery: 'Not started again, battery only at {more} %',
+  forecast: 'Not started again, rain was forecast',
+  cold: 'Not started again, too cold ({more} °C)',
+  storage: "Not started again, the start couldn't be stored",
 };
 
 // leftovers_skip says why in its detail (battery and cold with their value after it), else the state the mower was in
@@ -381,9 +448,13 @@ const LEFTOVERS_SKIP: Record<string, string> = {
   forecast: 'Leftovers not mowed, rain was forecast',
   cold: 'Leftovers not mowed, too cold ({more} °C)',
   hold: 'Leftovers not mowed, an update was running',
+  off: 'Leftovers not mowed, switched off meanwhile',
+  undocked: "Leftovers not mowed, the mower wasn't in the dock",
+  clock: "Leftovers not mowed, the mower's clock wasn't confirmed",
+  storage: "Leftovers not mowed, the start couldn't be stored",
 };
 
-// MowBite OS's starts left out
+// starts left out for the clock, a time passed unnoticed, the position or the dock (MowBite OS, the container for some)
 const OS_SKIPS = ['skip_clock', 'skip_missed', 'skip_no_position', 'skip_not_docked'];
 
 // how a log line is marked: a start that went out, one left out for a reason worth a look (not a pause asked for, an
@@ -648,6 +719,12 @@ export function reachesDark({time, end}: Pick<Plan, 'time' | 'end'>, sun?: {rise
   return isNightTime(end, sun) || (end > time ? time < set && set < end : time < set || set < end);
 }
 
+// a day tapped on a plan: on or off, the last one stays (a plan without a day never starts). null when it stays
+export function toggleDay(days: number[], day: number): number[] | null {
+  if (!days.includes(day)) return [...days, day];
+  return days.length > 1 ? days.filter((d) => d !== day) : null;
+}
+
 // the areas a plan mows on a day: the ones it picks (none picked: all) of those mowed, without the ones paused then.
 // mowable: the ids of the mowing areas the mower mows
 export function planAreas(p: Plan, mowable: readonly string[], pause: Pause | undefined, day: string): string[] {
@@ -752,16 +829,22 @@ const minutes = (t: string) => {
   const [h, m = 0] = t.replace('-', '').split(':').map(Number);
   return (t.startsWith('-') ? -1 : 1) * (h * 60 + m);
 };
-const POSIX_TZ = /^<[^>]*>(-?[\d:]+)(?:<[^>]*>(-?[\d:]+),M(\d+)\.(\d)\.(\d)\/([\d:]+),M(\d+)\.(\d)\.(\d)\/([\d:]+))?$/;
+// a zone's name in brackets or in letters, its offset, and the summer time's with the two switches (2:00 without a time)
+const POSIX_TZ =
+  /^(?:<[^>]*>|[A-Za-z]{3,})([+-]?[\d:]+)(?:(?:<[^>]*>|[A-Za-z]{3,})([+-]?[\d:]+)?,M(\d+)\.(\d)\.(\d)(?:\/([\d:]+))?,M(\d+)\.(\d)\.(\d)(?:\/([\d:]+))?)?$/;
+// a time zone not in the form posixTz writes: its times can't be worked out here, they're counted in this device's
+export const tzUnreadable = (tz: string | undefined) => !!tz && !POSIX_TZ.test(tz);
 
-// The offset of a time zone as posixTz writes it, in minutes east of UTC at that instant, this device's for anything else.
+// The offset of a POSIX time zone (posixTz's or one with names in letters), in minutes east of UTC at that instant, this
+// device's for anything else (tzUnreadable).
 export function tzOffset(tz: string | undefined, at = new Date()): number {
   const z = tz ? POSIX_TZ.exec(tz) : null;
   if (!z) return -at.getTimezoneOffset();
   // posix counts west as positive
   const std = -minutes(z[1]);
-  if (!z[2]) return std;
-  const dst = -minutes(z[2]);
+  if (!z[3]) return std;
+  // summer time an hour ahead when it doesn't say
+  const dst = z[2] ? -minutes(z[2]) : std + 60;
   const year = at.getUTCFullYear();
   // the switch on the d-th weekday (0 sunday) of week w (5: the last) of month m, at that time by the clock until then
   const switchAt = (m: string, w: string, d: string, time: string, before: number) => {
@@ -770,8 +853,8 @@ export function tzOffset(tz: string | undefined, at = new Date()): number {
     if (day > new Date(Date.UTC(year, Number(m), 0)).getUTCDate()) day -= 7;
     return Date.UTC(year, Number(m) - 1, day) + (minutes(time) - before) * 60e3;
   };
-  const start = switchAt(z[3], z[4], z[5], z[6], std);
-  const end = switchAt(z[7], z[8], z[9], z[10], dst);
+  const start = switchAt(z[3], z[4], z[5], z[6] ?? '2', std);
+  const end = switchAt(z[7], z[8], z[9], z[10] ?? '2', dst);
   const t = at.getTime();
   return (start < end ? start <= t && t < end : t < end || t >= start) ? dst : std;
 }

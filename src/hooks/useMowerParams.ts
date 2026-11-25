@@ -1,7 +1,9 @@
 'use client';
 
+import {isObj} from '@/lib/mergeChanges';
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
+import {paramName, PARAM_FIELDS} from '@/lib/mowerParams';
 import {PARAM, PARAM_DEFAULTS, TOPIC} from '@/lib/openmower';
 
 export type MowerParams = Record<string, unknown>;
@@ -16,12 +18,18 @@ function start() {
   started = true;
   onTopic(TOPIC.params, (payload) => {
     try {
-      params = JSON.parse(payload.toString());
+      params = paramsFrom(payload.toString(), params);
     } catch {
       return;
     }
     listeners.forEach((l) => l());
   });
+}
+
+// params/json as an object of params, one that isn't keeps the ones before
+export function paramsFrom(text: string, before: MowerParams): MowerParams {
+  const p = JSON.parse(text);
+  return isObj(p) ? p : before;
 }
 
 function subscribe(listener: () => void) {
@@ -39,17 +47,18 @@ export function useMowerParams(): MowerParams {
   );
 }
 
-// a number param, or mower_logic's default when the mower's list came without it (see PARAM_DEFAULTS). nothing
-// before the list arrived, a default shown then could be wrong
+// a number param, or mower_logic's default when the mower's list came without it (see PARAM_DEFAULTS), MowBite OS's own
+// where it has another (osDef). nothing before the list arrived, a default shown then could be wrong
 // mower_logic's mow_angle_offset in rad, and whether it takes the place of each area's direction
 export function angleOffsetOf(params: MowerParams): {angleOffset: number; angleAbsolute: boolean} {
   return {angleOffset: ((numParam(params, PARAM.mowAngleOffset) ?? 0) * Math.PI) / 180, angleAbsolute: params[PARAM.mowAngleOffsetIsAbsolute] === true};
 }
 
-export function numParam(params: MowerParams, key: string): number | undefined {
+export function numParam(params: MowerParams, key: string, os = false): number | undefined {
   const v = params[key];
   if (typeof v === 'number') return v;
-  return params === EMPTY ? undefined : PARAM_DEFAULTS[key];
+  if (params === EMPTY) return undefined;
+  return (os ? PARAM_FIELDS.find((f) => paramName(f.key) === key)?.osDef : undefined) ?? PARAM_DEFAULTS[key];
 }
 
 const datums = new WeakMap<MowerParams, {lat: number; lon: number} | undefined>();
@@ -62,6 +71,9 @@ export function datumFromParams(params: MowerParams): {lat: number; lon: number}
   datums.set(params, datum);
   return datum;
 }
+
+// the datum as the mower's params have it now, outside react (a backup notes it). undefined before they came
+export const knownDatum = () => (params === EMPTY ? undefined : datumFromParams(params));
 
 function findDatum(params: MowerParams): {lat: number; lon: number} | undefined {
   let lat: number | undefined;

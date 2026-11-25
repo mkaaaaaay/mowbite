@@ -302,6 +302,11 @@
   cursor: pointer;
 }
 
+.areas button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .areas .on {
   border-color: color-mix(in srgb, var(--success) 70%, transparent);
   background: color-mix(in srgb, var(--success) 18%, transparent);

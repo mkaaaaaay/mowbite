@@ -5,13 +5,12 @@
 // dropJob: that job dropped, for a restore that ends it and gets there only after its time
 import {useEffect, useRef, useState} from 'react';
 import {saveMap, whenMowerHas, type MowerMap} from '@/hooks/useMowerMap';
-import {listBackups, loadBackup, useBackupFirst, type BackupInfo, type Backups} from '@/lib/backups';
+import {listBackups, loadBackup, useBackupFirst, withDatum, type BackupInfo, type Backups} from '@/lib/backups';
 import {mapToGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
-import {closedRings} from '@/lib/rings';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
-import {sameContent} from '@/lib/sameMap';
+import {sameContent, samePlanning} from '@/lib/sameMap';
 import {saveFile} from '@/lib/saveFile';
 
 export function useMapBackups(
@@ -20,9 +19,12 @@ export function useMapBackups(
   datum: Datum | undefined,
   restored: (put: MowerMap, before: MowerMap | null, shown: boolean, jobDropped?: boolean) => void,
   dropJob: () => void,
+  // asked first while the planner holds a mow's plans, whether to go on
+  askJob: () => Promise<boolean>,
 ) {
   const [backups, setBackups] = useState<Backups | null | undefined>(undefined);
-  const [preview, setPreview] = useState<{map: MowerMap; label: string} | null>(null);
+  // datum: the one the backup or file was made with, none in an older one
+  const [preview, setPreview] = useState<{map: MowerMap; label: string; datum?: Datum} | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
@@ -66,6 +68,7 @@ export function useMapBackups(
     setRestoring(true);
     setRestoreError(null);
     try {
+      if (!ends && !(liveMap && samePlanning(liveMap, preview.map)) && !(await askJob())) return;
       if ((await backupFirst.first(liveMap, 'before restoring')) === 'failed') return;
       offLateDrop.current();
       lateRestore.current = {map: preview.map, before: liveMap};
@@ -93,10 +96,11 @@ export function useMapBackups(
     const pad = (n: number) => String(n).padStart(2, '0');
     return `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.${ext}`;
   };
+  // with the datum it was made with: a backup's own, the mower's for the map shown
   const download = async (b: BackupInfo | null) => {
-    const m = b ? await loadBackup(b.id) : shown;
+    const m = b ? await loadBackup(b.id) : shown && {map: shown, datum};
     if (!m) return;
-    await saveFile(fileName(new Date((b ? b.t : Date.now() / 1000) * 1000), 'json'), JSON.stringify(closedRings(m), null, 2));
+    await saveFile(fileName(new Date((b ? b.t : Date.now() / 1000) * 1000), 'json'), JSON.stringify(withDatum(m.map, m.datum), null, 2));
   };
   // the map in longitude and latitude, for other map apps
   const downloadGeo = async () => {

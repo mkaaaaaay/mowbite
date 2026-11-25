@@ -4,11 +4,16 @@ import {BackIcon, MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIco
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
+import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useAreaProperties} from '@/lib/areaProps';
+import {useBladeHeight, useOsApi} from '@/lib/mowerOs';
+import {HEIGHT_AT_ONCE_API} from '@/lib/openmower';
+import {paramName} from '@/lib/mowerParams';
 import {realInsides, useMowerBody, usePlannerSettings} from '@/lib/mowerBody';
 import {settingsStore} from '@/lib/settings';
 import {useMemo, useState, useSyncExternalStore} from 'react';
-import {AREA_TYPES, type Area, type UpdateArea} from './editing';
+import {AREA_TYPES, obstacleLost, type Area, type UpdateArea} from './editing';
+import {OwnValue} from './OwnValue';
 import PictureRows, {keepLook} from './PictureRows';
 import styles from './page.module.css';
 
@@ -35,7 +40,14 @@ export default function AreaCard({
   const planner = usePlannerSettings();
   const keepOff = planner?.settings.obstacle_margin;
   const marginShown = !!keepOff && type !== 'decor' && (type === 'obstacle' || area.properties.active === false || area.properties.mowable === false);
-  const [marginDraft, setMarginDraft] = useState<string | null>(null);
+  // its own cutting height, MowBite OS with a height it sets (empty: the one for all areas, 0 there is the platform's)
+  const blade = useBladeHeight();
+  const heightAtOnce = useOsApi() >= HEIGHT_AT_ONCE_API;
+  const params = useMowerParams();
+  const heightShown =
+    !!blade && type === 'mow' && area.properties.active !== false && area.properties.mowable !== false && supported.has('mow_height_mm');
+  const allHeight = numParam(params, paramName('mow_height_mm'), true) || blade?.default_mm;
+  const ownHeight = typeof area.properties.mow_height_mm === 'number' ? String(area.properties.mow_height_mm) : '';
   const marginCm = typeof area.properties.margin === 'number' ? String(Math.round(area.properties.margin * 1000) / 10) : '';
   const defaultCm = typeof keepOff?.value === 'number' ? String(Math.round(keepOff.value * 1000) / 10) : '';
   // in the garden map style the picture a way, an obstacle or decoration is drawn as, kept with the app's settings (not the map)
@@ -44,6 +56,9 @@ export default function AreaCard({
   const picked = settings.looks?.[area.id];
   const shown = areaLook(area, settings.looks);
   const [picking, setPicking] = useState(false);
+  // the type an active obstacle would get, asked first: the mower would no longer keep out of it. for this area only
+  const [askType, setAskType] = useState<{id: string; type: string} | null>(null);
+  const typeAsked = askType?.id === area.id ? askType.type : null;
   // the color picked for it, its swatch shows it
   const variant = PICTURES[shown]?.variants?.some((v) => v.key === settings.lookVariants?.[area.id]) ? settings.lookVariants?.[area.id] : undefined;
   // another picture starts with its own usual color, size and direction
@@ -71,11 +86,16 @@ export default function AreaCard({
     [faces, areas, area, settings.looks],
   );
   const autoDeg = faced ?? (fitted && pic.long ? -fitted.deg : 0);
-  const applyMargin = () => {
-    if (marginDraft === null) return;
-    const v = Number(marginDraft.trim().replace(',', '.'));
-    setMarginDraft(null);
-    if (!marginDraft.trim()) return update({margin: undefined});
+  // what was typed for one of its own values as a number, the comma a point
+  const typed = (text: string) => Number(text.replace(',', '.'));
+  const setHeight = (text: string | null) => {
+    if (text === null) return update({mow_height_mm: undefined});
+    const v = typed(text);
+    if (blade && Number.isFinite(v)) update({mow_height_mm: Math.min(blade.max_mm, Math.max(blade.min_mm, Math.round(v)))});
+  };
+  const setMargin = (text: string | null) => {
+    if (text === null) return update({margin: undefined});
+    const v = typed(text);
     if (Number.isFinite(v)) update({margin: Math.min(100, Math.max(0, v)) / 100});
   };
   return (
@@ -94,7 +114,12 @@ export default function AreaCard({
           onFocus={remember}
           onChange={(e) => update({name: e.target.value}, false)}
         />
-        <select className={styles.typeSelect} value={type} onChange={(e) => update({type: e.target.value})} aria-label={tr('Area type')}>
+        <select
+          className={styles.typeSelect}
+          value={type}
+          onChange={(e) => (obstacleLost(area, e.target.value) ? setAskType({id: area.id, type: e.target.value}) : update({type: e.target.value}))}
+          aria-label={tr('Area type')}
+        >
           {AREA_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
               {tr(t.label)}
@@ -102,6 +127,25 @@ export default function AreaCard({
           ))}
         </select>
       </div>
+      {typeAsked && (
+        <div className={styles.warning}>
+          <p>{tr("As another type it's no longer an obstacle: the mower plans over that place and mows there once the map is saved.")}</p>
+          <div className={styles.inlineRow}>
+            <button
+              className={[styles.pillButton, styles.danger].join(' ')}
+              onClick={() => {
+                setAskType(null);
+                update({type: typeAsked});
+              }}
+            >
+              {tr('Change type')}
+            </button>
+            <button className={styles.pillButton} onClick={() => setAskType(null)}>
+              {tr('Keep the obstacle')}
+            </button>
+          </div>
+        </div>
+      )}
       <div className={styles.areaMeta}>
         <label className={styles.toggle}>
           <input
@@ -146,30 +190,40 @@ export default function AreaCard({
             </InfoTip>
           </label>
         )}
-        {marginShown && (
-          <label className={styles.toggle}>
-            {tr('Own safety distance')}
-            <input
-              className={styles.marginInput}
-              inputMode="decimal"
-              value={marginDraft ?? marginCm}
-              placeholder={defaultCm}
-              onChange={(e) => setMarginDraft(e.target.value)}
-              onBlur={applyMargin}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            />
-            cm
-            <InfoTip>
-              {tr('How far the mower keeps its body off this one. It counts once the map is saved.')}
-            </InfoTip>
-          </label>
+        {heightShown && (
+          <OwnValue
+            key={`height-${area.id}`}
+            label={tr('Cutting height')}
+            name={tr('Own cutting height')}
+            all={tr('As all areas')}
+            own={tr('Here')}
+            general={allHeight ? String(allHeight) : ''}
+            value={ownHeight}
+            unit="mm"
+            range={tr('{min} to {max} mm', {min: blade!.min_mm, max: blade!.max_mm})}
+            info={`${tr(
+              heightAtOnce
+                ? 'Counts in this area once the map is saved, also while the blade runs there, {min} to {max} mm.'
+                : 'Counts from the blade start in this area on, {min} to {max} mm. It counts once the map is saved.',
+              {min: blade!.min_mm, max: blade!.max_mm},
+            )} ${tr('The one for all areas is in the settings under Mow motor.')}`}
+            onSet={setHeight}
+          />
         )}
         {marginShown && (
-          <span className={styles.dim}>
-            {marginCm
-              ? tr('Counts here in place of the {cm} cm for all obstacles (planner menu, Obstacles).', {cm: defaultCm})
-              : tr('Empty: the {cm} cm for all obstacles (planner menu, Obstacles).', {cm: defaultCm})}
-          </span>
+          <OwnValue
+            key={`margin-${area.id}`}
+            label={tr('Safety distance')}
+            name={tr('Own safety distance')}
+            all={tr('As all obstacles')}
+            own={tr('Here')}
+            general={defaultCm}
+            value={marginCm}
+            unit="cm"
+            decimal
+            info={`${tr('How far the mower keeps its body off this one. It counts once the map is saved.')} ${tr('The one for all obstacles is in the planner menu under Obstacles.')}`}
+            onSet={setMargin}
+          />
         )}
         <span className={styles.dim}>
           {area.properties.active === false && type !== 'decor'

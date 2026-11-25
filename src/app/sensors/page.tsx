@@ -9,9 +9,10 @@ import {isTemperature, tempItems} from '@/lib/dashboard';
 import Sparkline from '@/components/Sparkline';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {emergencySince} from '@/lib/roslog';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
+import {keptOnMower, useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {bladeSpin, outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
@@ -92,7 +93,6 @@ export default function SensorsPage() {
   // no connection or no fresh state: what's shown is old, greyed out as on the dashboard
   const live = isLive(link);
   const old = live ? '' : styles.stale;
-  const why = useEmergencyReasons(!!state?.emergency);
   const params = useMowerParams();
   const history = useSensorHistory();
   const level = useBatteryLevel();
@@ -105,14 +105,15 @@ export default function SensorsPage() {
   // MowBite OS tells whether it really charges (from api 4 on, the runs are only asked for then), as on the dashboard
   const api = useOsApi();
   const recent = useRecentRuns(currentState, api >= 4);
+  const why = useEmergencyReasons(!!state?.emergency, emergencySince(recent?.today));
   const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
   const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
-  const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
+  const charging = onCharger(state, values['om_v_charge']);
+  const out = (i: SensorInfo | undefined, raw: string | undefined) => outOfRange(i, raw, currentState, charging);
+  const criticalCount = infos.filter((i) => out(i, values[i.sensor_id])).length;
 
-  const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) =>
-    outOfRange(info(id), values[id], currentState),
-  );
+  const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) => out(info(id), values[id]));
   const batteryTone = batteryCritical ? 'error' : batteryColor(battery ?? 0);
 
   // as on the dashboard: the blade side first, then the wheels, the rest as they come
@@ -229,7 +230,7 @@ export default function SensorsPage() {
               <Card title={tr('Mow motor')}>
                 {rpm !== undefined && bladeSpin(rpm) !== 0 ? (
                   <>
-                    <strong className={[styles.big, outOfRange(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
+                    <strong className={[styles.big, out(rpmInfo, values['om_mow_motor_rpm']) ? styles.error : ''].join(' ')}>
                       {Math.abs(rpm).toFixed(0)} {tr('rpm')} <TurnIcon reverse={rpm < 0} />
                     </strong>
                     <span className={styles.dim}>
@@ -252,7 +253,7 @@ export default function SensorsPage() {
                     <InfoTip>
                       {os
                         ? tr(
-                            "How far off the position might be. MowBite OS only takes RTK fixes within the mower's limit (max_position_accuracy), without one the number grows with the distance driven and the time since the last. MowBite goes by that number: up to 5 cm it says RTK fix, up to the limit float, which is still usable. Above that the mower doesn't drive by the position.",
+                            "How far off the position might be. MowBite OS only takes RTK fixes within the mower's limit (Required GPS accuracy), without one the number grows with the distance driven and the time since the last. MowBite goes by that number: up to 5 cm it says RTK fix, up to the limit float, which is still usable. Above that the mower doesn't drive by the position.",
                           )
                         : tr(
                             "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
@@ -272,14 +273,14 @@ export default function SensorsPage() {
                       : `${fmt(gps * 100, 1)} cm`}
                 </strong>
                 {!noFix && gps !== undefined && (
-                  <span className={styles.dim}>{tr(GPS_QUALITY_LABEL[gpsQuality(gps, numParam(params, PARAM.maxPositionAccuracy))])}</span>
+                  <span className={styles.dim}>{tr(GPS_QUALITY_LABEL[gpsQuality(gps, numParam(params, PARAM.maxPositionAccuracy, os))])}</span>
                 )}
                 {noFix && docked && <span className={styles.dim}>{tr('in the dock')}</span>}
                 <Sparkline samples={gpsHistory} digits={1} unit="cm" minSpan={5} />
               </Card>
             </div>
-            {/* the container keeps a day of it, without one the curves start when the app does */}
-            {!sharedSettings() && <p className={styles.footnote}>{tr('History covers the last hour while the app is open.')}</p>}
+            {/* the container keeps a day of it, MowBite OS two, without either the curves start when the app does */}
+            {!sharedSettings() && !keptOnMower() && <p className={styles.footnote}>{tr('History covers the last hour while the app is open.')}</p>}
 
             {temps.length > 0 && (
               <>
@@ -289,7 +290,7 @@ export default function SensorsPage() {
                     const v = num(key);
                     return (
                       <Card key={key} title={label}>
-                        <strong className={[styles.big, outOfRange(t, values[key], currentState) ? styles.error : ''].join(' ')}>
+                        <strong className={[styles.big, out(t, values[key]) ? styles.error : ''].join(' ')}>
                           {v !== undefined ? `${fmt(v, 1)} °C` : '–'}
                         </strong>
                         {v !== undefined && <TempGauge value={v} info={t} />}
@@ -310,7 +311,7 @@ export default function SensorsPage() {
                     const numeric = o.value_type === 'DOUBLE' && v !== undefined && !Number.isNaN(v);
                     return (
                       <Card key={o.sensor_id} title={tr(o.sensor_name)}>
-                        <strong className={[styles.big, outOfRange(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
+                        <strong className={[styles.big, out(o, values[o.sensor_id]) ? styles.error : ''].join(' ')}>
                           {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : NTRIP_STATES.includes(values[o.sensor_id]) ? tr(values[o.sensor_id]) : (values[o.sensor_id] ?? '–')}
                         </strong>
                         {numeric && <Sparkline samples={history[o.sensor_id]} digits={digitsOf(o)} unit={unitOf(o)} />}

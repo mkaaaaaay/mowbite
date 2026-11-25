@@ -28,16 +28,33 @@ export const Note = ({look, title, children}: {look: string; title?: ReactNode; 
 );
 
 // asked before going back or installing what was held back
-export function Ask({title, yes, locked, onYes, onNo, children}: {title: string; yes: string; locked: boolean; onYes: () => void; onNo: () => void; children: ReactNode}) {
+// noLocked: Cancel off too, while an answer it can't take back is on its way
+export function Ask({
+  title,
+  yes,
+  locked,
+  noLocked = false,
+  onYes,
+  onNo,
+  children,
+}: {
+  title: string;
+  yes: string;
+  locked: boolean;
+  noLocked?: boolean;
+  onYes: () => void;
+  onNo: () => void;
+  children: ReactNode;
+}) {
   return (
     <div className={styles.ask}>
       <h3>{title}</h3>
       {children}
-      <div className={shared.row}>
+      <div className={styles.answers}>
         <button className={[shared.control, shared.danger].join(' ')} disabled={locked} onClick={onYes}>
           {yes}
         </button>
-        <button className={shared.control} onClick={onNo}>
+        <button className={shared.control} disabled={noLocked} onClick={onNo}>
           {tr('Cancel')}
         </button>
       </div>
@@ -71,6 +88,27 @@ export function Steps({steps, now, held}: {steps: StepRow[]; now: number; held?:
   );
 }
 
+// how far the step it's on is: the bar, moving while there's no percent, and under it the percent or how many of how
+// many and its time
+export function Bar({label, pct, detail}: {label: string; pct: number | null; detail: string}) {
+  return (
+    <span className={styles.bar}>
+      <span className={styles.track} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined} aria-valuetext={detail || undefined}>
+        {pct === null ? <i className={styles.moving} /> : <i className={styles.fill} style={{width: `${pct}%`}} />}
+      </span>
+      {detail && <small>{detail}</small>}
+    </span>
+  );
+}
+
+// something it does that has no steps (a look for updates, for room, deleting): what, and the bar with its time or detail
+export const Busy = ({label, pct = null, detail}: {label: string; pct?: number | null; detail: string}) => (
+  <div className={styles.busy}>
+    <b>{label}</b>
+    <Bar label={label} pct={pct} detail={detail} />
+  </div>
+);
+
 export const HOUR = 3600;
 
 // what an update asks of the mower
@@ -80,7 +118,7 @@ export const RIGHT_AWAY = 'Works right away, also while the mower mows.';
 export type Tag = {text: string; look: string};
 
 // a part's name, its mark and what it is, then its facts
-export function Head({name, tag, text, children}: {name: string; tag: Tag | null; text?: string; children: ReactNode}) {
+export function Head({name, tag, text, children}: {name: string; tag: Tag | null; text?: string; children?: ReactNode}) {
   return (
     <>
       <div className={shared.head}>
@@ -100,25 +138,50 @@ export const OffCard = ({id, children}: {id: string; children: ReactNode}) => (
   </article>
 );
 
-// how many updates there are, when the mower last looked and the button that looks again
-export function Summary({count, checked, locked, onCheck}: {count: number; checked: string | null; locked: boolean; onCheck: () => void}) {
+// how many updates there are, with none how many are held back
+const countText = (count: number, held: number) => {
+  if (count) return count === 1 ? tr('1 update available') : tr('{n} updates available', {n: count});
+  if (held) return held === 1 ? tr('1 update held back') : tr('{n} updates held back', {n: held});
+  return tr('Everything is up to date');
+};
+
+// how many updates there are (or what runs right now), when the mower last looked and the button that looks again
+export function Summary({
+  count,
+  held = 0,
+  doing,
+  checked,
+  locked,
+  checking,
+  onCheck,
+}: {
+  count: number;
+  held?: number;
+  doing?: string | null;
+  checked: string | null;
+  locked: boolean;
+  checking?: boolean;
+  onCheck: () => void;
+}) {
   return (
     <div className={styles.sum}>
       <span>
-        <b>{count === 0 ? tr('Everything is up to date') : count === 1 ? tr('1 update available') : tr('{n} updates available', {n: count})}</b>
+        <b>{doing || countText(count, held)}</b>
         {checked && <span className={shared.dim}>{tr('Checked: {t}', {t: checked})}</span>}
       </span>
       <button className={shared.control} disabled={locked} onClick={onCheck}>
-        {tr('Check for updates')}
+        {checking ? tr('Checking…') : tr('Check for updates')}
       </button>
     </div>
   );
 }
 
-// the heading of the update going on, and a line under it
-export const RunHead = ({name, back, sub}: {name: string; back: boolean; sub?: string | null}) => (
+// the heading of an update going on
+export const runTitle = (name: string, back: boolean) => (back ? tr('{name} goes back', {name}) : tr('{name} is being updated', {name}));
+// the heading of the update going on (or its own title), and a line under it
+export const RunHead = ({name, back, sub, title}: {name: string; back: boolean; sub?: string | null; title?: string}) => (
   <div>
-    <h3>{back ? tr('{name} goes back', {name}) : tr('{name} is being updated', {name})}</h3>
+    <h3>{title ?? runTitle(name, back)}</h3>
     {sub && <span className={shared.dim}>{sub}</span>}
   </div>
 );

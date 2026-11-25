@@ -6,9 +6,11 @@ import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
 import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks} from '@/lib/settings';
-import {bodyShape, isPin, pinAt, realEdges, realInsides, roundBends, useMowerBody, usePlannerSettings, type MowerBody} from '@/lib/mowerBody';
+import {bodyShape, isPin, outlineAt, pinAt, realEdges, realInsides, roundBends, useMowerBody, usePlannerSettings, type MowerBody} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {dockIcon} from './mapIcons';
+import {obstacleMark} from './ObstacleGlyph';
+import {justSeen, type Obstacle} from '@/lib/obstacles';
 import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
@@ -25,6 +27,7 @@ import {CoverInfo} from './CoverInfo';
 import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
 import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
+import {useDockFootprint} from '@/hooks/useGeometry';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {angleOffsetOf, useMowerParams} from '@/hooks/useMowerParams';
 import {useLastRun} from '@/hooks/useMowerTrack';
@@ -155,6 +158,11 @@ interface MapViewProps {
   // a layer of the page's own over the map and under the mower, in the map's meters (the calibration's lane and turns):
   // toScreen the point on the svg, scale its units per meter, k one unit at the zoom shown
   draw?: (at: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => React.ReactNode;
+  // what the obstacle sensors saw: its round on the ground and a sign of what it is, pulsing while just seen. one
+  // can be picked by its sign, again: none
+  obstacles?: Pick<Obstacle, 'id' | 'x' | 'y' | 'r' | 'kind' | 'last_t' | 'keep_out_r'>[];
+  obstaclePicked?: number | null;
+  onObstaclePick?: (id: number | null) => void;
 }
 
 const MAX_ZOOM = 40;
@@ -273,6 +281,9 @@ function MapView({
   leftPieces,
   navErrors,
   draw,
+  obstacles,
+  obstaclePicked,
+  onObstaclePick,
   markers,
   onMarkerPick,
   bodySpots,
@@ -443,6 +454,7 @@ function MapView({
   const ownBody = useMowerBody();
   const body = bodyOverride ?? ownBody;
   const plannerSettings = usePlannerSettings();
+  const dockFootprint = useDockFootprint();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead. not to the points being set: the view would jump and zoom with every one
@@ -1833,6 +1845,16 @@ function MapView({
           </g>
         )}
 
+        {/* the station from above where the mower knows it, around the mower docked at its point */}
+        {dockFootprint &&
+          map.docking_stations.map((station) => (
+            <polygon
+              key={station.id}
+              className={styles.dockFootprint}
+              data-dock-footprint={station.id}
+              points={outlineAt(dockFootprint, station.position.x, station.position.y, station.heading).map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
+            />
+          ))}
         {map.docking_stations.map((station) => {
           const [sx, sy] = toScreen(station.position.x, station.position.y);
           const icon = dockIcon(settings.icons?.dock);
@@ -2144,6 +2166,17 @@ function MapView({
       onCanvasClick(s ? s.x : local[0], s ? s.y : local[1]);
     },
   };
+  // a spot that tells what it is when tapped, like a dot of the collision check: the map doesn't pan or deselect from it
+  const pickable = (pick: (() => void) | undefined) =>
+    pick
+      ? {
+          onPointerDown: (e: React.PointerEvent) => !grabbable(e) && e.stopPropagation(),
+          onClick: (e: React.MouseEvent) => {
+            e.stopPropagation();
+            pick();
+          },
+        }
+      : {};
   // what's drawn over everything else: the check's spots and bodies, the markers
   const after = (
     <>
@@ -2230,6 +2263,25 @@ function MapView({
             />
           );
         })}
+      {obstacles?.map((o) => {
+        const [x, y] = toScreen(o.x, o.y);
+        const picked = o.id === obstaclePicked;
+        return (
+          <g
+            key={'seen' + o.id}
+            className={[styles.seen, onObstaclePick ? styles.seenPick : ''].join(' ')}
+            data-obstacle={o.id}
+            {...pickable(onObstaclePick && (() => onObstaclePick(picked ? null : o.id)))}
+          >
+            {!!o.keep_out_r && <circle className={styles.keptOut} cx={x} cy={y} r={o.keep_out_r * scale} data-kept-out />}
+            <circle className={styles.seenGround} cx={x} cy={y} r={Math.max(o.r * scale, 4 * k)} />
+            {justSeen(o) && <circle className={styles.seenPulse} cx={x} cy={y} r={22 * k} />}
+            {/* a sign is small for a finger: a bigger round to hit */}
+            <circle className={styles.seenHit} cx={x} cy={y} r={18 * k} />
+            <g transform={`translate(${x} ${y}) scale(${0.85 * k})`}>{obstacleMark(o.kind, picked ? 3.5 : 1.8)}</g>
+          </g>
+        );
+      })}
       {/* last, so a spot at the dock isn't hidden under the mower */}
       {markers?.map((m, i) => {
         const [mx, my] = toScreen(m.x, m.y);
@@ -2237,16 +2289,7 @@ function MapView({
           <g
             key={'mk' + i}
             className={[styles.marker, onMarkerPick ? styles.markerPick : ''].join(' ')}
-            // like a dot of the collision check: the map doesn't pan or deselect from it
-            onPointerDown={onMarkerPick ? (e) => !grabbable(e) && e.stopPropagation() : undefined}
-            onClick={
-              onMarkerPick
-                ? (e) => {
-                    e.stopPropagation();
-                    onMarkerPick(i);
-                  }
-                : undefined
-            }
+            {...pickable(onMarkerPick && (() => onMarkerPick(i)))}
           >
             <circle cx={mx} cy={my} r={20 * k} className={styles.markerPulse} />
             <circle cx={mx} cy={my} r={6 * k} />

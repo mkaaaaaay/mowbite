@@ -9,8 +9,25 @@ export type AreaProperties = Area['properties'];
 // change the selected area's properties, undoable = one undo step for this change
 export type UpdateArea = (patch: Partial<AreaProperties>, undoable?: boolean) => void;
 
-// area settings only newer openmower versions keep, older ones drop them when saving (pin too, its square says it then)
-export const NEW_AREA_SETTINGS = ['mowable', 'angle_min', 'angle_max'] as const;
+// the same points, also when they came back from the mower after a save
+export const sameOutline = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y));
+
+// map contract: a ring drawn or reshaped by hand is a hard edge (drawn true) without the body that recorded it, one only
+// recorded by driving is the path of the mower's middle. the rings new or reshaped from prev to next get it, pins aren't rings
+export function markDrawn(next: MowerMap, prev: MowerMap | null): MowerMap {
+  const before = new Map(prev?.areas.map((a) => [a.id, a.outline]));
+  let marked = false;
+  const areas = next.areas.map((a) => {
+    const was = before.get(a.id);
+    if (isPin(a) || (was && sameOutline(was, a.outline))) return a;
+    if (a.properties.drawn && a.properties.recorded_body === undefined) return a;
+    marked = true;
+    const properties = {...a.properties, drawn: true};
+    delete properties.recorded_body;
+    return {...a, properties};
+  });
+  return marked ? {...next, areas} : next;
+}
 
 // the outline of a pin standing at x, y: a square PIN_SIDE across along the map's axes, an area other apps can take too
 // (closed it has the 5 points a ring needs)
@@ -78,6 +95,21 @@ export const AREA_TYPES = [
   {value: 'decor', label: 'Decoration', hint: 'only a picture on the map, the mower ignores it (lying in a lawn, it mows over it)'},
   {value: 'draft', label: 'Draft', hint: 'ignored by the mower'},
 ];
+
+// an active obstacle given another type: the mower no longer keeps out of it and plans over the place
+export const obstacleLost = (area: Area, type: string | undefined) =>
+  area.properties.type === 'obstacle' && area.properties.active !== false && type !== 'obstacle';
+
+export const typeLabel = (type: string | undefined) => tr(AREA_TYPES.find((t) => t.value === (type ?? 'draft'))?.label ?? '');
+
+// what merging other into area loses, said before it's done: the merged one takes area's type. null for the same type
+export function mergeLoss(area: Area, other: Area): string | null {
+  if ((area.properties.type ?? 'draft') === (other.properties.type ?? 'draft')) return null;
+  const words = {name: other.properties.name || tr('unnamed'), into: area.properties.name || tr('this one'), type: typeLabel(area.properties.type)};
+  return obstacleLost(other, area.properties.type)
+    ? tr('{name} is an obstacle the mower keeps out of. Merged into {into} it takes its type ({type}) and the mower plans over that place.', words)
+    : tr('{name} is of another type ({from}). Merged into {into} it takes its type ({type}).', {...words, from: typeLabel(other.properties.type)});
+}
 
 export const DEG = Math.PI / 180;
 

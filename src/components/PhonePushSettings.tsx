@@ -3,7 +3,7 @@
 import {tr, useLang} from '@/lib/i18n';
 import {apiBase} from '@/lib/mowers';
 import {useMowbiteOs} from '@/lib/mowerOs';
-import {addPush, removePush, saveNotify, testPush, type NotifyConfig} from '@/lib/notify';
+import {addPush, removePush, saveNotify, signedUp, testPush, type NotifyConfig} from '@/lib/notify';
 import {NTFY, pushPlugin, rememberEndpoint, waitForEndpoint, withPush, type PushChannel, type PushStatus} from '@/lib/push';
 import {containerHas, useUpdates} from '@/lib/updates';
 import {useCallback, useEffect, useState} from 'react';
@@ -85,7 +85,7 @@ export function PhonePushSettings({
   if (!status) return null;
 
   const api = apiBase();
-  const on = !!status.endpoint && saved.pushes.includes(status.endpoint);
+  const on = !!status.endpoint && signedUp(saved.pushes, status.endpoint);
   const list = status.distributors;
   const chosen = pick ?? status.distributor ?? (list.length === 1 ? list[0].id : null);
   const chosenName = list.find((d) => d.id === (status.distributor ?? chosen))?.name;

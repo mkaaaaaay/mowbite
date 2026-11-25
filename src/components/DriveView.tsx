@@ -8,7 +8,9 @@ import MapView from '@/components/MapView';
 import Segments, {type Segment} from '@/components/Segments';
 import {chooseCamera, useCameras} from '@/hooks/useCameras';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
-import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
+import {useRecentRuns} from '@/hooks/useRecentRuns';
+import {emergencySince} from '@/lib/roslog';
+import {useEmergencyReset, useJustReset, useJustStopped} from '@/hooks/useEmergencyReset';
 import type {OverlayLine} from '@/hooks/useMapOverlay';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -16,24 +18,21 @@ import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useSensorValue} from '@/hooks/useMowerSensors';
-import {isLive, useMowerState} from '@/hooks/useMowerState';
+import {isLive, liveNow, useMowerState} from '@/hooks/useMowerState';
 import {cameraParts} from '@/lib/camera';
 import {emergencyText, explain, resetRefusedText, stopReleaseText} from '@/lib/events';
-import {useStopRelease} from '@/lib/mowerOs';
+import {useMowbiteOs, useStopRelease} from '@/lib/mowerOs';
 import {readStored, writeStored} from '@/lib/mowers';
 import {fmt, tr} from '@/lib/i18n';
 import {ACTION, PARAM} from '@/lib/openmower';
 import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
-import {sendDrive} from '@/lib/teleop';
+import {sendDrive, SPEEDS, TURN_PER_SPEED} from '@/lib/teleop';
 import {useEffect, useRef, useState} from 'react';
 import styles from './DriveView.module.css';
 
 // the classes of the card and the bars for what a page puts in them (buttons, chips, lines)
 export {styles as driveStyles};
 
-// m/s at full stick, the turn rate follows along
-const SPEEDS = [0.15, 0.25, 0.35, 0.5];
-const TURN_PER_SPEED = 3;
 // the sideways layout drawn turned, for a phone that doesn't turn the page itself (one choice for every page that drives)
 const TURNED_KEY = 'recordTurned';
 // sideways the map's zoom steps, times the span the page asks for
@@ -105,19 +104,21 @@ export function useDrive({show = true, onMove}: {show?: boolean; onMove?: () => 
   const movedAt = useRef(0);
   const stick = useRef({x: 0, y: 0});
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    stick.current = {x: 0, y: 0};
+    sendDrive(0, 0);
+  };
   const send = () => {
+    // (the state's age checked as each one goes out, the page's mark comes late)
+    if (!liveNow()) return stop();
     const {x, y} = stick.current;
     // gentle near the middle, full speed only at the edge
     const curve = (v: number) => Math.sign(v) * Math.abs(v) ** 1.6;
     const v = speedRef.current;
     movedAt.current = performance.now();
     sendDrive(curve(y) * v, -curve(x) * v * TURN_PER_SPEED);
-  };
-  const stop = () => {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = null;
-    stick.current = {x: 0, y: 0};
-    sendDrive(0, 0);
   };
   const onStick = (x: number, y: number) => {
     stick.current = {x, y};
@@ -235,10 +236,12 @@ export default function DriveView({
   const map = useMowerMap();
   const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
-  const why = useEmergencyReasons(!!state?.emergency);
-  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const recent = useRecentRuns(state?.current_state);
+  const why = useEmergencyReasons(!!state?.emergency, emergencySince(recent?.today));
+  const {refused, reset} = useEmergencyReset(!!state?.emergency);
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
+  const justStopped = useJustStopped(!!state?.emergency);
   const [zoom, setZoom] = useState(2);
   const cams = useCameras();
   const [view, setView] = useState(() => readStored<string>(VIEW_KEY) ?? 'map');
@@ -257,9 +260,9 @@ export default function DriveView({
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
   const acc = gpsAcc ?? state?.pose.pos_accuracy;
-  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy, useMowbiteOs()));
   const gpsText = `GPS · ${gpsQ === 'none' ? tr('no fix') : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`}`;
-  // the emergency stop is reset right here, driving goes on where it stopped
+  // the emergency stop is reset right here, driving goes on where it stopped. held back for a moment, it's where the stick was
   const reason = why ? emergencyText(why) : '';
   const alarm = (
     <>
@@ -268,7 +271,7 @@ export default function DriveView({
         {refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}
         {stopRelease && ` ${stopReleaseText(stopRelease)}`}
       </span>
-      <button disabled={!live} onClick={reset}>
+      <button disabled={!live || justStopped} onClick={reset}>
         <WarningIcon size={18} />
         {tr('Reset emergency')}
       </button>

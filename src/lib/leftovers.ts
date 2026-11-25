@@ -1,7 +1,22 @@
 import {readPaths} from './areaPlan';
+import {savePlannerSettings, type PlannerSetting} from './mowerBody';
 import {RPC} from './openmower';
 import type {PlanPath} from './planProgress';
-import {callRpc, rpcMethods} from './rpc';
+import {callCommand, callRpc, rpcMethods} from './rpc';
+import {saveSettings, settingsStore, type Settings} from './settings';
+
+// the leftovers mowed by themselves with a planner that has the switch: its own setting, or the container's switched on
+// before the planner could, which still sends the mower out until the planner's switch is used. one the planner doesn't
+// let be set (MowBite OS decides it) is as the planner says
+export const leftoversOn = (planner: PlannerSetting, settings: Settings) =>
+  planner.value === true || (planner.settable !== false && !!settings.leftovers?.auto);
+
+// the planner's switch: the container's own goes off first, both would send the mower out
+export function setLeftoversAuto(on: boolean) {
+  const cur = settingsStore.snapshot();
+  if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
+  return savePlannerSettings({leftovers_auto: on});
+}
 
 // What a finished mow's real track left unmowed, from the MowBite Planner on the mower (planner.leftovers): for
 // every active mowing area the passes over the pieces left, how much that is, and nothing where there's nothing to
@@ -76,14 +91,15 @@ export function stillArmed(jobId: string | undefined, now = Date.now() / 1000): 
   return armedAway && armedAway.jobId === jobId && armedAway.until > now ? {found: armedAway.found, seconds: armedAway.until - now} : null;
 }
 
-// null when the mower has no MowBite Planner that knows it. Planning every area takes the mower a while
+// null when the mower has no MowBite Planner that knows it. Planning every area takes the mower a while. arming goes out
+// only while connected, a later one would leave the next start just the leftovers
 export async function askLeftovers(req: {jobId?: string; arm?: boolean} = {}): Promise<Leftovers | null> {
   const known = await rpcMethods();
   if (known && !known.has(RPC.plannerLeftovers)) return null;
   const params: Record<string, unknown> = {};
   if (req.jobId) params.job_id = req.jobId;
   if (req.arm) params.arm = true;
-  return readLeftovers(await callRpc<Answer>(RPC.plannerLeftovers, params, 180000));
+  return readLeftovers(await (req.arm ? callCommand<Answer> : callRpc<Answer>)(RPC.plannerLeftovers, params, 180000));
 }
 
 // the areas the MowBite Planner gave mower_logic the leftover passes for in place of their plans: it logs that when it

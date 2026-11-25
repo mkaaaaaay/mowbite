@@ -8,33 +8,46 @@ import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, pageFromMower, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower, WS_PORT} from '@/lib/mowers';
+import {addressPortBad, appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, pageFromMower, parseAddress, portOf, sameMowBite, saveAppMowers, selectedMower, selectMower, WS_PORT} from '@/lib/mowers';
 import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
 import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerNote, ParamGroupRows, summary, useCanSetParams} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
+import {OsRestart, TrialConfirm, UsbMode} from '@/components/HostOs';
+import {HostSsh} from '@/components/HostSsh';
+import {HostWifi} from '@/components/HostWifi';
+import {useHostOffers, useHostSsh, useHostWifiSsid} from '@/lib/hostOs';
+import {DATA_METHODS, MowerData} from '@/components/MowerData';
 import {OsUpdate} from '@/components/OsUpdate';
 import {LegalFooter, UpdateSettings} from '@/components/Updates';
-import {savePlannerSettings, slic3rPlans, useAskPlanner, usePlannerSettings, usePlannerWaiting} from '@/lib/mowerBody';
+import {slic3rPlans, useAskPlanner, usePlannerSettings, usePlannerWaiting} from '@/lib/mowerBody';
+import {leftoversOn, setLeftoversAuto} from '@/lib/leftovers';
 import PlannerWaiting from '@/components/PlannerWaiting';
 import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
-import {CALIB_SHOWN, canCalibrate} from '@/lib/calibration';
+import {offersSetup} from '@/lib/setup';
+import {CALIB_SHOWN, calibrationWay} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {LightSettings} from '@/components/LightSettings';
 import {SoundSettings} from '@/components/SoundSettings';
+import {OpenMowerSounds} from '@/components/OpenMowerSounds';
+import {NtripSettings} from '@/components/NtripSettings';
+import {ObstacleSettings} from '@/components/ObstacleSettings';
+import {GroupOpen} from '@/hooks/useGroupOpen';
+import {useMowerSounds} from '@/hooks/useMowerSounds';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {RPC} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
+import {soundHint} from '@/lib/openMowerSounds';
 import {osUpdatesOffered} from '@/lib/osUpdate';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
-import {PARAM_GROUPS} from '@/lib/mowerParams';
+import {groupFields, PARAM_GROUPS} from '@/lib/mowerParams';
 import {APP_VERSION} from '@/lib/updates';
 import {answerError} from '@/lib/rpcText';
 
@@ -113,7 +126,7 @@ function Group({
         </span>
       </summary>
       <div className={styles.groupBody}>
-        {children}
+        <GroupOpen value={open}>{children}</GroupOpen>
       </div>
     </details>
   );
@@ -158,13 +171,15 @@ function MowersSection({settings}: {settings: Settings}) {
       setError(tr("That's not an address. Enter an IP or the mower's name in your network."));
       return;
     }
-    const mower: OtherMower = {
-      id: Math.random().toString(36).slice(2, 10),
-      name: name.trim(),
-      host: typed.host,
-      appPort: typed.port ?? (Number(typedPort) || CONTAINER_PORT),
-      wsPort: Number(wsPort) || WS_PORT,
-    };
+    // a port that isn't one is said, not swapped for the usual one
+    const own = typed.port ?? portOf(typedPort);
+    const ws = portOf(wsPort);
+    const badPort = addressPortBad(host) ? tr('The port after the address') : own === null ? tr('MowBite port') : ws === null ? tr('MQTT websocket port') : null;
+    if (badPort || own === null || ws === null) {
+      setError(tr('{what}: a port is a whole number from 1 to 65535.', {what: badPort ?? ''}));
+      return;
+    }
+    const mower: OtherMower = {id: Math.random().toString(36).slice(2, 10), name: name.trim(), host: typed.host, appPort: own, wsPort: ws};
     // (another MowBite on the same host answers on another port)
     const port = Number(window.location.port) || 80;
     if (!app && [window.location.hostname, 'localhost', '127.0.0.1'].some((h) => sameMowBite(mower, {host: h, appPort: port}))) {
@@ -317,24 +332,31 @@ export default function SettingsPage() {
   const waiting = usePlannerWaiting()?.what === 'load';
   const sizes = planner !== undefined || unanswered || waiting;
   const demo = useSyncExternalStore(noop, isDemo, () => false);
-  // the lights by state and the sounds, on a mower that has them (MowBite OS)
+  // the lights by state, on a mower that has them (MowBite OS)
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
-  const sounds = !!methods?.has(RPC.soundList);
+  const mowerSounds = useMowerSounds();
+  const sounds = mowerSounds?.kind === 'os';
+  const ntrip = !!methods?.has(RPC.ntripGet);
+  const obstacles = !!methods?.has(RPC.obstaclesList);
+  const setup = offersSetup(methods);
   // MowBite OS keeps the sizes itself, with its planner or without
   const geometry = !!methods?.has(RPC.geometry);
   // the calibration isn't there on MowBite OS, nor is the way to its guide
   const os = useMowbiteOs();
-  const calibrate = canCalibrate(methods, os);
+  const calibrate = calibrationWay(methods, os);
   // OpenMower's own settings, on one that takes them
   const can = useCanSetParams();
   // MowBite OS updates itself through its host: its own view, and the page from the mower is one of its parts there
   const osUpdates = osUpdatesOffered(methods);
+  // the WLAN, set through MowBite OS's host
+  const wifi = useHostOffers(RPC.hostWifiSet);
+  const wifiSsid = useHostWifiSsid();
+  // root's login over ssh, where the host manages it
+  const ssh = useHostSsh();
   // a planner that sends the mower out for the leftovers itself, else the container's own switch
   const plannerLeftovers = planner?.settings.leftovers_auto;
-  const leftoversOn = plannerLeftovers
-    ? plannerLeftovers.value === true || (plannerLeftovers.settable !== false && !!settings.leftovers?.auto)
-    : !!settings.leftovers?.auto;
+  const leftoversAuto = plannerLeftovers ? leftoversOn(plannerLeftovers, settings) : !!settings.leftovers?.auto;
   const tabs: [Tab, string][] = [
     ['mower', tr('Mower')],
     ['app', tr('App')],
@@ -374,9 +396,16 @@ export default function SettingsPage() {
         {/* both there, the one not shown hidden: a link finds its part in either, nothing loads again on a switch */}
         <div className={styles.tabPanel} role="tabpanel" id="panel-mower" aria-labelledby="tab-mower" hidden={tab !== 'mower'}>
             {!demo && <p className={styles.dim}>{tr('Saved on the mower, it counts for everyone who uses it.')}</p>}
-            {(sizes || lights || sounds) && (
+            {(sizes || lights || mowerSounds || wifi || ssh || ntrip || obstacles || setup) && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>{tr('The mower itself')}</h2>
+                {setup && (
+                  <Group id="setup" title={tr('Setup')} hint={tr('Check the mower step by step')}>
+                    <Link href="/setup" className={styles.pillButton}>
+                      {tr('To the setup')}
+                    </Link>
+                  </Group>
+                )}
                 {sizes && (
                   <Group id="mower" title={calibrate ? tr('Sizes and calibration') : tr('Mower sizes')} hint={tr('Body, blade and antenna')} anchors={['sizes']}>
                     {/* set once: with the MowBite Planner kept by it, without it in the app, on MowBite OS by the OS */}
@@ -397,9 +426,29 @@ export default function SettingsPage() {
                     <LightSettings styles={styles} />
                   </Group>
                 )}
-                {sounds && (
-                  <Group id="sounds" title={tr('Sounds')} hint={tr('Volume, listen to each sound')}>
-                    <SoundSettings styles={styles} />
+                {mowerSounds && (
+                  <Group id="sounds" title={tr('Sounds')} hint={mowerSounds.kind === 'os' ? tr('Volume, listen to each sound') : soundHint(mowerSounds.running)}>
+                    {mowerSounds.kind === 'os' ? <SoundSettings styles={styles} /> : <OpenMowerSounds styles={styles} running={mowerSounds.running} />}
+                  </Group>
+                )}
+                {wifi && (
+                  <Group id="wifi" title={tr('WLAN')} hint={wifiSsid ?? tr('The network the mower is in')}>
+                    <HostWifi styles={styles} />
+                  </Group>
+                )}
+                {ssh && (
+                  <Group id="ssh" title={tr('SSH access')} hint={ssh.enabled ? tr('On, as root') : tr('Off')}>
+                    <HostSsh styles={styles} />
+                  </Group>
+                )}
+                {ntrip && (
+                  <Group id="ntrip" title={tr('Corrections (NTRIP)')} hint={tr('Access to the service for RTK')}>
+                    <NtripSettings styles={styles} />
+                  </Group>
+                )}
+                {obstacles && (
+                  <Group id="obstacles" title={tr('Obstacles')} hint={summary('obstacles', params, os)}>
+                    <ObstacleSettings styles={styles} />
                   </Group>
                 )}
               </section>
@@ -409,14 +458,15 @@ export default function SettingsPage() {
               <section className={styles.section} id="openmower">
                 <h2 className={styles.sectionTitle}>{tr('How it works')}</h2>
                 {can &&
-                  PARAM_GROUPS.filter((g) => g.key !== 'mowing').map((g) => (
+                  // a group without a setting this mower has (the journal outside MowBite OS) stays out
+                  PARAM_GROUPS.filter((g) => g.key !== 'mowing' && groupFields(g.key, params, os).length).map((g) => (
                     <Group key={g.key} id={g.key} title={tr(g.title)} hint={summary(g.key, params, os)}>
                       <ParamGroupRows group={g.key} params={params} os={os} />
                     </Group>
                   ))}
                 {can && <OpenMowerNote styles={styles} params={params} os={os} />}
                 {planner && (
-                  <Group id="leftovers" title={tr('Mow the leftovers')} hint={leftoversOn ? tr('by itself after mowing') : tr('from the dashboard')}>
+                  <Group id="leftovers" title={tr('Mow the leftovers')} hint={leftoversAuto ? tr('by itself after mowing') : tr('from the dashboard')}>
                     <section className={styles.card}>
                       <p className={styles.dim}>
                         {tr(
@@ -431,13 +481,11 @@ export default function SettingsPage() {
                           <label className={styles.check}>
                             <input
                               type="checkbox"
-                              checked={leftoversOn}
+                              checked={leftoversAuto}
                               disabled={slic3rPlans(planner) || plannerLeftovers.settable === false}
                               onChange={(e) => {
-                                const cur = settingsStore.snapshot();
-                                if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
                                 setLeftoversFailed(null);
-                                savePlannerSettings({leftovers_auto: e.target.checked}).catch((err: unknown) => setLeftoversFailed(answerError(err)));
+                                setLeftoversAuto(e.target.checked).catch((err: unknown) => setLeftoversFailed(answerError(err)));
                               }}
                             />
                             {tr('Mow the leftovers automatically')}
@@ -446,7 +494,7 @@ export default function SettingsPage() {
                           {plannerLeftovers.settable === false && <p className={styles.dim}>{tr("Set by the mower, it can't be changed here.")}</p>}
                           {plannerLeftovers.value !== true && plannerLeftovers.settable !== false && settings.leftovers?.auto && (
                             <p className={styles.dim}>
-                              {tr('Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.', {
+                              {tr("Still done by MowBite on the mower as set before, from {m} m² and after charging, home again at the run's end time or at sunset. Switch it off and on to let the planner do it.", {
                                 m: dec(settings.leftovers.min ?? 0.5),
                               })}
                             </p>
@@ -498,6 +546,9 @@ export default function SettingsPage() {
               <Group id="update" title={tr('Updates')} hint={osUpdates ? 'MowBite OS' : 'MowBite Updater'}>
                 <section className={styles.card}>
                   <h2>{tr('On the mower')}</h2>
+                  <TrialConfirm />
+                  <OsRestart />
+                  <UsbMode />
                   {osUpdates ? (
                     <OsUpdate />
                   ) : (
@@ -508,13 +559,20 @@ export default function SettingsPage() {
                   )}
                 </section>
               </Group>
+              {methods && DATA_METHODS.some((m) => methods.has(m)) && (
+                <Group id="data" title={tr('Data on the mower')} hint={tr('Delete tracks and events')}>
+                  <section className={styles.card}>
+                    <MowerData methods={methods} />
+                  </section>
+                </Group>
+              )}
               {/* everything to plan and drive this garden again elsewhere, for sharing: one file */}
               {sizes && (
                 <Group id="garden" title={tr('Garden file')} hint={tr('The map and the settings in one file')}>
                   <section className={styles.card}>
                     <p className={styles.dim}>
                       {tr(
-                        "The map, the planner's settings and what OpenMower mows and drives with, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
+                        "The map, the planner's settings and the mower's settings for mowing and driving, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
                       )}
                     </p>
                     <GardenDownload className={styles.pillButton} />
@@ -660,7 +718,12 @@ export default function SettingsPage() {
                       {lights ? tr('Lights and sounds') : tr('Sounds')}
                     </Link>
                   )}
-                  {CALIB_SHOWN && !os && (
+                  {setup && (
+                    <Link href="/guide/setup" className={styles.pillButton}>
+                      {tr('Setup')}
+                    </Link>
+                  )}
+                  {((CALIB_SHOWN && !os) || calibrate === 'os') && (
                     <Link href="/guide/calibration" className={styles.pillButton}>
                       {tr('Calibrating')}
                     </Link>

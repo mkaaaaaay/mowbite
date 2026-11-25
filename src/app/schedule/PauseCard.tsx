@@ -14,6 +14,8 @@ export default function PauseCard({schedule, mowAreas, update}: {schedule: Sched
   const pause = schedule.pause && schedule.pause.until >= today ? schedule.pause : undefined;
   // what the next pause covers, all areas unless some are picked
   const [picked, setPicked] = useState<string[]>([]);
+  // the last day as picked or typed, the pause starts only with its button (typing a date goes through days on the way)
+  const [day, setDay] = useState('');
   const names = (ids: string[]) =>
     mowAreas
       .filter((a) => ids.includes(a.id))
@@ -61,8 +63,11 @@ export default function PauseCard({schedule, mowAreas, update}: {schedule: Sched
         <button onClick={() => start(today)}>{tr('Just today')}</button>
         <label className={styles.until}>
           {tr('until')}
-          <input type="date" min={today} onChange={(e) => e.target.value && start(e.target.value)} />
+          <input type="date" min={today} value={day} onChange={(e) => setDay(e.target.value)} />
         </label>
+        <button disabled={!day || day < today} onClick={() => start(day)}>
+          {tr('Pause until then')}
+        </button>
       </div>
       )}
     </section>

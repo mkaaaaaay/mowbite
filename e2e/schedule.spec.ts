@@ -40,6 +40,20 @@ test('the question about the dark cancelled takes both times back, the weekday s
   await expect(plans(page).getByRole('button', {name: 'Tue'})).toHaveClass(/on/);
 });
 
+test('without mowing in the dark home at sunset stays on, with it the plan chooses', async ({page}) => {
+  const start = await ask(page);
+  const sunset = plans(page).getByRole('checkbox', {name: /Home at sunset/});
+  await expect(sunset).toBeChecked();
+  await expect(sunset).toBeDisabled();
+  await expect(plans(page).getByText('Always, unless it may mow in the dark.')).toBeVisible();
+  await page.getByRole('button', {name: 'Mow anyway'}).click();
+  await expect(start).toHaveValue('01:00');
+  await expect(sunset).toBeEnabled();
+  await expect(sunset).not.toBeChecked();
+  await sunset.check();
+  await expect(sunset).toBeChecked();
+});
+
 test('a time for starts by hand: off at first, switched on with 19:00 and changed', async ({page}) => {
   test.skip(SIM, 'the demo mower only');
   await page.goto('/schedule/');

@@ -1,8 +1,9 @@
 #!/bin/sh
 # the push messages (notify.sh): their settings, a test message, snoozing the reminders and what was sent.
-# the token is never handed out, a save without a token line keeps the one there is ("token -" drops it).
-# phones with MowBite's app sign up with their UnifiedPush address (push-add, push-remove, push-test with the address
-# as the body), a save of the settings keeps them
+# the token is never handed out, a save without a token line keeps the one there is for the same server ("token -"
+# drops it). phones with MowBite's app sign up with their UnifiedPush address (push-add, push-remove, push-test with
+# the address as the body), a save of the settings keeps them. they're only told by the start of their address's
+# sha256: whoever knows the address can send to it
 # the app on another mower may ask too (several mowers in one app)
 # after a Status line, busybox httpd only reads that when it comes first
 . /origin.sh
@@ -12,6 +13,8 @@ S=/data/notify.snooze
 conf() { sed -n "s/^$1 //p" "$C" 2>/dev/null | head -n1; }
 # notify.conf changed by one at a time (notify.sh drops phones too), held until the cgi ends
 lock() { exec 9> /tmp/notify.lock && flock 9; }
+# put <file>: the lines on stdin as the file, the old one stays when the new one can't be written whole
+put() { cat > "$1.$$" && mv "$1.$$" "$1" || { rm -f "$1.$$"; return 1; }; }
 # the body, one line
 body() {
   len=${CONTENT_LENGTH:-0}
@@ -19,6 +22,19 @@ body() {
 }
 # a phone's address as the distributor gave it, e.g. https://ntfy.sh/upAbC1?up=1
 address() { printf '%s' "$1" | grep -E '^https?://[A-Za-z0-9._~:/?=&%+-]{1,250}$'; }
+# a new one only over https and not to the mower itself: its loopback and link-local addresses, its names and the
+# addresses it has
+elsewhere() {
+  _h=${1#https://}
+  _h=${_h%%[/?]*}
+  _h=$(bare "$_h" | tr 'A-Z' 'a-z')
+  case $1 in https://*) ;; *) return 1 ;; esac
+  case $_h in
+  '' | localhost | *.localhost | 127.* | 0.* | 169.254.* | ::1 | :: | 0:0:0:0:0:0:0:1 | [fF][eE][89aAbB]*:*) return 1 ;;
+  esac
+  [ "$_h" != "$(hostname | tr 'A-Z' 'a-z')" ] || return 1
+  ! ip -o addr 2> /dev/null | awk '{ sub(/\/.*/, "", $4); print $4 }' | grep -qxF "$_h"
+}
 done_() {
   cors
   text
@@ -65,19 +81,20 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   ;;
 "POST push-add")
   a=$(address "$(body)")
-  [ -n "$a" ] || done_ "bad address"
+  [ -n "$a" ] && elsewhere "$a" || done_ "bad address"
   lock
   grep -qxF "push $a" "$C" 2>/dev/null && done_ ok
   # a few phones per mower, the oldest goes
-  [ "$(grep -c '^push ' "$C" 2>/dev/null)" -ge 10 ] && { awk 'f || !/^push / { print; next } { f = 1 }' "$C" > "$C.$$" && mv "$C.$$" "$C"; }
-  echo "push $a" >> "$C"
+  {
+    if [ "$(grep -c '^push ' "$C" 2>/dev/null)" -ge 10 ]; then awk 'f || !/^push / { print; next } { f = 1 }' "$C"; else cat "$C" 2>/dev/null; fi
+    echo "push $a"
+  } | put "$C" || done_ "not saved"
   done_ ok
   ;;
 "POST push-remove")
   a=$(address "$(body)")
   lock
-  # (grep finds nothing to keep when it was the only line)
-  [ -n "$a" ] && [ -f "$C" ] && { grep -vxF "push $a" "$C" || :; } > "$C.$$" && mv "$C.$$" "$C"
+  [ -n "$a" ] && [ -f "$C" ] && { grep -vxF "push $a" "$C" | put "$C" || done_ "not saved"; }
   done_ ok
   ;;
 "POST push-test")
@@ -107,10 +124,24 @@ POST*)
     printf 'Content-Type: text/plain\r\n\r\ntoo large\n'
     exit 0
   fi
+  # a known setting that doesn't fit turns the save down, unknown ones are left out.
+  # the token goes into wget's header (a bearer token: RFC 6750), the url into json and links (an IPv6 host in brackets)
+  keys='server|topic|token|lang|name|url|events|remind|emergency_wait|enabled'
+  fit='^(server https?://[A-Za-z0-9.:/_-]{1,200}|topic [A-Za-z0-9_-]{1,64}|token [A-Za-z0-9._~+/=-]{1,200}|lang (de|en)|name [^"\\]{1,160}|url https?://[][A-Za-z0-9.:/_~%-]{1,200}|events (-|[a-z_]{1,20}(,[a-z_]{1,20}){0,15})|remind [0-9]{1,3}|emergency_wait [0-9]{1,3}|enabled [01])$'
+  raw=$(head -c "$len" | tr -d '\r')
+  bad=$(printf '%s\n' "$raw" | grep -E "^($keys) " | grep -vE "$fit" | head -n1)
+  if [ -n "$bad" ]; then
+    printf 'Status: 400 Bad Request\r\n'
+    cors
+    printf 'Content-Type: text/plain\r\n\r\nbad %s\n' "${bad%% *}"
+    exit 0
+  fi
   lock
   old=$(conf token)
-  body=$(head -c "$len" | tr -d '\r' | grep -E '^(server https?://[A-Za-z0-9.:/_-]{1,200}|topic [A-Za-z0-9_-]{1,64}|token [A-Za-z0-9_-]{1,200}|lang (de|en)|name [^"\\]{1,160}|url https?://[A-Za-z0-9.:/_-]{1,200}|events (-|[a-z_]{1,20}(,[a-z_]{1,20}){0,15})|remind [0-9]{1,3}|emergency_wait [0-9]{1,3}|enabled [01])$')
+  body=$(printf '%s\n' "$raw" | grep -E "$fit")
   new=$(printf '%s\n' "$body" | sed -n 's/^token //p' | head -n1)
+  # the one there is only for the server it was given for, it doesn't go elsewhere
+  [ "$(printf '%s\n' "$body" | sed -n 's/^server //p' | head -n1)" = "$(conf server)" ] || old=""
   {
     printf '%s\n' "$body" | grep -v '^token '
     # the phones signed up stay, the page doesn't send them
@@ -120,7 +151,7 @@ POST*)
     elif [ -z "$new" ] && [ -n "$old" ]; then
       echo "token $old"
     fi
-  } > "$C.$$" && mv "$C.$$" "$C"
+  } | put "$C" || fail 500 'not saved'
   ;;
 esac
 
@@ -130,7 +161,10 @@ if [ "$QUERY_STRING" = log ]; then
   cat /data/notify.log 2>/dev/null
   exit 0
 fi
-grep -v '^token ' "$C" 2>/dev/null
+grep -v '^token \|^push ' "$C" 2>/dev/null
+sed -n 's/^push //p' "$C" 2>/dev/null | while IFS= read -r a; do
+  echo "push $(printf '%s' "$a" | sha256sum | cut -c1-16)"
+done
 [ -n "$(conf token)" ] && echo "token set"
 until=$(cat "$S" 2>/dev/null)
 [ -n "$until" ] && [ "$until" -gt "$(date +%s)" ] && echo "snooze $until"

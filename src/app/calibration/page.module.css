@@ -46,6 +46,14 @@
   text-decoration: none;
 }
 
+/* the link to the guide, with its book */
+.guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
 .card {
   display: flex;
   flex-direction: column;
@@ -401,6 +409,14 @@
 .checkBad {
   border: 1px solid color-mix(in srgb, var(--warning) 60%, transparent);
   background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+/* the map under the checks of MowBite OS's drive: the strip it needs, the mower while it drives */
+.osMap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
 }
 
 /* the values, before and after */

@@ -21,7 +21,7 @@ const STEPS: (GuideStep & {osText?: string; undoText?: string})[] = [
     title: 'Docking station',
     text: 'Tap Record docking station, it guides you. The mower stands in the station until it charges, then you back it out straight 1 to 1½ m, steering only where the ground pushes it aside, and it stands there a moment. Tap Save docking station: the way between becomes its docking direction. Then drive it back in.',
     osText:
-      'Stop about a meter in front of the docking station, facing it, and tap Record docking station. Then drive it straight in until it sits on the contacts and tap Save docking position: the way between becomes its docking direction.',
+      'Stop about a meter in front of the docking station, at least half a meter, facing it, and tap Record docking station. Then drive it straight in until it sits on the contacts and tap Save docking position: the way between becomes its docking direction.',
   },
   {
     title: 'Mowing area',
@@ -37,9 +37,11 @@ const STEPS: (GuideStep & {osText?: string; undoText?: string})[] = [
   },
   {
     title: 'Tips',
-    text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+    text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges, corners a little inside and blunt, not with a sharp turn. Auto points off and Set point here only at the corners gives straight lines. For the recorded outline pass leave Auto points on. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+    osText:
+      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges, corners a little inside and blunt, not with a sharp turn. Auto points off and Set point here only at the corners gives straight lines, but no exact edge. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
     undoText:
-      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges, corners a little inside and blunt, not with a sharp turn. Auto points off and Set point here only at the corners gives straight lines, but no exact edge. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
   },
   {
     title: 'What a map is made of',

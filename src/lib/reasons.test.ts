@@ -16,7 +16,7 @@ describe('reasons.json for MowBite for Home Assistant', () => {
 
   it('has english and german for every variant', () => {
     const file = JSON.parse(made);
-    expect(file.reasons.BATTERY_LOW[1].de).toBe('Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)');
+    expect(file.reasons.BATTERY_LOW[2].de).toBe('Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)');
     // all in german but a field put in as it is ({state})
     for (const [name, list] of Object.entries(file.reasons) as [string, {de?: string}[]][]) for (const v of list) expect(v.de, name).toBeTruthy();
     for (const [type, t] of Object.entries(file.events) as [string, {variants: {en: string; de?: string}[]}][])
@@ -34,7 +34,7 @@ describe('reasons.json for MowBite for Home Assistant', () => {
     const file = JSON.parse(made);
     expect(file.emergency_bits['18']).toBe('WHEEL_RUNAWAY');
     expect(file.emergency_bits['15']).toBe('STUCK');
-    expect(file.emergency_bits['22']).toBeUndefined();
+    expect(file.emergency_bits['24']).toBeUndefined();
     expect(file.fallback.emergency_bit).toEqual({en: 'bit {n}', de: 'Bit {n}'});
     for (const [name, t] of Object.entries(file.emergency_text) as [string, {de?: string}][]) expect(t.de, name).toBeTruthy();
   });

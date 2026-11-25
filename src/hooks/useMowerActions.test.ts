@@ -5,6 +5,8 @@ const mower = vi.hoisted(() => ({
   methods: undefined as Set<string> | null | undefined,
   actions: [] as string[],
   connected: true,
+  stale: false,
+  misfit: null as string | null,
   calls: [] as {method: string; params: object; late?: (a: unknown) => void}[],
   answer: (() => Promise.resolve({})) as () => Promise<unknown>,
 }));
@@ -22,7 +24,10 @@ vi.mock('@/lib/mqttClient', () => ({
   topicStore: () => ({subscribe: () => () => {}, get: () => ({}), initial: () => ({})}),
 }));
 
-const {sendCommand, commandNote, lockedAfter, setsOff} = await import('./useMowerActions');
+vi.mock('./useMowerState', () => ({liveNow: () => mower.connected && !mower.stale}));
+vi.mock('@/lib/osUpdate', () => ({runningMisfit: () => mower.misfit}));
+
+const {sendCall, sendCommand, commandNote, heldUntil, lockedAfter, setsOff} = await import('./useMowerActions');
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('a command to the mower', () => {
@@ -30,6 +35,8 @@ describe('a command to the mower', () => {
     mower.actions = [];
     mower.calls = [];
     mower.connected = true;
+    mower.stale = false;
+    mower.misfit = null;
     mower.answer = () => Promise.resolve({state: 'MOWING', sub_state: ''});
   });
 
@@ -121,6 +128,62 @@ describe('a command to the mower', () => {
     sendCommand('mower_logic:area_recording/start_manual_mowing');
     expect(commandNote()).toMatchObject({text: 'Not sent, no connection to the mower.', warn: true});
   });
+
+  it('sends nothing that sets the mower or its blade off or lets go of the emergency stop without a current state', () => {
+    const setOff = [
+      'mower_logic:idle/start_mowing',
+      'mower_logic:mowing/continue',
+      'mower_logic:idle/start_area_recording',
+      'mower_logic/reset_emergency',
+      'mower_logic:area_recording/start_manual_mowing',
+    ];
+    const stops = ['mower_logic:mowing/pause', 'mower_logic:mowing/abort_mowing', 'mower_logic:area_recording/stop_manual_mowing'];
+    mower.stale = true;
+    for (const methods of [null, new Set(['mowing.start', 'mowing.continue', 'recording.start', 'emergency.reset', 'mowing.pause', 'mowing.abort'])]) {
+      mower.methods = methods;
+      mower.actions = [];
+      mower.calls = [];
+      for (const id of setOff) {
+        sendCommand(id);
+        expect(commandNote()).toMatchObject({text: "Not sent, the mower hasn't reported for a while.", warn: true});
+      }
+      sendCall('docking.test', {runs: 3});
+      expect(mower.actions).toEqual([]);
+      expect(mower.calls).toEqual([]);
+      for (const id of stops) sendCommand(id);
+      expect(mower.actions.length + mower.calls.length).toBe(stops.length);
+    }
+    mower.stale = false;
+    sendCall('docking.test');
+    expect(mower.calls.map((c) => c.method)).toContain('docking.test');
+  });
+  it('sends a mower idle off its station home only with a current state, and says why it stays', async () => {
+    mower.methods = new Set(['docking.start', 'docking.abort']);
+    mower.stale = true;
+    sendCall('docking.start');
+    expect(mower.calls).toEqual([]);
+    expect(commandNote()).toMatchObject({text: "Not sent, the mower hasn't reported for a while.", warn: true});
+    // stopping on the way goes all the same
+    sendCommand('mower_logic:docking/abort_docking');
+    expect(mower.calls.map((c) => c.method)).toEqual(['docking.abort']);
+    mower.stale = false;
+    mower.answer = () =>
+      Promise.reject(new RpcError('docking.start', -32600, 'no dock', {event: 'DRIVE_REFUSED', reason: 'NO_DOCK', severity: 'warning', event_id: 'e9'}));
+    sendCall('docking.start');
+    await settle();
+    expect(mower.calls[1]).toMatchObject({method: 'docking.start', params: {client: 'app'}});
+    expect(commandNote()).toMatchObject({text: 'Not heading home: no docking station on the map', warn: true, event: 'DRIVE_REFUSED', eventId: 'e9'});
+  });
+  it('sends nothing that sets the mower off to a MowBite OS whose interface this app does not speak, stopping still goes', () => {
+    mower.methods = new Set(['mowing.start', 'mowing.pause', 'emergency.reset']);
+    mower.misfit = 'APP_API_BREAK';
+    sendCommand('mower_logic:idle/start_mowing');
+    sendCommand('mower_logic/reset_emergency');
+    expect(mower.calls).toEqual([]);
+    expect(commandNote()?.text).toMatch(/^Not sent\. This version of the app was built for another break of the interface/);
+    sendCommand('mower_logic:mowing/pause');
+    expect(mower.calls.map((c) => c.method)).toEqual(['mowing.pause']);
+  });
 });
 
 describe('a tap on a command button', () => {
@@ -137,6 +200,7 @@ describe('a tap on a command button', () => {
       expect(lockedAfter(tapped, start)).toBe(true);
       expect(lockedAfter(tapped, resume)).toBe(true);
       expect(lockedAfter(tapped, record)).toBe(true);
+      expect(lockedAfter(tapped, 'docking.start')).toBe(true);
     }
   });
 
@@ -160,7 +224,17 @@ describe('a tap on a command button', () => {
 
   // (held back for a moment after an emergency reset too: they take the reset button's place)
   it('knows what sets the mower off: starting, continuing and recording mode, nothing that stops it', () => {
-    for (const id of [start, resume, record]) expect(setsOff(id)).toBe(true);
+    for (const id of [start, resume, record, 'docking.start']) expect(setsOff(id)).toBe(true);
     for (const id of [pause, home, abortUndocking, 'mower_logic/reset_emergency', 'mower_logic:mowing/skip_area']) expect(setsOff(id)).toBe(false);
+  });
+});
+
+describe('the lock after a tap', () => {
+  it('holds a moment after the tap, and again once the buttons change shortly after it', () => {
+    expect(heldUntil(1000, 0)).toBe(2000);
+    // pause tapped, continue shows up under the finger 1.2 s later: held another second from then
+    expect(heldUntil(1000, 2200)).toBe(3200);
+    // a change long after the tap didn't come of it
+    expect(heldUntil(1000, 20000)).toBe(2000);
   });
 });

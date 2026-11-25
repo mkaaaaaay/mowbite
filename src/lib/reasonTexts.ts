@@ -92,9 +92,14 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'info',
     variants: [
       // MowBite OS says why it paused
+      alone({when: {state: 'PAUSED', reason: 'MANUAL', client: 'button'}, en: 'Paused at the mower'}),
       alone({when: {state: 'PAUSED', reason: 'MANUAL'}, en: 'Paused'}),
       {when: {state: 'PAUSED', reason: 'SCHEDULE'}, en: 'Paused'},
       {when: {state: 'PAUSED', reason: {present: true}}, en: 'Paused', severity: 'warning'},
+      // a step of the setup program that turns the wheels runs (api 44)
+      alone({when: {state: 'IDLE', sub_state: 'SETUP'}, en: 'Setup step running'}),
+      // it runs as no mower yet (api 57)
+      alone({when: {state: 'SETUP', sub_state: 'PLATFORM'}, en: 'Waiting for the choice of the mower'}),
       ...STATE_NAMES.map(([state, en]) => alone({when: {state}, en})),
       alone({when: {state: {present: true}}, en: '{state}'}),
       {en: 'State changed'},
@@ -108,8 +113,16 @@ export const EVENTS: Record<string, EventText> = {
   },
   BLADES: {severity: 'info', variants: [{when: {enabled: true}, en: 'Blades on'}, {en: 'Blades off'}]},
   AREA: {severity: 'info', variants: [{when: {area_name: {present: true}}, en: 'Mowing "{area_name}"'}, {en: 'Mowing "unnamed"'}]},
-  // someone pressed skip, or on MowBite OS the schedule's end time or pause
-  AREA_SKIPPED: {severity: 'info', variants: [{when: {reason: 'SCHEDULE'}, en: 'Area skipped'}, alone({en: 'Area skipped'})]},
+  // someone pressed skip, on MowBite OS also the schedule's end time or pause, or a plan the area can't be mowed by
+  AREA_SKIPPED: {
+    severity: 'info',
+    variants: [
+      {when: {reason: 'SCHEDULE'}, en: 'Area skipped'},
+      ...['BODY_OUT', 'NO_PLAN', 'START_UNREACHABLE'].map((reason) => ({when: {reason}, en: 'Area skipped', severity: 'warning' as const})),
+      {when: {reason: 'OBSTACLES_COVER_REST'}, en: 'Rest of the area left out', severity: 'warning'},
+      alone({en: 'Area skipped'}),
+    ],
+  },
   UNDOCKED: one('Left the dock'),
   UNDOCKING_FAILED: {severity: 'error', join: '{head} ({reason})', variants: [{en: 'Leaving the dock failed'}]},
   // OpenMower's free text is the reader's, MowBite OS's names are here
@@ -117,6 +130,7 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'info',
     reader_logic: true,
     variants: [
+      alone({when: {reason: 'MANUAL', client: 'button'}, en: 'Sent home at the mower'}),
       alone({when: {reason: 'MANUAL'}, en: 'Sent home'}),
       {when: {reason: 'BATTERY_LOW'}, en: 'Heading home to charge'},
       {when: {reason: 'BATTERY_CRITICAL'}, en: 'Heading home to charge', severity: 'warning'},
@@ -124,6 +138,7 @@ export const EVENTS: Record<string, EventText> = {
       {when: {reason: 'MOTOR_HOT'}, en: 'Heading home', severity: 'warning'},
       {when: {reason: 'PLANNER_TIMEOUT'}, en: 'Heading home', severity: 'warning'},
       {when: {reason: 'PLANNER_MISSING'}, en: 'Heading home', severity: 'warning'},
+      alone({when: {reason: 'TEST'}, en: 'Docking test by camera'}),
       {en: 'Heading home'},
     ],
   },
@@ -136,6 +151,8 @@ export const EVENTS: Record<string, EventText> = {
       {en: 'Heading straight home'},
     ],
   },
+  // MowBite OS from api 33: the dock camera can't measure, this try docks by its position (cause and detail as at DOCKING_RETRY)
+  DOCKING_WITHOUT_MARKER: one('Docking without the dock camera', 'warning'),
   DOCKING_RETRY: {
     severity: 'warning',
     join: '{head} ({reason})',
@@ -147,7 +164,20 @@ export const EVENTS: Record<string, EventText> = {
     join: '{head} ({reason})',
     variants: [{when: {attempts: {present: true}}, en: 'Docking failed after {attempts} tries'}, {en: 'Docking failed'}],
   },
-  DOCKED: one('Docked'),
+  // MowBite OS from api 37: a run of a docking test with several ended, a failed one with the reason of its DOCKING_FAILED
+  DOCKING_TEST_RUN: {
+    severity: 'error',
+    variants: [
+      alone({when: {ok: true}, en: 'Run {run} of {of}: docked', severity: 'info'}),
+      {when: {reason: 'STOPPED'}, en: 'Run {run} of {of}', severity: 'info'},
+      {en: 'Run {run} of {of}'},
+    ],
+  },
+  // guide: what led it onto the contacts (MowBite OS from api 30), at a try that failed GUIDED
+  DOCKED: {
+    severity: 'info',
+    variants: [{when: {guide: 'marker'}, en: 'Docked by the dock camera'}, {when: {guide: 'position'}, en: 'Docked by position'}, {en: 'Docked'}],
+  },
   JOB_COMPLETE: one('All areas done'),
   JOB_RESET: one('Interrupted job dropped, the next start mows from the beginning'),
   EMERGENCY: {
@@ -232,8 +262,19 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
   },
+  // MowBite OS kept the journal of its processes around a trigger (reason) for a closer look; safety: kept longest
+  INCIDENT: {severity: 'info', variants: [{when: {safety: true}, en: 'Safety incident kept'}, {en: 'Incident kept'}]},
   // a file of the mower's data can't be written, nothing starts until it can
   STORAGE: one('Storage problem', 'error'),
+  // MowBite OS started on an older backup of its data (api 58), at every start until the map is confirmed
+  DATA_ROLLBACK: {
+    severity: 'info',
+    variants: [
+      alone({when: {what: 'confirmed'}, en: 'Map confirmed after the restore'}),
+      alone({when: {confirm: true}, en: 'Older backup restored, the map waits to be confirmed', severity: 'warning'}),
+      alone({en: 'Older backup restored'}),
+    ],
+  },
   // why MowBite OS stays down (mowbite/host/status), and its updates: why one waits or isn't installed (update.status),
   // update.* turned down. no events, their reasons come in those answers
   HOST_OS: one("MowBite OS doesn't start", 'error'),
@@ -253,6 +294,29 @@ export const EVENTS: Record<string, EventText> = {
   CAMERA_REFUSED: one('No camera picture'),
   // a camera can show a picture again or no longer, camera.list then says why
   CAMERA_CHANGED: {severity: 'info', variants: [alone({when: {available: true}, en: 'Camera picture available'}), {en: 'No camera picture'}]},
+  // camera.unlock turned down, only in its answer
+  CAMERA_UNLOCK_REFUSED: one('Camera not unlocked', 'warning'),
+  // a new entry in the list of what the obstacle sensors saw (vision.obstacles.list), by what it is
+  OBSTACLE_SEEN: {
+    severity: 'info',
+    variants: [
+      alone({when: {kind: 'PERSON'}, en: 'Person seen'}),
+      alone({when: {kind: 'ANIMAL'}, en: 'Animal seen'}),
+      alone({when: {kind: 'OBJECT'}, en: 'Obstacle seen'}),
+      alone({en: 'Something seen'}),
+    ],
+  },
+  // driven around an entry of the list, once per circle it keeps out of (api 52)
+  OBSTACLE_AVOIDED: {
+    severity: 'info',
+    variants: [alone({when: {area_name: {present: true}}, en: 'Drove around an obstacle in "{area_name}"'}), alone({en: 'Drove around an obstacle'})],
+  },
+  OBSTACLES_CLEARED: {
+    severity: 'info',
+    variants: [alone({when: {obstacle_id: {present: false}}, en: 'All seen obstacles deleted'}), alone({en: 'A seen obstacle deleted'})],
+  },
+  // the obstacle sensors see again, or no longer and why
+  OBSTACLE_SIGHT: {severity: 'info', variants: [alone({when: {ok: true}, en: 'Obstacle detection sees again'}), {en: "Obstacle detection can't see"}]},
   // the methods MowBite OS offers changed (a camera came up or its process ended), the app asks for them again
   METHODS_CHANGED: one("The mower's functions changed"),
   DRIVE: {
@@ -293,7 +357,38 @@ export const EVENTS: Record<string, EventText> = {
   },
   DOCK_RECORDED: one('Docking station recorded'),
   // after robot.geometry.set, the sizes it's about the app names itself (changed, below_default)
-  GEOMETRY_CHANGED: {severity: 'info', variants: [{when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'}, {en: 'Sizes changed'}]},
+  GEOMETRY_CHANGED: {
+    severity: 'info',
+    variants: [
+      {when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'},
+      {when: {reason: 'SHAPE_OUTSIDE'}, en: 'Sizes changed', severity: 'warning'},
+      {en: 'Sizes changed'},
+    ],
+  },
+  // the setup program (setup.*): a step ended, a mark reached, a call turned down, a step that can't go on right now
+  SETUP_STEP: {
+    severity: 'warning',
+    variants: [
+      alone({when: {state: 'ok'}, en: 'Setup step passed', severity: 'info'}),
+      {when: {state: 'skipped'}, en: 'Setup step skipped', severity: 'info'},
+      {en: 'Setup step failed'},
+    ],
+  },
+  SETUP: {
+    severity: 'info',
+    variants: [
+      alone({when: {what: 'complete'}, en: 'Setup complete'}),
+      alone({when: {what: 'reset'}, en: 'Setup started anew'}),
+      // a safety step failed and closed the lock of autonomous driving, or the lock is open again (api 45)
+      alone({when: {what: 'safety_closed'}, en: 'Safety step failed, the mower drives only while you watch', severity: 'warning'}),
+      alone({when: {what: 'safety_opened'}, en: 'Safety measured, the mower drives by itself again'}),
+      // setup.platform.set chose another mower, MowBite OS starts again as it (api 57)
+      alone({when: {what: 'platform'}, en: 'Mower chosen: {platform}'}),
+      alone({en: 'Setup stage done'}),
+    ],
+  },
+  SETUP_REFUSED: one('Setup step refused'),
+  SETUP_BLOCKED: one('Setup step waiting'),
   // robot.geometry.set changed the sizes, the areas recorded on this mower couldn't take them
   RECORDED_BODY_KEPT: one('Sizes not saved with the areas', 'warning'),
   // the planner has the leftovers of a finished mow ready, whether they're mowed the schedule decides (leftovers_skip)
@@ -309,19 +404,42 @@ const r = (en: string, extra: Omit<Variant, 'en'> = {}): Variant => ({en, ...ext
 export const REASONS: Record<string, Variant[]> = {
   path_failed: [r("couldn't follow the path")],
   approach_failed: [r('approach failed')],
-  dock_failed: [r('no contact with the charger')],
+  // cause: the dock camera didn't lead it in (MowBite OS from api 30); without one MowBite OS's message says why, the
+  // charger only on OpenMower
+  dock_failed: [
+    r('marker lost', {when: {cause: 'MARKER_LOST'}}),
+    r('marker not found', {when: {cause: 'MARKER_NOT_SEEN'}}),
+    r('dock camera not measuring', {when: {cause: 'MARKER_UNAVAILABLE'}}),
+    r('marker does not match the map', {when: {cause: 'MARKER_MISMATCH'}}),
+    // the message says why the test was refused
+    r('docking test refused', {when: {cause: 'TEST_START'}, unless: {message: {present: true}}}),
+    r('no contact with the charger', {unless: {message: {present: true}}}),
+  ],
   no_gps: [r('no GPS fix')],
   BUSY: [
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].flatMap((type) => [
+      r('the mower is driving, let it stand first', {when: {type, state: 'DRIVING'}}),
+      r('a calibration is running', {when: {type, state: 'CALIBRATING'}}),
+      r('an update holds the mower right now', {when: {type, state: 'HOLD'}}),
+      r('another step runs or the mower is on its way', {when: {type}}),
+    ]),
     r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
     r('the mower is working right now', {when: {type: 'UPDATE'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
     r('busy: Mowing', {when: {state: 'MOWING'}}),
     r('busy: Recording an area', {when: {state: 'AREA_RECORDING'}}),
     r('busy: driving', {when: {state: 'driving'}}),
+    r('busy: calibration drive', {when: {state: 'calibrating'}}),
+    r('busy: a setup step', {when: {state: 'setup'}}),
+    r('busy: checking its position on the docking station', {when: {state: 'checking'}}),
     r('busy: {state}', {when: {state: {present: true}}}),
     r('busy with something else'),
   ],
-  STILL_STOPPING: [r('the last job is still stopping, try again in a moment')],
+  STILL_STOPPING: [
+    r('the last calibration drive is still stopping, try again in a moment', {when: {type: 'CALIBRATION_REFUSED'}}),
+    r('the last drive is still stopping, try again in a moment', {when: {type: 'DRIVE_REFUSED'}}),
+    r('the last job is still stopping, try again in a moment'),
+  ],
   // COMMAND_REFUSED: the command doesn't fit the state (its action wouldn't be offered), no job to drop, the mower
   // already on another area or path than the one seen when it was tapped
   WRONG_STATE: [r("doesn't fit what the mower is doing now")],
@@ -334,9 +452,22 @@ export const REASONS: Record<string, Variant[]> = {
   // the MowBite Updater updates MowBite OS (system.hold), a start or a change of its data waits: in a *_REFUSED and in
   // the data of an error -32004, with until (unix s)
   HOLD: [r('update running until {until_clock}', {when: {until_clock: {present: true}}}), r('update running')],
-  EMERGENCY: [r('emergency stop, reset it first')],
+  EMERGENCY: [r('emergency stop', {when: {type: 'INCIDENT'}}), r('emergency stop, reset it first')],
+  // what an incident was kept for (INCIDENT), the ones not named elsewhere
+  UNEXPECTED_RESTART: [r('restarted without being stopped')],
+  CRASH: [r('a process of MowBite OS ended by itself')],
+  CALIBRATION_FAILED: [r('calibration drive failed')],
+  DOCKING_FAILED: [r('docking failed')],
+  MOW_MOTOR_SPINUP_FAILED: [r("the blade didn't come up to speed")],
+  UNDOCKING_FAILED: [r('leaving the dock failed')],
+  POSITION_JUMP: [r('position jumped {distance:2} m', {when: {distance: {present: true}}}), r('position jumped')],
+  MARK: [r('marked by you')],
+  STOP: [r('stopped without a command, no event told why')],
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
-  ON_DOCK: [r('on the docking station, drive it off by remote control first')],
+  ON_DOCK: [
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].map((type) => r('on the docking station, take it off first', {when: {type}})),
+    r('on the docking station, drive it off by remote control first'),
+  ],
   RAIN: [r('rain')],
   DARK: [r('the sun has set')],
   // MowBite OS's schedule: the plan's end time came or its areas are paused
@@ -346,6 +477,14 @@ export const REASONS: Record<string, Variant[]> = {
     r('the schedule'),
   ],
   NOT_DOCKED: [r('not in the dock, a scheduled start only goes from there')],
+  // AREA_SKIPPED on MowBite OS (api 54, OBSTACLES_COVER_REST api 68)
+  BODY_OUT: [r("on its plan the mower would stick out past the area's edges")],
+  NO_PLAN: [r("the planner can't make a plan for this area")],
+  START_UNREACHABLE: [r('no part of the plan can be reached from the mower')],
+  OBSTACLES_COVER_REST: [
+    r('obstacles kept in mind cover the rest of the area, {left_out:0} m of paths left out', {when: {left_out: {present: true}}}),
+    r('obstacles kept in mind cover the rest of the area'),
+  ],
   // MOWING_REFUSED of a scheduled start, clock_reason as schedule.get has it
   CLOCK_UNSAFE: [
     r("the mower's clock was never set", {when: {clock_reason: 'never_synced'}}),
@@ -354,6 +493,10 @@ export const REASONS: Record<string, Variant[]> = {
     r("the mower's clock isn't confirmed"),
   ],
   BATTERY_LOW: [
+    // before a calibration drive the charge counts, limit in % there
+    r('battery at {battery_percentage} %, the calibration drive needs {limit:0} %', {
+      when: {type: 'CALIBRATION_REFUSED', battery_percentage: {present: true}, limit: {present: true}},
+    }),
     r('battery low ({battery_voltage:1} V)', {when: {type: 'DOCKING', battery_voltage: {present: true}}}),
     r('battery low ({battery_voltage:1} V, at least {limit:1} V needed)', {when: {battery_voltage: {present: true}, limit: {present: true}}}),
     r('battery low ({battery_voltage:1} V)', {when: {battery_voltage: {present: true}}}),
@@ -416,10 +559,17 @@ export const REASONS: Record<string, Variant[]> = {
   NO_MOWING_AREA: [r('no active mowing area on the map')],
   PLANNER_MISSING: [r('the planner is not running')],
   FOLLOWER_MISSING: [r('the path follower is not running')],
+  MARKER_UNAVAILABLE: [r('the camera towards the docking station cannot measure the marker right now')],
+  NO_CHARGE_CONTACTS: [r('no charge contacts are set for this mower, it cannot dock')],
   MANUAL: [r('by hand')],
+  TEST: [r('docking test by camera')],
   CROSS_TRACK: [r('too far off its path')],
   OUTSIDE: [r('outside the area it may drive in')],
-  TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not making progress, maybe stuck')],
+  TIMEOUT: [
+    r('took too long', {when: {type: 'CALIBRATION_FAILED'}}),
+    r("the camera didn't answer in time, the camera list shows whether it worked", {when: {type: 'CAMERA_UNLOCK_REFUSED'}}),
+    r('not making progress, maybe stuck'),
+  ],
   INVALID: [r("the mower didn't accept this request", {when: {type: 'UPDATE_REFUSED'}}), r('the path is not valid')],
   NOT_ALLOWED: [r('driving not allowed')],
   PLANNING_FAILED: [r("the planner couldn't make the plan")],
@@ -450,6 +600,7 @@ export const REASONS: Record<string, Variant[]> = {
     r('saving failed: no answer from the map service', {when: {code: 'NO_ANSWER'}}),
     r('saving failed', {unless: {message: {present: true}}}),
   ],
+  SHAPE_OUTSIDE: [r('the outline leaves out parts of the mower, it may touch things with them')],
   BELOW_DEFAULT: [r("smaller than from the factory, the planner's body check works with the smaller outline")],
   OUTLIERS: [r('back on GPS after outliers')],
   GAP: [r('back on GPS after a gap')],
@@ -466,6 +617,9 @@ export const REASONS: Record<string, Variant[]> = {
   // taken, but the emergency didn't end within 2 s (bits: what still holds), or another reason latched since STOP
   STILL_ACTIVE: [r('still active')],
   LATCH_CHANGED: [r('a new emergency reason came up')],
+  // only while the setup's safety measurement has the driver go quiet
+  SILENT: [r('the mower is checking that it stops by itself without its controller, wait a moment and reset again')],
+  LEARNING: [r('the mower is assigning its inputs, finish or stop that in the setup')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
   DRIVER_MISSING: [
     ...['CAMERA_REFUSED', 'CAMERA_CHANGED'].map((type) => r('the hardware driver is not reporting, the camera waits for it', {when: {type}})),
@@ -493,18 +647,51 @@ export const REASONS: Record<string, Variant[]> = {
   RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
   // CAMERA_REFUSED, CAMERA_CHANGED and camera.list: why a camera shows no picture now (DRIVER_MISSING above)
   CAMERA_BUSY: [r('two are watching already, at most two at a time')],
-  LOCKED_AFTER_CRASH: [r("the mower's system crashed while this camera ran, it stays off until its lock on the mower is deleted")],
+  LOCKED_AFTER_CRASH: [r("the mower's system crashed while this camera ran, it stays off until it's unlocked")],
   NOT_SET_UP: [r('the camera is not set up on the mower')],
+  // CAMERA_UNLOCK_REFUSED (TIMEOUT and UNSUPPORTED with the others)
+  NOT_LOCKED: [r("this camera isn't locked after a crash")],
+  NOT_AT_REST: [r('only while the mower stands, does nothing and the blade is still')],
+  FAILED: [
+    r("the mower couldn't make the change, try again", {when: {type: 'UPDATE_REFUSED'}}),
+    r("the lock of the camera couldn't be deleted: {detail}", {when: {detail: {present: true}}}),
+    r("the lock of the camera couldn't be deleted"),
+  ],
   BLADE_RUNNING: [r('not while the blade is running')],
   TOO_HOT: [r("the mower's computer is too hot, the camera pauses")],
   NO_SIGNAL: [r('the camera gives no picture right now')],
+  // OBSTACLE_SIGHT, also the camera reasons above
+  TOO_DARK: [r('too dark to see')],
+  TOO_BRIGHT: [r('too bright, glare or a low sun')],
+  COVERED: [r('the lens is covered or dirty')],
+  // STATE PAUSED (api 53)
+  MAP_CHANGED: [r('the mowing areas changed while mowing, Continue plans anew')],
+  DOCK_CONTACT: [r('touched the docking station while mowing')],
+  POSITION_UNSTABLE: [
+    r('lost the position {times} times in a row without getting on', {when: {times: {present: true}}}),
+    r('lost the position again and again without getting on'),
+  ],
+  // STATE PAUSED and MOWING_REFUSED where obstacle_mode stops for them (api 51), kind the most serious one that holds it
+  OBSTACLE: [
+    r('the camera still sees a person in the way', {when: {type: 'MOWING_REFUSED', kind: 'PERSON'}}),
+    r('the camera still sees an animal in the way', {when: {type: 'MOWING_REFUSED', kind: 'ANIMAL'}}),
+    r('the camera still sees an obstacle in the way', {when: {type: 'MOWING_REFUSED'}}),
+    r('a person in the way', {when: {kind: 'PERSON'}}),
+    r('an animal in the way', {when: {kind: 'ANIMAL'}}),
+    r('an obstacle in the way'),
+  ],
+  // MOWING_REFUSED while the map of an older backup isn't confirmed (data.rollback.confirm)
+  DATA_ROLLBACK: [r("the map of the restored backup isn't confirmed yet")],
   SELF_TEST: [r('the camera is still testing itself after the start, for that the mower has to stand with the blade off')],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],
   OS_CRASH: [r('MowBite OS crashed')],
   POWER_LOSS: [r('interrupted while working', {when: {hold: true}}), r('power cut or reset')],
   NODE_STALLED: [r('a part of MowBite OS stopped responding')],
-  STORAGE_NOT_WRITABLE: [r("the mower can't write to its storage, starting is blocked until it can")],
+  STORAGE_NOT_WRITABLE: [
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].map((type) => r("the mower can't save the state of the setup", {when: {type}})),
+    r("the mower can't write to its storage, starting is blocked until it can"),
+  ],
   // why MowBite OS doesn't start (mowbite/host/status)
   CRASH_LOOP: [r('it crashed {restarts} times and stays off', {when: {restarts: {present: true}}}), r('it crashed several times and stays off')],
   DATA_DIR_LOCKED: [r("another MowBite OS holds the mower's data")],
@@ -515,16 +702,23 @@ export const REASONS: Record<string, Variant[]> = {
   // MowBite OS's updates (update.status): why one waits, isn't installed or was taken back
   APP_TOO_OLD: [r('this version of the app is too old for the MowBite OS on the mower')],
   OS_TOO_OLD: [r('this version of the app needs a newer MowBite OS')],
+  APP_API_BREAK: [r('this version of the app was built for another break of the interface than the MowBite OS on the mower')],
   PLANNER_INTERFACE: [r("this version of the planner doesn't speak the interface of the MowBite OS on the mower")],
   PLANNER_DATA: [r('this version of the planner keeps its data another way than the MowBite OS on the mower reads it')],
   JOB_OPEN: [r('waiting until the started mowing job is finished or reset')],
+  SCHEDULED_START: [
+    r('the schedule starts mowing at {at_clock}', {when: {at_clock: {present: true}}}),
+    r('the schedule starts mowing soon'),
+  ],
   BAD_BUNDLE: [r('the update file is damaged')],
   BAD_ORIGIN: [r("the update isn't from a source set up on the mower")],
   BAD_SIGNATURE: [r("the update isn't signed with a known key")],
+  PLATFORM_MISMATCH: [r('the update is built for another mower model')],
+  PLATFORM_CONFIG: [r('values of this mower model are missing')],
   BASE_TOO_OLD: [r("needs a newer base system on the mower, it isn't installed by itself")],
   BLOCKED: [r("skipped by the automatic update: it failed before, was taken back or doesn't fit this mower")],
   INTERNAL: [r('an error in the updater of MowBite OS')],
-  INTERRUPTED: [r('the switch was interrupted twice, the mower is back on the version before')],
+  INTERRUPTED: [r('MowBite OS restarted while the step ran', {when: {type: 'SETUP_STEP'}}), r('the switch was interrupted twice, the mower is back on the version before')],
   LIBRARY_MISSING: [r('a library it needs is missing on the mower')],
   NO_HOLD: [r("MowBite OS couldn't hold the mower for the update")],
   OLD_SERIAL: [r('not newer than the version running')],
@@ -532,13 +726,22 @@ export const REASONS: Record<string, Variant[]> = {
   UNFINISHED: [r("an earlier update didn't finish")],
   UNHEALTHY: [r("MowBite OS didn't run properly after the update, the mower went back to the version before")],
   UPDATE_NO_SPACE: [r('not enough space on the mower to unpack the update')],
+  // host.* turned down
+  START_NOT_OK: [
+    r("the newly installed mower isn't fully up yet: {message}", {when: {message: {present: true}}}),
+    r("the newly installed mower isn't fully up yet: a service failed, the WLAN is missing or MowBite OS isn't running"),
+  ],
+  UNSUPPORTED: [r("this camera can't be unlocked from the app", {when: {type: 'CAMERA_UNLOCK_REFUSED'}}), r("this mower or its system can't do this")],
+  WIFI_FAILED: [r("the mower couldn't join this WLAN, the previous connection stays")],
+  // host.ssh on without a password where root has none yet
+  NO_PASSWORD: [r('root has no password yet, set one to turn SSH on')],
   // update.* turned down
   NOT_UPDATING: [r('no update is running')],
   NO_NEWER: [r('MowBite OS is up to date')],
   NO_PREVIOUS: [r('there is no version before this one to go back to')],
   UNKNOWN_REVISION: [r("the mower doesn't know this version")],
   // the calibration drive (CALIBRATION_REFUSED, CALIBRATION_FAILED): rate and limit in reports a second
-  NO_RTK: [r('no RTK fix')],
+  NO_RTK: [r('the exact position (RTK fix) was lost on the way', {when: {type: 'SETUP_STEP'}}), r('no RTK fix')],
   NO_ROOM: [
     r('not enough room here, the drive needs {length:1} m and has {free_length:1} m', {
       when: {length: {present: true}, free_length: {present: true}},
@@ -566,8 +769,11 @@ export const REASONS: Record<string, Variant[]> = {
     r("the IMU doesn't measure gravity as it should"),
   ],
   GYRO_SIGN: [r('the gyro measures turning the other way than the wheels')],
+  GYRO_OFFSET: [r('the gyro measures turning while the mower stands')],
+  NOT_STANDING: [r('the mower moved while it should stand still')],
   NOT_MOVING: [r("doesn't move")],
   NOT_TURNING: [r("doesn't turn")],
+  TURN_SLIDE: [r('slid away while turning on the spot')],
   OVERSPEED: [r('drove faster than it should')],
   LEFT_LANE: [r('left its lane')],
   // CORRECTIONS: limit in s, code the caster's HTTP status
@@ -584,6 +790,131 @@ export const REASONS: Record<string, Variant[]> = {
     r('its correlation data is too long'),
   ],
   RESPONSE_TOPIC: [r('its response topic is not rpc/response/ and a token')],
+  // the setup program: why a step failed (SETUP_STEP), can't go on now (SETUP_BLOCKED) or a call was turned down (SETUP_REFUSED)
+  NOT_SEEN: [r("the mower didn't notice the action")],
+  WRONG_INPUT: [r('input {seen} switched instead of the one expected', {when: {seen: {present: true}}}), r('another input switched than the one expected')],
+  NO_EMERGENCY: [r('the input switched, but no emergency stop came in time')],
+  STOPPED_EARLY: [r('a short trigger brought the emergency stop already')],
+  WRONG_SIGN: [r('the motion sensor reported the move the other way round')],
+  LIMIT: [r('a value is out of its bounds')],
+  NO_DATA: [r('no data from the inputs of the board', {when: {source: 'hw/inputs'}}), r('no data from board, motion sensor or GPS')],
+  INPUT_ACTIVE: [r('the input is still switched, let go of it first')],
+  // the step that assigns the lines of the inputs (inputs_assign) and the lines of a step input
+  LINE_SILENT: [r('line {lines} did not switch with any action', {when: {lines: {present: true}}}), r('a line of this input did not switch')],
+  NO_LINE: [r('none of the lines watched changed')],
+  AMBIGUOUS: [r('more than one line changed at once ({lines})', {when: {lines: {present: true}}}), r('more than one line changed at once')],
+  FLUTTER: [r('line {lines} changed while nothing was touched', {when: {lines: {present: true}}}), r('a line changed while nothing was touched')],
+  // the table of inputs_assign or the date and stand time of summary, after the restart
+  NOT_APPLIED: [
+    r('the mower does not use what the step wrote, {key} is set by hand in the device file', {when: {key: {present: true}}}),
+    r('the mower does not use what the step wrote after the restart'),
+  ],
+  RESTART_FAILED: [r('MowBite OS was not back within {limit:0} s', {when: {limit: {present: true}}}), r('MowBite OS was not back in time')],
+  CONFIRM_MISSING: [r('not every point is confirmed')],
+  INVALID_VALUE: [r("the value doesn't fit this step")],
+  LOCKED: [r('another step has to pass first')],
+  NOT_SKIPPABLE: [r("this step can't be skipped")],
+  UNKNOWN_STEP: [r('the mower has no such step')],
+  // setup.platform.set turned down (api 57)
+  PLATFORM_FIXED: [r('the installation sets which mower this is')],
+  UNKNOWN_PLATFORM: [r("this version of MowBite OS doesn't know the mower")],
+  VERSION: [r('the setup changed in the meantime, try again')],
+  WRONG_METHOD: [r('this step is done another way')],
+  // the steps that turn the wheels (kind drive) and the lock of the safety
+  NOT_OFFERED: [r("the board of this mower doesn't offer this check")],
+  RESTARTS_LOW: [r('the driver restarted several times lately, restart MowBite OS first')],
+  SAFETY_INPUTS: [r('STOP button, lifting and bumper have to pass standing first')],
+  BLADE_NOT_ALLOWED: [r("the driver doesn't let the blade turn ({key} is false)", {when: {key: {present: true}}}), r("the driver doesn't let the blade turn")],
+  SAFETY_AIR: [r('the steps with the mower jacked up have to pass first')],
+  SAFETY_STEPS: [r("every safety check has to pass first, skipped ones don't count")],
+  NO_STANDSTILL: [r("the mower didn't come to a standstill after the stop")],
+  DRIVER_REFUSED: [r('the board refused the check, the mower charges or the blade runs')],
+  LOGIC_REFUSED: [r("the mower didn't take the step: it is on its way, charges or has an emergency stop")],
+  NOT_DONE: [r("the action wasn't done, the check doesn't count")],
+  OUTDATED: [r('a new calibration drive ran or its values were changed since', {when: {step: 'calibration'}}), r('what the step checked no longer holds')],
+  NOT_RELEASED: [r("the emergency stop of the step couldn't be released")],
+  NO_START: [r("the wheels or the blade didn't turn on the command")],
+  NO_RESTART: [r("after the release the wheels didn't turn again")],
+  NO_RETURN: [r("the driver of the board wasn't back within {limit:0} s", {when: {limit: {present: true}}}), r("the driver of the board wasn't back in time")],
+  RELEASED: [r('the app stopped following the step, the mower stopped')],
+  STARTED_AGAIN: [r('a wheel or the blade turned while it had to stand')],
+  WRONG_DIRECTION: [r('a wheel turned the other way round than asked')],
+  WRONG_WHEEL: [r('another wheel than the right one turned, the motors are swapped')],
+};
+
+// what led it in on a try that failed (guide at DOCKING_RETRY and DOCKING_FAILED), put before the rest
+export const GUIDED: Record<string, string> = {marker: 'Led by the dock camera.', position: 'Led by its position.'};
+
+// what the dock camera's cause and detail at DOCKING_RETRY and DOCKING_FAILED mean and what helps, the catalog's texts
+// (x-texts in the OS's schema); the cause's name is a variant of dock_failed
+export const DOCK_CAUSES: Record<string, {help: string; fix: string}> = {
+  MARKER_LOST: {
+    help: 'The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.',
+    fix: 'Clear the view between the mower and the station.',
+  },
+  MARKER_NOT_SEEN: {
+    help: 'The camera is running but does not see the marker of the docking station. The mower does not dock by its position then.',
+    fix: 'Clear and clean the marker; in the dark check that the station has power and the marker light is on; check that the station stands where it was recorded.',
+  },
+  MARKER_UNAVAILABLE: {
+    help: 'The camera towards the docking station cannot measure the marker right now.',
+    fix: 'Check the camera and its setup; the detail names the cause.',
+  },
+  MARKER_MISMATCH: {
+    help: 'The marker is not where the docking station was recorded in the map. The mower then docks neither by camera nor by its position.',
+    fix: 'Record the station again or check the calibration of the camera.',
+  },
+};
+// a docking test that couldn't start where the mower stands (cause at DOCKING_RETRY and DOCKING_FAILED), the catalog's
+// texts; its name is a variant of dock_failed where no message names what's wrong
+export const DOCK_TEST_CAUSES: Record<string, {help: string; fix: string}> = {
+  TEST_START: {
+    help: 'The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware.',
+    fix: 'Place the mower closer, straight and centered in front of the docking station and start the test again.',
+  },
+};
+export const DOCK_DETAILS: Record<string, {name: string; help?: string; fix?: string}> = {
+  BLADE_RUNNING: {
+    name: 'Blade running',
+    help: 'This camera shows no picture while the blade runs.',
+    fix: 'Wait until the blade has stopped.',
+  },
+  BLURRED: {name: 'The image is blurred', fix: 'Clean the lens.'},
+  DRIVER_MISSING: {
+    name: 'Mower not reporting',
+    help: "The camera doesn't know the state of the mower and so shows no picture.",
+    fix: 'Wait a moment. If it stays so, restart MowBite OS.',
+  },
+  FIT_REJECTED: {name: 'The marker was found, but its position could not be measured reliably'},
+  LOCKED_AFTER_CRASH: {
+    name: 'Camera locked',
+    help: 'The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.',
+    fix: "Keep the log for a report. Unlock it in the app only once it is clear the crash didn't come from the camera.",
+  },
+  MARKER_AMBIGUOUS: {name: 'More than one marker in the image', fix: 'Leave only one marker in view of the camera.'},
+  MARKER_CLIPPED: {name: 'The marker touches the edge of the image'},
+  NOT_SET_UP: {
+    name: 'Camera not set up',
+    help: 'Something this camera needs is missing on the mower, for example a model or the service for the live picture.',
+    fix: 'Set the camera up as the guide says.',
+  },
+  NO_MARKER: {name: 'No marker in the image'},
+  NO_SIGNAL: {
+    name: 'No picture',
+    help: 'The camera gives no picture right now.',
+    fix: 'Wait a moment. If it stays so, restart MowBite OS.',
+  },
+  SELF_TEST: {
+    name: 'Self-test',
+    help: 'The camera tests itself once after the start. That only works while the mower stands with the blade off.',
+    fix: 'Wait until the test is done.',
+  },
+  TOO_BRIGHT: {name: 'The image is too bright', fix: 'Avoid glare, such as a low sun or a lamp behind the station.'},
+  TOO_DARK: {
+    name: 'The image is too dark',
+    fix: 'Check that the station has power and the marker light is on; otherwise provide light at the station.',
+  },
+  TOO_HOT: {name: 'Too hot', help: 'The computer of the mower is too hot, so the camera pauses.', fix: 'Wait until it has cooled down.'},
 };
 
 // put round the finished reason, by the start of its name (the longest that fits, at most one)
@@ -616,6 +947,8 @@ export const EMERGENCY_BITS: (string | null)[] = [
   'FOREIGN_HOST',
   'DRIVER_STALL',
   'UNEXPECTED_RESTART',
+  'INPUTS_LEARNING',
+  'BOARD_NOT_HEARD',
 ];
 
 // what the firmware means by them (fw-openmower-v2): a single lift sensor or bumper, or two and more at once. one not
@@ -643,6 +976,8 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   FOREIGN_HOST: 'another computer is talking to the board',
   DRIVER_STALL: 'hardware driver hung',
   UNEXPECTED_RESTART: 'unexpected restart',
+  INPUTS_LEARNING: 'assigning its inputs',
+  BOARD_NOT_HEARD: 'board not answering',
   UNKNOWN: 'unknown reason',
 };
 // LATCH only holds it until it's reset, and of two that say the same the more telling one
@@ -677,6 +1012,7 @@ export function fill(text: string, e: Fields): string {
   return text.replace(/\{(\w+)(?::(\d))?\}/g, (_, k: string, n?: string) => {
     const v = at(e, k);
     if (n !== undefined) return typeof v === 'number' && Number.isFinite(v) ? fmt(v, Number(n)) : '?';
+    if (Array.isArray(v)) return v.join(', ');
     return v === undefined || v === null || (typeof v === 'number' && !Number.isFinite(v)) ? '?' : String(v);
   });
 }

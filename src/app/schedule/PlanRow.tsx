@@ -4,7 +4,7 @@ import type {Area} from '@/app/map/editing';
 import {locale, tr} from '@/lib/i18n';
 import {duration} from '@/lib/dates';
 import {scheduledDuration, windowMinutes} from '@/lib/planDurations';
-import {reachesDark, type Plan} from '@/lib/schedule';
+import {reachesDark, toggleDay, type Plan} from '@/lib/schedule';
 import type {SunTimes} from '@/lib/sun';
 import {useState} from 'react';
 import styles from './page.module.css';
@@ -38,6 +38,8 @@ export default function PlanRow({
   // it's this plan's: one coming into its place (one above taken out) doesn't take it over, other changes keep it
   const [pending, setPending] = useState<{times: Pick<Plan, 'time' | 'end'>; of: Plan} | null>(null);
   if (pending && pending.of !== plan) setPending(null);
+  // the last day tapped off: it stays, said under the days
+  const [lastDay, setLastDay] = useState(false);
   // the turn as typed: a lone minus or an empty field isn't a number yet, it's saved once it is
   const [angleDraft, setAngleDraft] = useState<string | null>(null);
   const set = (patch: Partial<Plan>) => {
@@ -55,6 +57,8 @@ export default function PlanRow({
   };
 
   const dark = reachesDark({time, end}, sun);
+  // the container's schedule sends a run that may not mow in the dark home at sunset in any case
+  const sunsetAlways = !os && !plan.dark;
   // how long the areas picked take by the planner's reckoning (the map asked it), against the window
   const picked = plan.areas.length ? mowAreas.filter((a) => plan.areas.includes(a.id)) : mowAreas;
   const took = scheduledDuration(picked.map((a) => a.id));
@@ -69,7 +73,11 @@ export default function PlanRow({
             <button
               key={d}
               className={plan.days.includes(d) ? styles.on : undefined}
-              onClick={() => set({days: plan.days.includes(d) ? plan.days.filter((x) => x !== d) : [...plan.days, d]})}
+              onClick={() => {
+                const days = toggleDay(plan.days, d);
+                setLastDay(!days);
+                if (days) set({days});
+              }}
             >
               {weekday(d)}
             </button>
@@ -79,6 +87,7 @@ export default function PlanRow({
           ×
         </button>
       </div>
+      {lastDay && <p className={styles.error}>{tr('A start time needs at least one day. To leave it out, remove it with ×.')}</p>}
 
       <div className={styles.row}>
         <label className={styles.until}>
@@ -132,11 +141,17 @@ export default function PlanRow({
 
       <div className={styles.options}>
         <label className={styles.option}>
-          <input type="checkbox" checked={!!plan.sunset} onChange={(e) => set({sunset: e.target.checked || undefined})} />
+          <input
+            type="checkbox"
+            checked={!!plan.sunset || sunsetAlways}
+            disabled={sunsetAlways}
+            onChange={(e) => set({sunset: e.target.checked || undefined})}
+          />
           <span>
             {tr('Home at sunset')}
             <small>
               {sun ? tr('goes home when the sun sets, today at {set}', {set: sun.set}) : tr('goes home at 6 pm (no position for the sun times)')}
+              {sunsetAlways && <> {tr('Always, unless it may mow in the dark.')}</>}
             </small>
           </span>
         </label>

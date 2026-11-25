@@ -1,18 +1,16 @@
 'use client';
 
+import {useOsSounds} from '@/hooks/useMowerSounds';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {tr} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
-import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the lights and sounds of a mower with MowBite OS, step by step with a drawing for each
 
 const DUR = SCREEN_LOOP;
 const {card, field, well, text, dim, accent, onAccent} = PAINT;
-
-// a button tapped at that fraction of the loop
-const tap = (at: number) => anim('opacity', DUR, [0, at, at + 0.04, at + 0.08, 1], [1, 1, 0.5, 1, 1]);
 
 // a state of the list: its name and its colors as dots
 function State({y, name, colors}: {y: number; name: string; colors: string[]}) {
@@ -30,7 +28,7 @@ function State({y, name, colors}: {y: number; name: string; colors: string[]}) {
 
 function LightsArt() {
   return (
-    <Scene still={DUR} label={tr('Lights by state')}>
+    <Scene label={tr('Lights by state')}>
       <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
       <State y={40} name={tr('Heading home')} colors={['#3b82f6']} />
       <State y={66} name={tr('Charging in the dock')} colors={['#22c55e']} />
@@ -61,7 +59,7 @@ function TryArt() {
   // the mower from above, its lights blinking once the button is tapped
   const blink = anim('fill', DUR, [0, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 1], ['#3a3a3a', '#3a3a3a', '#22c55e', '#facc15', '#22c55e', '#facc15', '#22c55e', '#22c55e']);
   return (
-    <Scene still={DUR} label={tr('Try it, then save')}>
+    <Scene label={tr('Try it, then save')}>
       <rect x={100} y={26} width={120} height={100} rx={30} fill="#5b5f66" />
       <rect x={124} y={40} width={72} height={10} rx={5} fill="#3a3a3a">
         {blink}
@@ -91,7 +89,7 @@ function SoundsArt() {
     </path>
   );
   return (
-    <Scene still={DUR} label={tr('Sounds')}>
+    <Scene label={tr('Sounds')}>
       <rect x={20} y={14} width={280} height={100} rx={12} style={card} />
       <text x={36} y={42} fontSize={13} fontWeight={600} style={text}>
         {tr('Mowing starts')}
@@ -120,7 +118,7 @@ function OwnSoundArt() {
   // the own sound chosen, sent in parts, then it is the situation's
   const bar = anim('width', DUR, [0, 0.3, 0.6, 1], [0, 0, 248, 248]);
   return (
-    <Scene still={DUR} label={tr('Your own sounds')}>
+    <Scene label={tr('Your own sounds')}>
       <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
       <text x={36} y={42} fontSize={13} fontWeight={600} style={text}>
         {tr('Mowing starts')}
@@ -174,7 +172,7 @@ const OWN_SOUND: GuideStep = {
 export default function LightsGuidePage() {
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
-  const sounds = !!methods?.has(RPC.soundList);
+  const sounds = useOsSounds();
   const own = !!methods?.has(RPC.soundUpload);
   // all while it isn't known (yet) what the mower has
   const steps = lights || sounds ? [...(lights ? LIGHTS : []), ...(sounds ? [SOUNDS] : []), ...(own ? [OWN_SOUND] : [])] : [...LIGHTS, SOUNDS, OWN_SOUND];

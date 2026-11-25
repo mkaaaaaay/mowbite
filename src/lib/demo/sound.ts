@@ -1,3 +1,4 @@
+import {fromBase64} from '../base64';
 import {RPC} from '../openmower';
 import {demoFlags} from './flags';
 import {sha256Js} from '../sha256';
@@ -26,7 +27,6 @@ class Refused extends Error {
   }
 }
 
-const bytesOf = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
 export function demoSounds(): Record<string, (params: unknown) => unknown> {
   let volume = 60;
@@ -61,7 +61,7 @@ export function demoSounds(): Record<string, (params: unknown) => unknown> {
       if (part === 0) upload = {situation: s.name, sha256, parts: parts!, next: 0, bytes: []};
       if (!upload || upload.situation !== s.name || upload.sha256 !== sha256) throw new Refused('BUSY', 'Another upload is not finished');
       if (part !== upload.next || parts !== upload.parts) throw new Refused('PART_ORDER', 'A part out of order', {expected: upload.next});
-      const bytes = bytesOf(data);
+      const bytes = fromBase64(data);
       if (bytes.length > PART_BYTES || parts! * PART_BYTES > MAX_SOUND_BYTES) {
         upload = null;
         throw new Refused('TOO_LARGE', 'Too large', {limit: MAX_SOUND_BYTES});

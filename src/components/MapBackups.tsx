@@ -1,11 +1,12 @@
 'use client';
 
-import {parseMapFile, type BackupInfo, type Backups} from '@/lib/backups';
+import {MapFileError, parseMapFile, type BackupInfo, type Backups} from '@/lib/backups';
 import {GeoJsonError, isGeoJson, mapFromGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {dayLabel, clock} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
+import {useOpenMower} from '@/lib/mowerOs';
 import {useRef, useState} from 'react';
 import styles from './MapBackups.module.css';
 
@@ -30,17 +31,21 @@ export default function MapBackups({
   onDelete: (b: BackupInfo) => Promise<void>;
   onDownload: (b: BackupInfo | null) => Promise<void>;
   onDownloadGeo: () => Promise<void>;
-  onFile: (map: MowerMap, name: string) => void;
+  // datum: the one the file was written with, none in an older one
+  onFile: (map: MowerMap, name: string, datum?: Datum) => void;
   // the datum for geojson's longitude and latitude, the map a geojson file's areas go into (the one being edited), and
   // onLoad takes the map with them in
   geo: {datum: Datum; base: MowerMap | null; onLoad: (map: MowerMap) => void} | null;
 }) {
+  const om = useOpenMower();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   // what a geojson file brought, said while the map being edited is still just what came of it
   const [loaded, setLoaded] = useState<{map: MowerMap; note: string} | null>(null);
+  // what a map file left out, said until the next file
+  const [left, setLeft] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
 
   const create = async () => {
@@ -120,7 +125,9 @@ export default function MapBackups({
           </ul>
         </>
       ) : backups === null ? (
-        <p className={styles.dim}>{tr('Backups on the mower need MowBite running as its container. Files still work.')}</p>
+        <p className={styles.dim}>
+          {om ? tr('Backups on the mower need MowBite running as its container. Files still work.') : tr('This mower keeps no map backups. Files still work.')}
+        </p>
       ) : (
         <p className={styles.dim}>{tr("The mower's backups didn't come (yet). Files still work.")}</p>
       )}
@@ -146,6 +153,7 @@ export default function MapBackups({
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
+            setLeft(null);
             try {
               const text = await f.text();
               const json = JSON.parse(text);
@@ -154,18 +162,29 @@ export default function MapBackups({
                 const r = mapFromGeoJson(json, geo.datum, geo.base);
                 if (!r.changed && !r.added) throw new GeoJsonError('Nothing in the file differs from the map.');
                 geo.onLoad(r.map);
-                setLoaded({
-                  map: r.map,
-                  note: tr('From {file}: {changed} changed, {added} new. Only in the editor so far, the mower gets it when you save the map.', {
-                    file: f.name,
-                    changed: r.changed,
-                    added: r.added,
-                  }),
+                const note = tr('From {file}: {changed} changed, {added} new. Only in the editor so far, the mower gets it when you save the map.', {
+                  file: f.name,
+                  changed: r.changed,
+                  added: r.added,
                 });
-              } else onFile(parseMapFile(text), f.name);
+                const without = r.left
+                  ? ` ${tr("{n} areas came without the margin or planner settings in the file, set those in the app. An area already on the map keeps its own.", {n: r.left})}`
+                  : '';
+                setLoaded({map: r.map, note: note + without});
+              } else {
+                const r = parseMapFile(text);
+                onFile(r.map, f.name, r.datum);
+                if (r.left.length) setLeft(tr('Left out of {file}, of the wrong type: {list}.', {file: f.name, list: r.left.join('; ')}));
+              }
               setError(null);
             } catch (e) {
-              setError(e instanceof GeoJsonError ? tr(e.message) : tr("That file doesn't look like a map."));
+              setError(
+                e instanceof MapFileError
+                  ? tr(e.message, {id: e.id ?? ''})
+                  : e instanceof GeoJsonError
+                    ? tr(e.message)
+                    : tr("That file doesn't look like a map."),
+              );
             }
           }}
         />
@@ -177,6 +196,7 @@ export default function MapBackups({
         </p>
       )}
       {loaded && loaded.map === geo?.base && !error && <p className={styles.dim}>{loaded.note}</p>}
+      {left && !error && <p className={styles.dim}>{left}</p>}
       {error && <p className={styles.error}>{error}</p>}
       </div>
     </details>

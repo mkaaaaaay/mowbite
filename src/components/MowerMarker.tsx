@@ -1,6 +1,7 @@
 'use client';
 
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
+import {useRobotShape} from '@/hooks/useGeometry';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {stillPreferred} from '@/lib/eggs';
@@ -84,6 +85,7 @@ export function MowerMarker({
   const base = icons?.mowerRealSize ? Math.max(realSize, 7 * k) : 8 * k;
   const size = base * (real ? 1 : (icons?.mowerSize ?? 1));
   const icon = mowerIcon(icons?.mower);
+  const robotShape = useRobotShape();
   // a real mower at its real size: on the body, exactly as long and wide as set (a few pixels at least). at the same size
   // on screen it's drawn like the other icons
   const fitted = showIcon && icon.fit && !!body && !!real;
@@ -158,9 +160,10 @@ export function MowerMarker({
     };
   }, [place, poses, own]);
 
+  const look = {speed, emergency, blades, shape: robotShape, px: (2 * (fitted ? fitX : size)) / k};
   const drawIcon = (
     <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
-      {drawMower(icon, {speed, emergency, blades})}
+      {drawMower(icon, look)}
     </g>
   );
   // its outline where a crown or a parasol hides it: the body's (a real model's contour with its sizes), without sizes the
@@ -202,7 +205,7 @@ export function MowerMarker({
               {iconOutline &&
                 (fitted ? (
                   <g transform={`translate(${mx} ${my}) scale(${ox} ${oy})`} filter={`url(#${coverId}o)`}>
-                    {icon.draw({speed, emergency, blades})}
+                    {icon.draw(look)}
                   </g>
                 ) : (
                   !icon.upright && (
@@ -233,7 +236,7 @@ export function MowerMarker({
               className={styles.mower}
               transform={`translate(${mx} ${my}) scale(${fitX} ${fitY})`}
             >
-              {icon.draw({speed, emergency, blades})}
+              {icon.draw(look)}
             </g>
           ) : (
             showIcon &&

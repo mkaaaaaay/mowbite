@@ -4,6 +4,7 @@ import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {checkBody, spotPlaces, usePlannerSettings, type BodyCheck as Result, type BodySpot} from '@/lib/mowerBody';
 import type {PlanChecks as Checks} from '@/lib/mowPlan';
+import {recordedLoopIgnored, recordedLoopNote} from '@/lib/recordedLoop';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
@@ -63,7 +64,7 @@ export function BodyCheck({request, onSpots}: {request: PlanRequest | null; onSp
       {recorded && places.some((p) => p.kinds.includes('loop')) && (
         <span className={styles.dim}>
           {tr(
-            "Corners of the outline passes on lines driven along the edge: the check assumes a wall half the mower's width beyond the line everywhere, although the mower drove there itself when recording. An outline offset for the area moves the passes inward.",
+            "Corners of the outline passes on lines driven along the edge: the check assumes a wall half the mower's width beyond the line everywhere, although the mower drove there itself when recording. More distance of the first pass from the line for the area moves the passes inward.",
           )}
         </span>
       )}
@@ -86,7 +87,21 @@ function warningText(w: string): string {
 // With a planner that checks the body in every plan (collision mode): what it found in the plan shown, no button.
 // The places are on the map (MapView fitPlaces, turnPlaces)
 export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolean}) {
-  if (!on) return <span className={styles.dim}>{tr('Collision check off: the plan stays as it comes.')}</span>;
+  // the area planned without the recorded outline pass, told with the collision check off too
+  const warnings = checks?.warnings ?? [];
+  const loopNotes = warnings.flatMap((w) => recordedLoopIgnored(w) ?? []).map((why) => (
+    <span key={why} className={styles.warningText}>
+      {recordedLoopNote(why)}
+    </span>
+  ));
+  const others = warnings.filter((w) => recordedLoopIgnored(w) === undefined);
+  if (!on)
+    return (
+      <div className={styles.bodyCheck}>
+        <span className={styles.dim}>{tr('Collision check off: the plan stays as it comes.')}</span>
+        {loopNotes}
+      </div>
+    );
   const fixed = checks?.fixed ?? 0;
   const left = checks?.left ?? 0;
   const skipped = checks?.skipped ?? 0;
@@ -108,8 +123,8 @@ export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolea
       {(checks?.unchecked.length ?? 0) > 0 && (
         <div className={styles.warning}>
           {checks!.unchecked.length === 1
-            ? tr('The plan starts or ends at 1 place without the body checked (cross on the map). OpenMower drives from or to there itself, without checking the body.')
-            : tr('The plan starts or ends at {n} places without the body checked (crosses on the map). OpenMower drives from or to there itself, without checking the body.', {
+            ? tr('The plan starts or ends at 1 place without the body checked (cross on the map). The mower drives from or to there itself, without checking the body.')
+            : tr('The plan starts or ends at {n} places without the body checked (crosses on the map). The mower drives from or to there itself, without checking the body.', {
                 n: checks!.unchecked.length,
               })}
         </div>
@@ -117,12 +132,13 @@ export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolea
       {(checks?.jumps.length ?? 0) > 0 && (
         <div className={styles.warning}>
           {checks!.jumps.length === 1
-            ? tr("The path jumps at 1 place (cross on the map). OpenMower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.")
-            : tr("The path jumps at {n} places (crosses on the map). OpenMower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.", {n: checks!.jumps.length})}
+            ? tr("The path jumps at 1 place (cross on the map). The mower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.")
+            : tr("The path jumps at {n} places (crosses on the map). The mower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.", {n: checks!.jumps.length})}
         </div>
       )}
       {(checks?.turns.length ?? 0) > 0 && <span className={styles.dim}>{tr('{n} turns still in the field of lanes', {n: checks!.turns.length})}</span>}
-      {checks?.warnings.map((w, i) => (
+      {loopNotes}
+      {others.map((w, i) => (
         <span key={i} className={styles.dim}>
           {warningText(w)}
         </span>

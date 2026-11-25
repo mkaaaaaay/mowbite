@@ -95,3 +95,21 @@ describe('waiting until a map is on the mower', () => {
     expect(got).toEqual(['save', 'restore']);
   });
 });
+
+describe('a map as it comes from the mower', () => {
+  it("is filled in where it lacks what the app relies on, and isn't one when it's no object", async () => {
+    const {mapFromMower} = await import('./useMowerMap');
+    expect(mapFromMower({areas: [{id: 'a'}, null, {id: 'b', properties: [], outline: [null, {x: 1, y: 2}]}]})).toEqual({
+      areas: [
+        {id: 'a', properties: {}, outline: []},
+        {id: 'b', properties: {}, outline: [{x: 1, y: 2}]},
+      ],
+      docking_stations: [],
+    });
+    expect(mapFromMower({areas: 'x', docking_stations: [{id: 'd'}, {id: 'e', position: {x: 0, y: 0}, heading: 0}]})).toEqual({
+      areas: [],
+      docking_stations: [{id: 'e', position: {x: 0, y: 0}, heading: 0}],
+    });
+    for (const bad of [null, [], 'map', 3]) expect(() => mapFromMower(bad)).toThrow();
+  });
+});

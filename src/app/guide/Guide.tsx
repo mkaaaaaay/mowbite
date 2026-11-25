@@ -11,6 +11,8 @@ import styles from './page.module.css';
 export interface GuideStep {
   title: string;
   text: string;
+  // put into the text
+  vars?: Record<string, string | number>;
   Art: React.ComponentType<ArtProps>;
 }
 
@@ -61,7 +63,7 @@ export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps:
         </div>
       </div>
 
-      <p className={[styles.text, tallArt ? styles.textTall : ''].join(' ')}>{tr(steps[step].text)}</p>
+      <p className={[styles.text, tallArt ? styles.textTall : ''].join(' ')}>{tr(steps[step].text, steps[step].vars)}</p>
     </>
   );
 

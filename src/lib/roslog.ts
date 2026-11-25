@@ -1,3 +1,4 @@
+import type {MowerEvent} from './events';
 import {apiBase, mowerFetch} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, rpcMethods} from './rpc';
@@ -67,6 +68,12 @@ export function readRpcLog(answer: unknown, from: number, to: number): RosLogLin
   return out;
 }
 
+// whether a warning or error the mower still has in memory says this, false on one without logs.recent
+export async function rosLogHas(text: string): Promise<boolean> {
+  if (!(await rpcMethods())?.has(RPC.logs)) return false;
+  return readRpcLog(await callRpc(RPC.logs, {limit: CAPACITY}), 0, Infinity).some((l) => l.text.includes(text));
+}
+
 // what ros said from a bit before to a bit after the moment
 export async function rosLogAround(t: number, before = 120, after = 60): Promise<RosLogLine[]> {
   const [stored, live] = await Promise.all([
@@ -96,11 +103,22 @@ export async function rosLogAround(t: number, before = 120, after = 60): Promise
 // 'LATCH' to: 'LATCH, COLLISION'", the clearing only as info, so it isn't kept. v1 mowers log it differently
 const REASON_CHANGE = /Emergency reason changed from: '([A-Z_, ]*)' to: '([A-Z_, ]*)'/;
 
+// the event comes a moment after the log line
+const SINCE_SLACK = 5; // s
+
+// when the emergency stop on now began by the mower's events (oldest first), undefined while they don't say
+export function emergencySince(events: readonly MowerEvent[] | undefined): number | undefined {
+  const last = events?.filter((e) => e.type === 'EMERGENCY').pop();
+  return last?.emergency ? last.t : undefined;
+}
+
 // the reasons of the latest emergency stop in the lines (oldest first): all that came up since it began out of none,
-// without LATCH, which only holds it until it's reset. null when the lines don't say
-export function emergencyReasons(lines: readonly RosLogLine[]): string[] | null {
+// without LATCH, which only holds it until it's reset. since: when the one on now began (the mower's clock), lines from
+// before belong to an earlier one. null when the lines don't say
+export function emergencyReasons(lines: readonly RosLogLine[], since?: number): string[] | null {
   let reasons: Set<string> | null = null;
   for (const l of lines) {
+    if (since !== undefined && l.t < since - SINCE_SLACK) continue;
     const m = l.text.match(REASON_CHANGE);
     if (!m) continue;
     if (!reasons || !m[1].trim()) reasons = new Set();

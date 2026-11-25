@@ -2,7 +2,7 @@
 # one case of test/run.sh, in a MowBite container: the schedule ($SCHED), what the mower has retained (robot state, its
 # params and map: $STATE, $PARAMS, $MAP), a pretend mower and then the scheduler (or $RUN) as in the container. like
 # OpenMower it sends its robot state now and then, not retained (what it says is in /tmp/state, a test may change it),
-# with the charge contacts' voltage ($V_CHARGE, 28 V: in the dock) and its actions retained when the state changes.
+# with the charge contacts' voltage ($V_CHARGE, 28 V: in the dock; in /tmp/vcharge, a test may change it) and its actions retained when the state changes.
 # the pretend mower notes what's sent to it (actions, rpc calls) in /tmp/sent, answers the calls and leaves IDLE when
 # it's told to mow, unless $MOWER is "stays" (or "refuses": MOWING_REFUSED as MowBite OS sends it;
 # "undock_fails": it undocks and gives up, back in IDLE; "undock_once": that only the first time). $AREA: the area it
@@ -13,20 +13,42 @@
 # each, a second apart. $LOGS, $PLANNER_LOG: what logs.recent and planner.log answer (@ID@ for the call's id), $OTHER:
 # someone else's answer sent before each one. $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the
 # parameters the app keeps (/data/params.txt). $RUN_DUE: set while the stop time of $RUN_STATE's run is still to come.
-# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause. $NOTIFY: the push messages' settings
+# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause. $NOTIFY: the push messages' settings.
+# $SETTINGS: the app's settings (/data/settings.json), $LEFTOVERS: what planner.leftovers answers, $LAST_RUN: the run
+# that ended last (/tmp/run.last). $CLOCK: what the kernel says of the clock (adjtimex's return value, 0 synced, 5 not).
+# $WGET=fail: no weather comes. $SLOWLOOP: the scheduler's first wait between two looks takes over three minutes. $LIFT:
+# the mower is taken out of the dock as its mowing direction is set.
+# $BROKEN: files that can't be written (a directory in their place). $QUIET: seconds before the mower's first robot
+# state, $SOON: before $AREA_SOON (12). $NOSET: the mowing direction isn't set (params.set unanswered). $AFTER, $AFTER_V:
+# the robot state and the charge contacts' voltage after a failed undocking. $OS_KNOWN: what the container knew of
+# MowBite OS before a restart (/data/os), $UNANSWERED: a method the pretend mower doesn't answer. in $SCHED @D@ and @M@
+# are the day and minute the scheduler starts in (in the schedule's zone), @M+n@ n minutes after that
 pub() {
   t=$1
   shift
   mosquitto_pub -h "$MOWER_MQTT_HOST" -t "$MOWER_MQTT_PREFIX$t" "$@"
 }
 
-printf '%s\n' "$SCHED" > /data/schedule.txt
+# stand-ins for the clock's state, the weather and the scheduler's wait, ahead in the path
+mkdir -p /tmp/bin
+printf '#!/bin/sh\necho "    return value: %s (stand-in)"\n' "${CLOCK:-0}" > /tmp/bin/adjtimex
+[ "$WGET" != fail ] || printf '#!/bin/sh\nexit 1\n' > /tmp/bin/wget
+if [ -n "$SLOWLOOP" ]; then
+  : > /tmp/slow
+  printf '#!/bin/sh\n[ "$1" = 20 ] && [ -f /tmp/slow ] && rm /tmp/slow && set -- 190\nexec /bin/sleep "$@"\n' > /tmp/bin/sleep
+fi
+chmod +x /tmp/bin/*
+export PATH="/tmp/bin:$PATH"
+for b in $BROKEN; do mkdir -p "$b"; done
+[ -z "$LAST_RUN" ] || echo "$LAST_RUN" > /tmp/run.last
 [ -z "$RUN_STATE" ] || echo "$RUN_STATE" > /data/run.state
 [ -z "$RUN_DUE" ] || : > "/data/run.due.${RUN_STATE%% *}"
 [ -z "$WAITING" ] || echo "$WAITING" > /data/run.wait
 [ -z "$ANGLE_NORMAL" ] || echo "$ANGLE_NORMAL" > /data/angle.normal
 [ -z "$KEEP" ] || printf '%s\n' "$KEEP" > /data/params.txt
 [ -z "$NOTIFY" ] || printf '%s\n' "$NOTIFY" > /data/notify.conf
+[ -z "$SETTINGS" ] || printf '%s\n' "$SETTINGS" > /data/settings.json
+[ -z "$OS_KNOWN" ] || echo "$OS_KNOWN" > /data/os
 [ -z "$PARAMS" ] || pub params/json -r -m "$PARAMS"
 [ -z "$MAP" ] || pub map/json -r -m "$MAP"
 [ -z "$HOLD" ] || pub mowbite/hold -r -m "$HOLD"
@@ -34,10 +56,13 @@ printf '%s\n' "$SCHED" > /data/schedule.txt
 IDLE_ACTIONS='[{"action_id":"mower_logic:idle/start_mowing","action_name":"Start Mowing","enabled":1},{"action_id":"mower_logic:idle/reset_job","action_name":"Reset Job","enabled":0}]'
 mower_state() { printf '%s' "$1" > /tmp/state; }
 mower_state "$STATE"
+printf %s "${V_CHARGE:-28.0}" > /tmp/vcharge
+quiet=$(($(date +%s) + ${QUIET:-0}))
 while :; do
+  [ "$(date +%s)" -ge "$quiet" ] || { sleep 1; continue; }
   s=$(cat /tmp/state)
   pub robot_state/json -m "$s"
-  pub sensors/om_v_charge/data -m "${V_CHARGE:-28.0}"
+  pub sensors/om_v_charge/data -m "$(cat /tmp/vcharge)"
   if [ -z "$ACTIONS" ] && [ "$s" != "$was" ]; then
     case "$s" in *'"current_state":"IDLE"'*) pub actions/json -r -m "$IDLE_ACTIONS" ;; *) pub actions/json -r -m '[]' ;; esac
     was=$s
@@ -58,7 +83,8 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
           mower_state "$(echo "$STATE" | sed 's/"current_state":"[A-Z]*"/"current_state":"UNDOCKING"/')"
           sleep 3
           pub events/json -m '{"type":"UNDOCKING_FAILED","reason":"path_failed"}'
-          mower_state "$STATE"
+          mower_state "${AFTER:-$STATE}"
+          [ -z "$AFTER_V" ] || printf %s "$AFTER_V" > /tmp/vcharge
         } &
         continue
       fi
@@ -73,19 +99,36 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
         *'"method":"planner.log"'*) [ -z "$PLANNER_LOG" ] || a=$PLANNER_LOG ;;
         *'"method":"rpc.methods"'*) [ -z "$METHODS" ] || a=$METHODS ;;
         *'"method":"system.info"'*) [ -z "$INFO" ] || a=$INFO ;;
+        *'"method":"planner.leftovers"'*) [ -z "$LEFTOVERS" ] || a=$LEFTOVERS ;;
       esac
+      case "$msg" in *"\"method\":\"$UNANSWERED\""*) [ -z "$UNANSWERED" ] || continue ;; esac
       [ -z "$OTHER" ] || pub rpc/response -m "$OTHER"
       case "$msg" in *manual_pause_mowing*) [ -z "$SLOW" ] || sleep "$SLOW" ;; esac
+      case "$msg" in *mow_angle_offset*) [ -z "$NOSET" ] || continue ;; esac
+      case "$msg" in *mow_angle_offset*) [ -z "$LIFT" ] || echo 0 > /tmp/vcharge ;; esac
       pub rpc/response -m "$(printf '%s' "$a" | sed "s/@ID@/$id/")"
       ;;
   esac
 done &
 
-[ -z "$AREA_SOON" ] || { sleep 12 && pub events/json -m "{\"type\":\"AREA\",\"area_id\":\"$AREA_SOON\"}"; } &
+[ -z "$AREA_SOON" ] || { sleep "${SOON:-12}" && pub events/json -m "{\"type\":\"AREA\",\"area_id\":\"$AREA_SOON\"}"; } &
 [ -z "$ACTIONS" ] || printf '%s\n' "$ACTIONS" | while read -r l; do
   pub actions/json -r -m "$l"
   sleep 1
 done &
 
 sleep 1
+# a plan for this minute: not too late in it for the scheduler's first look
+case "$SCHED" in *@M*)
+  s=$(date +%S)
+  [ "${s#0}" -le 40 ] || sleep $((61 - ${s#0}))
+  ;;
+esac
+t=$(date +%s) tz=$(printf '%s\n' "$SCHED" | sed -n 's/^tz //p')
+at() { TZ=$tz date -d "@$((t + $1 * 60))" "+$2"; }
+sched=$(printf '%s\n' "$SCHED" | sed "s/@D@/$(at 0 %u)/g; s/@M@/$(at 0 %H:%M)/g")
+for n in $(printf '%s\n' "$sched" | grep -o '@M+[0-9]*@' | tr -d '@M+' | sort -u); do
+  sched=$(printf '%s\n' "$sched" | sed "s/@M+$n@/$(at "$n" %H:%M)/g")
+done
+printf '%s\n' "$sched" > /data/schedule.txt
 exec "${RUN:-/scheduler.sh}"

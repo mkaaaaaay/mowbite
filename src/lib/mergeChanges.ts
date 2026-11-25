@@ -3,7 +3,8 @@
 // each other. what both changed takes mine
 type Obj = Record<string, unknown>;
 
-const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
+// a json object, not null nor a list (also what a retained message of the mower has to be)
+export const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function mergeChanges<T extends object>(theirs: T, base: T, mine: T, depth = 2): T {

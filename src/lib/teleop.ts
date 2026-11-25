@@ -23,6 +23,15 @@ function twist(vx: number, vz: number): Buffer {
   return buf;
 }
 
+// m/s at full stick, the turn rate follows along
+export const SPEEDS = [0.15, 0.25, 0.35, 0.5];
+export const TURN_PER_SPEED = 3;
+
+const clamp = (v: number, max: number) => Math.max(-max, Math.min(max, v));
+
+// a value that isn't a number stops, the rest stays within full stick at the top speed
 export function sendDrive(vx: number, vz: number) {
-  getMqttClient().publish(withPrefix(TOPIC.teleop), twist(vx, vz), {qos: 0});
+  const top = Math.max(...SPEEDS);
+  const [x, z] = Number.isFinite(vx) && Number.isFinite(vz) ? [clamp(vx, top), clamp(vz, top * TURN_PER_SPEED)] : [0, 0];
+  getMqttClient().publish(withPrefix(TOPIC.teleop), twist(x, z), {qos: 0});
 }

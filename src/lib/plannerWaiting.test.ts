@@ -44,6 +44,8 @@ vi.mock('./mowerOs', async (real) => ({
   runsMowbiteOs: () => fake.os,
   providerGone: (e: {code?: unknown}) => fake.gone && e.code === -32601,
 }));
+// the connection stays up
+vi.mock('./mqttClient', async (real) => ({...(await real<typeof import('./mqttClient')>()), getMqttClient: () => ({once() {}, off() {}})}));
 vi.mock('./settings', () => ({
   settingsStore: {subscribe: () => () => {}, snapshot: () => ({}), serverSnapshot: () => ({})},
   syncSettings: async () => {},

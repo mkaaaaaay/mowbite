@@ -129,4 +129,30 @@ describe('the map as geojson', () => {
     const two = mapFromGeoJson({type: 'FeatureCollection', features: [dock, dock]}, datum, MAP);
     expect(two.map.docking_stations).toHaveLength(3);
   });
+
+  it('keeps the heading of a station when the file has none, a new station without one is turned down', () => {
+    const json = mapToGeoJson(MAP, datum) as unknown as Json;
+    const dock = JSON.parse(JSON.stringify(json.features[2]));
+    for (const heading of [undefined, 'north', null]) {
+      dock.properties = {id: 'dock', type: 'docking_station', heading};
+      const {map} = mapFromGeoJson({type: 'FeatureCollection', features: [dock]}, datum, MAP);
+      expect(map.docking_stations[0].heading).toBe(Math.PI);
+    }
+    expect(() => mapFromGeoJson({type: 'FeatureCollection', features: [dock]}, datum, null)).toThrow(/no heading/);
+  });
+
+  it("leaves the planner's settings and an area's margin of a file out, an area there keeps its own", () => {
+    const own: MowerMap = {...MAP, areas: [{...MAP.areas[0], properties: {...MAP.areas[0].properties, planner: {body_fit: true}, margin: 0.3}}, MAP.areas[1]]};
+    const json = mapToGeoJson(own, datum) as unknown as Json;
+    json.features[0].properties = {...json.features[0].properties, planner: {recorded_loop: true, body_fit: false}, margin: 0};
+    const {map, left} = mapFromGeoJson(json, datum, own);
+    expect(map.areas[0].properties).toMatchObject({planner: {body_fit: true}, margin: 0.3});
+    // counted where the file's differ from what the area keeps, a file of the map itself has none
+    expect(left).toBe(1);
+    expect(mapFromGeoJson(mapToGeoJson(own, datum), datum, own).left).toBe(0);
+    const fresh = mapFromGeoJson(json, datum, null);
+    expect(fresh.map.areas[0].properties).not.toHaveProperty('planner');
+    expect(fresh.map.areas[0].properties).not.toHaveProperty('margin');
+    expect(fresh.left).toBe(1);
+  });
 });

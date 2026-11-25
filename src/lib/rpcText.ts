@@ -1,7 +1,7 @@
 import {describe, reasonText, type MowerEvent} from './events';
 import {fmt, tr} from './i18n';
 import {providerGone} from './mowerOs';
-import {MAX_RPC_BYTES, RpcError} from './rpc';
+import {mapChanged, MAX_RPC_BYTES, RpcError} from './rpc';
 
 // MowBite OS turned the call down while the MowBite Updater updates it (reason HOLD in the error's data, until when),
 // in the reason's words as a sentence. null for any other error
@@ -31,6 +31,8 @@ export function rpcErrorText(e: unknown): string {
   if (e instanceof RpcError) {
     if (e.code === -32601) return tr("Your mower's software doesn't offer this ({method}).", {method: e.method});
     if (e.code === 'timeout') return tr("The mower didn't answer.");
+    if (mapChanged(e))
+      return tr('The map on the mower changed meanwhile (a recording, the planner or another device). Look at the map, then save again.');
     if (e.code === 'too_large')
       return tr('Too big to send to the mower ({size} MB, at most {max} MB). For a map: reduce the points of big areas.', {
         size: fmt(Number(e.message) / 1e6, 1),

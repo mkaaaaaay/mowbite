@@ -1,7 +1,9 @@
 'use client';
 
-import {CameraIcon, FitIcon, ShrinkIcon} from '@/components/icons';
-import {chooseCamera, useCameras} from '@/hooks/useCameras';
+import {CameraIcon, DetectIcon, FitIcon, ShrinkIcon} from '@/components/icons';
+import {chooseCamera, showBoxes, useCameras} from '@/hooks/useCameras';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useSure} from '@/hooks/useSure';
 import {
   afterClosed,
   blockedHere,
@@ -9,6 +11,8 @@ import {
   cameraParts,
   cameraReason,
   closed,
+  fallbackProtocol,
+  giveBack,
   openStream,
   pickProtocol,
   pictureRatio,
@@ -16,13 +20,16 @@ import {
   playWhep,
   streamFailure,
   streamUrl,
+  unlockCamera,
   type Camera,
 } from '@/lib/camera';
 import {tr, useLang} from '@/lib/i18n';
+import {useOsApi} from '@/lib/mowerOs';
 import {brokerHost} from '@/lib/mqttClient';
+import {CAMERA_DETECTIONS_API, CAMERA_LOCKED, RPC} from '@/lib/openmower';
 import {isApp} from '@/lib/native';
 import {RpcError} from '@/lib/rpc';
-import {rpcErrorText} from '@/lib/rpcText';
+import {answerError, rpcErrorText} from '@/lib/rpcText';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './CameraView.module.css';
 
@@ -32,7 +39,10 @@ import styles from './CameraView.module.css';
 // plain: the picture alone. fill: as big as the place it's put in, else as wide as it and as high as the cameras need
 export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill?: boolean; onHide?: () => void}) {
   useLang();
-  const {on, list, failed, camera, changes} = useCameras();
+  const {on, list, failed, camera, changes, boxes} = useCameras();
+  const api = useOsApi();
+  // the boxes asked for only where the camera has them and the mower takes the switch, else as the mower sends them
+  const detections = camera?.detections && api >= CAMERA_DETECTIONS_API ? boxes : undefined;
   const shown = usePageShown();
   const [live, setLive] = useState(false);
   const [bare, setBare] = useState(false);
@@ -59,9 +69,11 @@ export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill
         ) : !camera ? (
           <Note text={tr('The mower reports no camera.')} />
         ) : !camera.available ? (
-          <Note title={tr('No picture')} text={cameraReason(camera.reason)} detail={camera.detail} />
+          <Note title={tr('No picture')} text={cameraReason(camera.reason)} detail={camera.detail}>
+            {camera.reason === CAMERA_LOCKED && <Unlock id={camera.id} />}
+          </Note>
         ) : (
-          shown && <Player key={`${camera.id} ${changes[camera.id] ?? 0}`} camera={camera} onLive={setLive} />
+          shown && <Player key={`${camera.id} ${changes[camera.id] ?? 0} ${detections}`} camera={camera} detections={detections} onLive={setLive} />
         )}
         {!plain && (
           <>
@@ -74,6 +86,16 @@ export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill
                 </span>
               )}
               <span className={styles.corner}>
+                {detections !== undefined && (
+                  <button
+                    aria-label={tr('AI view')}
+                    aria-pressed={detections}
+                    title={tr(detections ? 'AI view on: boxes around what the mower recognises' : 'AI view off: the plain picture')}
+                    onClick={() => showBoxes(!detections)}
+                  >
+                    <DetectIcon size={18} off={!detections} />
+                  </button>
+                )}
                 {onHide && !full && (
                   <button aria-label={tr('Hide the camera picture')} title={tr('Hide the camera picture')} onClick={onHide}>
                     <CameraIcon size={18} off />
@@ -106,6 +128,31 @@ export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill
   );
 }
 
+// a camera locked after a crash while it ran, unlocked with two taps where the mower offers it
+function Unlock({id}: {id: string}) {
+  const offered = !!useRpcMethods()?.has(RPC.cameraUnlock);
+  const {sure, confirm} = useSure();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!offered) return null;
+  const unlock = () => {
+    setBusy(true);
+    setError(null);
+    unlockCamera(id)
+      .catch((e) => setError(answerError(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <span>{tr("Unlock it only once it's clear the crash didn't come from the camera.")}</span>
+      <button disabled={busy} onClick={() => confirm('unlock', unlock)} data-camera-unlock="">
+        {sure === 'unlock' ? tr('Really unlock the camera?') : tr('Unlock the camera')}
+      </button>
+      {error && <small role="alert">{error}</small>}
+    </>
+  );
+}
+
 // in the picture's middle: what it waits for, or why there's none
 function Note({busy, title, text, detail, children}: {busy?: boolean; title?: string; text: string; detail?: string; children?: React.ReactNode}) {
   return (
@@ -123,15 +170,18 @@ type Shown = {phase: 'connecting' | 'playing' | 'ended'} | {phase: 'failed'; tex
 
 // one connection to a camera, closed when it goes (another camera, the page left or put away). each try asks the
 // mower for a stream anew, its address is good for one connection
-function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => void}) {
+function Player({camera, detections, onLive}: {camera: Camera; detections?: boolean; onLive: (live: boolean) => void}) {
   const [shown, setShown] = useState<Shown>({phase: 'connecting'});
   useEffect(() => onLive(shown.phase === 'playing'), [shown.phase, onLive]);
   const [tries, setTries] = useState(0);
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  const protocol = pickProtocol(camera.protocols);
+  // mjpeg once webrtc was turned down, until tried again
+  const [fallback, setFallback] = useState<string | null>(null);
+  const protocol = fallback ?? pickProtocol(camera.protocols);
   // the mower answers with the one asked for
   const mjpeg = protocol === 'mjpeg';
+  const other = fallbackProtocol(protocol, camera.protocols);
 
   useEffect(() => {
     if (!protocol) return;
@@ -155,9 +205,13 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       // (the last one closed first, else switching could hold both places for a moment)
       await afterClosed();
       if (!alive) return;
-      const s = await openStream(camera.id, protocol);
-      if (!alive) return;
+      const s = await openStream(camera.id, protocol, detections);
       const url = streamUrl(s.url, brokerHost());
+      if (!alive) {
+        // (the view went meanwhile: its place given back)
+        if (!blockedHere(url)) closed(() => giveBack(s, url));
+        return;
+      }
       if (blockedHere(url))
         return failed(tr("This page is open over https, the browser doesn't load the camera's picture over plain http. Open MowBite over http or use the app."));
       if (s.protocol === 'webrtc') {
@@ -177,7 +231,9 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       } else return failed(unknownProtocol(s.protocol));
       if (!alive) shut();
     })().catch((e) => {
-      if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
+      if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED' && other) {
+        if (alive) setFallback(other);
+      } else if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
         failed(cameraReason(e.data.reason as string | undefined, e.data.message as string | undefined));
       else if (e instanceof RpcError) failed(rpcErrorText(e));
       else {
@@ -189,13 +245,14 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       alive = false;
       shut();
     };
-  }, [camera.id, protocol, tries]);
+  }, [camera.id, other, protocol, tries, detections]);
 
   if (!protocol) return <Note text={unknownProtocol(camera.protocols.join(', '))} />;
   const again = (
     <button
       onClick={() => {
         setShown({phase: 'connecting'});
+        setFallback(null);
         setTries(tries + 1);
       }}
     >

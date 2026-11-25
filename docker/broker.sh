@@ -14,21 +14,26 @@ if [ -n "$MOWER_MQTT_USER$MOWER_MQTT_PASSWORD" ]; then
   )
 fi
 
-# the broker runs on the mower: localhost with host networking, otherwise the docker gateway
+# the broker runs on the mower: localhost with host networking, otherwise the docker gateway. one set in
+# MOWER_MQTT_HOST is the only one, the login isn't handed to another
 find_broker() {
-  for h in $MOWER_MQTT_HOST 127.0.0.1 host.docker.internal $(ip route | awk '/^default/ {print $3; exit}'); do
+  # shellcheck disable=SC2046
+  if [ -n "$MOWER_MQTT_HOST" ]; then set -- "$MOWER_MQTT_HOST"; else set -- 127.0.0.1 host.docker.internal $(ip route | awk '/^default/ {print $3; exit}'); fi
+  for h; do
     nc -z -w 2 "$h" "$PORT" 2>/dev/null && echo "$h" && return
   done
 }
 
 # what MowBite OS does itself, so the container's scripts leave it be: os_does <host> schedule (it has schedule.get) or
 # params (system.info names mowbite-os: it keeps its parameters). asked every 10 minutes at most, in /tmp/os for all of
-# the scripts. without an answer what was known stays, before the first one it's taken for OpenMower
+# the scripts and in /data/os for after a restart. without an answer what was known last stays (before any, it's taken
+# for OpenMower) and it's asked again a minute later
 os_does() {
-  if [ -z "$(find /tmp/os -mmin -10 2>/dev/null)" ]; then
+  if [ "$(date +%s)" -ge "$(cat /tmp/os.next 2>/dev/null || echo 0)" ]; then
     _m=$(mower_rpc "$1" "$RPC_METHODS" '[]' 10 | tr -d ' \t\n')
     if [ -z "$_m" ]; then
-      if [ -f /tmp/os ]; then touch /tmp/os; else : > /tmp/os; fi
+      [ -f /tmp/os ] || cp /data/os /tmp/os 2>/dev/null || : > /tmp/os
+      echo $(($(date +%s) + 60)) > /tmp/os.next
     else
       _t=$(mktemp /tmp/os.XXXXXX)
       {
@@ -39,6 +44,8 @@ os_does() {
           ;;
         esac
       } > "$_t" && mv "$_t" /tmp/os
+      cmp -s /tmp/os /data/os || { cp /tmp/os /data/os.$$ 2>/dev/null && mv /data/os.$$ /data/os; }
+      echo $(($(date +%s) + 600)) > /tmp/os.next
     fi
   fi
   grep -qx "$2" /tmp/os 2>/dev/null
@@ -52,7 +59,7 @@ mower_rpc() {
   # a subshell has the same $$: a random part, two calls in the same second don't take each other's answer
   _id="mowbite-$$-$(date +%s)-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
   _out=$(mktemp)
-  mosquitto_sub -h "$1" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_ERROR" -W "${4:-15}" > "$_out" 2>/dev/null &
+  mosquitto_sub -h "$1" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -W "${4:-15}" > "$_out" 2>/dev/null &
   _sub=$!
   sleep 1
   mosquitto_pub -h "$1" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \

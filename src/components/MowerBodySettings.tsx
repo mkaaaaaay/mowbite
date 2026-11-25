@@ -4,6 +4,7 @@ import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {
   autoOutlineModel,
+  measuredWhere,
   BODY_SETTINGS,
   bodyFrom,
   loadPlannerSettings,
@@ -18,6 +19,8 @@ import {
   outsideLimits,
   plannerOutline,
   saveGeometry,
+  confirmGeometry,
+  unconfirmed,
   savePlannerSettings,
   sizesBody,
   slic3rPlans,
@@ -37,6 +40,7 @@ import {saveSettings, settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
 import {ANTENNA_LABELS, useAntennaFields} from './AntennaFields';
+import {useJobAsk} from './AskSheet';
 import {MowerSketch} from './MowerSketch';
 
 // The mower's sizes for the MowBite Planner on the mower (planner.settings): it keeps the body clear of the edges in
@@ -54,10 +58,10 @@ const LABELS: Record<BodySetting, string> = {
 };
 
 // the other sizes MowBite OS may name in a refusal
-const GEOMETRY_LABELS: Record<string, string> = {...LABELS, robot_outline: 'Outline of the body', ...ANTENNA_LABELS};
+const GEOMETRY_LABELS: Record<string, string> = {...LABELS, robot_outline: 'Outline of the body', track: 'Track of the drive wheels', ...ANTENNA_LABELS};
 
 // why MowBite OS didn't take the sizes (robot.geometry.set's reasons), in words; anything else as for any card
-function geometryError(e: unknown): string {
+export function geometryError(e: unknown): string {
   const d = e instanceof RpcError ? e.data : undefined;
   if (!d || typeof d.reason !== 'string' || d.reason === 'HOLD' || d.event) return answerError(e);
   const key = typeof d.key === 'string' ? d.key : '';
@@ -76,6 +80,14 @@ function geometryError(e: unknown): string {
       return tr("{what} comes with the mower's platform, it can't be changed here.", {what});
     case 'INVALID_VALUE':
       return tr('{what} is not a valid value.', {what});
+    case 'WHEELS_OUTSIDE': {
+      const [track, tread, radius] = [d.track, d.wheel_width, d.wheel_radius];
+      if (typeof track !== 'number' || typeof tread !== 'number' || typeof radius !== 'number') return tr('The body has to cover the drive wheels from above.');
+      return tr('The body has to cover the drive wheels from above: at least {width} cm wide and {reach} cm from the rear axle to the front and to the back.', {
+        width: cmText(track + tread),
+        reach: cmText(radius),
+      });
+    }
   }
   // UNKNOWN_KEY, INVALID_REQUEST: a mistake of the app, in the OS's words
   return tr('The mower did not take the sizes: {why}', {why: (e as RpcError).message});
@@ -117,6 +129,7 @@ export function NoSizesWarning() {
   const settings = usePlannerSettings();
   const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const [state, setState] = useState<{busy?: boolean; error?: string}>({});
+  const {ask, sheet} = useJobAsk();
   const known = settings?.settings;
   if (!known?.robot_width || !known.robot_front || !known.robot_rear || slic3rPlans(settings) || bodyFrom(settings)) return null;
   if (known.robot_width.settable === false) return null;
@@ -129,6 +142,7 @@ export function NoSizesWarning() {
     if (known.blade_ahead) changes.blade_ahead = own.bladeAhead;
     if (known.blade_offset) changes.blade_offset = own.bladeOffset;
     if (known.robot_outline && own.outline) changes.robot_outline = grownOutline(own.outline, OUTLINE_LEEWAY);
+    if (!(await ask())) return;
     setState({busy: true});
     try {
       await savePlannerSettings(changes);
@@ -162,6 +176,7 @@ export function NoSizesWarning() {
         {own ? tr('Or set them in the settings') : tr('Set them in the settings')}
       </button>
       {state.error && <span>{state.error}</span>}
+      {sheet}
     </div>
   );
 }
@@ -182,6 +197,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const [outline, setOutline] = useState<Outline | null>(() => outlineFrom(source));
   // the turn radius of the model just picked, saved with the sizes
   const [turn, setTurn] = useState<number | null>(null);
+  const {ask, sheet} = useJobAsk();
   // the stored sizes arrive after the first render or change elsewhere (the warning's button, another device): each
   // field follows them as long as nothing is typed in it, saving would clear what they don't show
   const [shown, setShown] = useState(source);
@@ -202,6 +218,8 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
 
   const known = source ?? {};
   const loaded = !!source;
+  // the tread of the drive wheels, MowBite OS's own (not to be set)
+  const treadText = onOs ? cmText(geo?.settings.wheel_width?.value) : '';
   const keys = BODY_SETTINGS;
   // what the form would make of it: the sketch follows the fields while typing
   const metres = (key: BodySetting) => cmMetres(form[key]);
@@ -225,7 +243,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const missing = loaded ? keys.filter((k) => !known[k]) : [];
   const model = other ? '' : (modelOf(sizesOf(form)) ?? '');
   // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
-  const offered = !outline ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
+  const offered = !outline && !onOs ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
   // a planner from before the body check takes robot_width as "the lines are walls": its centre then keeps half the
   // width off them all the way round, so the width only goes to one that knows the rest too. One that has them from
   // elsewhere (MowBite OS) doesn't take them
@@ -250,6 +268,11 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     setOutline(outlineFrom(stored));
   };
 
+  // a size not taken: read again for the next try at a newer version, what's typed stays
+  const failed = (e: unknown) => {
+    if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
+    setState({error: geometryError(e)});
+  };
   const save = async (o: Outline | null = outline) => {
     const changes: Record<string, unknown> = {};
     for (const key of keys) {
@@ -273,9 +296,9 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       // the planner keeps one it takes from mower_logic as its own, MowBite OS only what differs from the platform's
       if ((!onOs && !s.stored) || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
-    // the contour only to a planner that knows it, null is the rectangle again
+    // the contour only to a planner that knows it, null is the rectangle again. MowBite OS keeps its own
     const send = o ? plannerOutline(o) : null;
-    if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
+    if (!onOs && known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }
     if (onOs) return saveOnOs(changes);
@@ -285,6 +308,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setState({saved: true});
       return;
     }
+    if (!(await ask())) return;
     setState({busy: true});
     try {
       const s = await savePlannerSettings(changes);
@@ -321,6 +345,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setState({saved: true});
       return;
     }
+    if (!(await ask())) return;
     setState({busy: true});
     try {
       if (toOs) {
@@ -333,14 +358,32 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setTurn(null);
       setState({saved: true});
     } catch (e) {
-      // read again for the next try, what's typed stays
-      if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
-      setState({error: geometryError(e)});
+      failed(e);
+    }
+  };
+
+  // MowBite OS's setup program asks for every size set or confirmed once: confirmed as stored, nothing typed pending
+  const open = onOs ? unconfirmed(geo).filter((k) => k in GEOMETRY_LABELS) : [];
+  const openText = open
+    .map((k) => {
+      const v = geo?.settings[k]?.value;
+      return typeof v === 'number' ? `${tr(GEOMETRY_LABELS[k])} ${cmText(v)} cm` : tr(GEOMETRY_LABELS[k]);
+    })
+    .join(', ');
+  const confirm = async () => {
+    if (!geo) return;
+    setState({busy: true});
+    try {
+      setGeo(await confirmGeometry(geo.version, open));
+      setState({});
+    } catch (e) {
+      failed(e);
     }
   };
 
   // the rectangle for a model's sizes: the planner checks it again and the outline doesn't come back on its own
   const toRectangle = async () => {
+    if (!(await ask())) return;
     setState({busy: true});
     try {
       const s = await savePlannerSettings({robot_outline: null});
@@ -354,7 +397,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
 
   const set = (key: keyof Form, value: string) => {
     setForm({...form, [key]: value});
-    if (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear') setOutline(null);
+    if (!onOs && (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear')) setOutline(null);
     setOther(false);
     setTurn(null);
     setState({});
@@ -369,7 +412,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     const next = {...form};
     for (const [field, size] of MODEL_FIELDS) next[field] = cmText(m.sizes[size]);
     setForm(next);
-    setOutline(m.outline ?? null);
+    if (!onOs) setOutline(m.outline ?? null);
     setState({picked: true});
   };
 
@@ -396,7 +439,11 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       {sketch && <MowerSketch body={sketch} antenna={antenna} />}
       {outline && (
         <p className={styles.dim}>
-          {outlineModel ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.' : 'Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
+          {onOs
+            ? tr('The outline MowBite OS has for this mower.')
+            : outlineModel
+              ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured {where}. It counts for this model only.' : 'Outline of the {model}, measured {where}. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label, where: measuredWhere(outlineModel)})
+              : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
         </p>
       )}
       {taken && (
@@ -441,6 +488,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           </label>
         ))}
       </div>
+      {treadText && <p className={styles.dim}>{tr("Drive wheels: tread {cm} cm wide, from the mower's platform. The body has to cover the wheels from above.", {cm: treadText})}</p>}
       {missing.length > 0 && settings && (
         <p className={styles.error}>
           {tr('The planner on the mower is older and does not know all sizes yet ({which}), it needs a new image.', {
@@ -472,7 +520,16 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         )}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
+      {open.length > 0 && (
+        <div className={local.actions} data-unconfirmed={open.join(' ')}>
+          <span className={styles.dim}>{tr('Not confirmed yet: {sizes}', {sizes: openText})}</span>
+          <button className={styles.pillButton} onClick={() => void confirm()} disabled={state.busy || JSON.stringify(form) !== JSON.stringify(formFrom(source))}>
+            {tr('These sizes are right')}
+          </button>
+        </div>
+      )}
       {antennaFields}
+      {sheet}
     </section>
   );
 }

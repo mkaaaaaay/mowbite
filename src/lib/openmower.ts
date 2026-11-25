@@ -21,20 +21,44 @@ export const TOPIC = {
   plannerProgress: 'mowbite/planner/progress',
   // how far the MowBite Planner's recording for a calibration got (retained, see lib/calibration)
   plannerCalib: 'mowbite/planner/calib',
-  // MowBite OS's updater (its host): what it does and has, and whether it's there (both retained, see lib/osUpdate)
+  // MowBite OS's updater (its host): what it does and has, and whether it and MowBite OS are there (both retained, see lib/osUpdate, lib/hostOs)
   updateStatus: 'mowbite/update/status',
   hostStatus: 'mowbite/host/status',
   // whether the next start of the schedule would go as things are now (retained, empty without one to come)
   scheduleReady: 'mowbite/schedule/ready',
+  // MowBite OS's setup program (retained where the platform has a step list, see lib/setup)
+  setup: 'setup/json',
 } as const;
+
+// the caster's port when the access names none (ntrip.set)
+export const NTRIP_PORT = 2101;
+
+// the name MowBite OS answers system.info with
+export const MOWBITE_OS = 'mowbite-os';
 
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',
   // what runs on the mower, MowBite OS only (lib/mowerOs)
   systemInfo: 'system.info',
+  // the map checked after MowBite OS went back to an older backup of its data, mowing by itself is free again (api 58)
+  dataRollbackConfirm: 'data.rollback.confirm',
+  // docks by the dock camera alone from in front of the station, without map or position (MowBite OS, where it lists it)
+  dockingTest: 'docking.test',
+  // home from idle away from the station, MowBite OS where it docks by itself
+  dockingStart: 'docking.start',
+  // MowBite OS's calibration drive: what stands in its way here, its start and its stop (listed while its program
+  // runs), and the last result (lib/osCalibration)
+  calibrationCheck: 'calibration.check',
+  calibrationStart: 'calibration.start',
+  calibrationAbort: 'calibration.abort',
+  calibrationResult: 'calibration.result',
+  // takes values of the last drive into robot.geometry (api 67)
+  calibrationApply: 'calibration.apply',
   // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
   systemStats: 'system.stats',
+  // min, mean and max of the number sensors per step over 48 h, MowBite OS where it lists it (hooks/useSensorHistory)
+  sensorsHistory: 'sensors.history',
   // the lights on the mower by state, MowBite OS only (lib/light)
   lightGet: 'light.get_profile',
   lightSet: 'light.set_profile',
@@ -47,12 +71,34 @@ export const RPC = {
   soundVolume: 'sound.volume',
   soundUpload: 'sound.upload',
   soundDelete: 'sound.delete',
+  // the access to the caster for corrections, MowBite OS only; set and delete where it takes them over rpc (lib/ntrip)
+  ntripGet: 'ntrip.get',
+  ntripSet: 'ntrip.set',
+  ntripDelete: 'ntrip.delete',
   // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
   cameraList: 'camera.list',
   cameraStream: 'camera.stream',
+  // a camera locked after a crash while it ran, back on (api 64)
+  cameraUnlock: 'camera.unlock',
+  // what the obstacle sensors saw, kept on the mower with a photo each, where the platform has such a sensor (lib/obstacles)
+  obstaclesList: 'vision.obstacles.list',
+  obstaclesImage: 'vision.obstacles.image',
+  obstaclesClear: 'vision.obstacles.clear',
   // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
   geometry: 'robot.geometry.get',
   geometrySet: 'robot.geometry.set',
+  // the setup program: its state, a step begun, answered, kept going, skipped or stopped, all taken back, and a step's image
+  setupGet: 'setup.get',
+  setupStart: 'setup.start',
+  setupAnswer: 'setup.answer',
+  setupKeep: 'setup.keep',
+  setupSkip: 'setup.skip',
+  setupAbort: 'setup.abort',
+  setupReset: 'setup.reset',
+  setupImage: 'setup.image',
+  // the mowers the image runs as and the choice of one, MowBite OS starts again as it (api 57)
+  setupPlatforms: 'setup.platforms',
+  setupPlatformSet: 'setup.platform.set',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
   // MowBite OS's own updates, answered by its host (lib/osUpdate)
@@ -60,6 +106,15 @@ export const RPC = {
   updateStart: 'update.start',
   updateAbort: 'update.abort',
   updateRollback: 'update.rollback',
+  // starts MowBite OS again, answered by its host too (lib/hostOs)
+  hostRestartOs: 'host.restart_os',
+  hostConfirmStart: 'host.confirm_start',
+  // a Tron restarted into the USB mode of its loader, for the installer on a PC (lib/hostOs)
+  hostUsbMode: 'host.usb_mode',
+  hostWifiScan: 'host.wifi_scan',
+  hostWifiSet: 'host.wifi_set',
+  // root's login over ssh, on a mower whose host manages it (lib/hostOs)
+  hostSsh: 'host.ssh',
   // MowBite OS's own schedule (lib/schedule), the container's elsewhere
   scheduleGet: 'schedule.get',
   scheduleSet: 'schedule.set',
@@ -75,6 +130,7 @@ export const RPC = {
   statsGet: 'stats.get',
   statsPartDone: 'stats.part_done',
   statsPartDue: 'stats.part_due',
+  statsStops: 'stats.stops',
   updateCheck: 'update.check',
   updateSetAuto: 'update.set_auto',
   updateSetChannel: 'update.set_channel',
@@ -83,12 +139,22 @@ export const RPC = {
   events: 'events.history',
   jobs: 'position.history.list',
   jobTrack: 'position.history',
+  // deleting them on the mower, MowBite OS only: all days, and all tracks but the one of the running job
+  eventsDelete: 'events.history.delete',
+  jobTrackDelete: 'position.history.delete',
   // the mowing plan for an area straight from the mower's planner
   areaPlan: 'mowing.plan',
   // the area settings this mower keeps in map.json
   areaProperties: 'map.area_properties',
   // the last warnings and errors ROS logged, kept in memory by the mower
   logs: 'logs.recent',
+  // MowBite OS's journal and the incidents kept from it (lib/incidents)
+  journalStatus: 'journal.status',
+  incidentsList: 'incidents.list',
+  incidentsGet: 'incidents.get',
+  incidentsDownload: 'incidents.download',
+  incidentsMark: 'incidents.mark',
+  incidentsDelete: 'incidents.delete',
   // the MowBite Planner's settings (with OM_PLANNER=mowbite only): every setting with value, default and range,
   // and changing them (null: back to the default)
   plannerSettings: 'planner.settings',
@@ -125,6 +191,8 @@ export const ACTION = {
   goHome: 'mower_logic:mowing/abort_mowing',
   // while leaving the dock (and waiting for gps after it): stops there, the mower stays idle where it is
   abortUndocking: 'mower_logic:undocking/abort_undocking',
+  // while heading home or docking: stops there, the mower stays idle where it is
+  abortDocking: 'mower_logic:docking/abort_docking',
   skipArea: 'mower_logic:mowing/skip_area',
   // the rest of the outline pass or block of lanes being mowed, the mower goes on with the next one
   skipPath: 'mower_logic:mowing/skip_path',
@@ -139,6 +207,43 @@ export const ACTION = {
 // MowBite OS's parts whose update waits for the mower idle in the dock and restarts MowBite OS (masterplan 3.5), the
 // others switch at any time
 export const UPDATE_GATED = ['os', 'planner'];
+
+// how far off the line straight out of the station the docking test may start (MowBite OS's dock camera)
+export const DOCK_TEST_REACH = {cm: 5, deg: 20};
+// how many dockings in a row a docking test takes (runs), from this api of MowBite OS on; before it only one
+export const DOCK_TEST_RUNS = 10;
+export const DOCK_TEST_RUNS_API = 37;
+// camera.stream switches the boxes of what the mower recognises on and off per stream
+export const CAMERA_DETECTIONS_API = 49;
+// map.replace takes the SHA-256 of the map/json text the app last read and turns the map down (-32001) when another one
+// was stored meanwhile
+export const MAP_CHECK_API = 53;
+// from this api on the cutting height, global and of an area, counts at once, also while the blade runs
+export const HEIGHT_AT_ONCE_API = 60;
+// host.wifi_set takes hidden for a WLAN that doesn't send its name
+export const WIFI_HIDDEN_API = 63;
+// camera.list's reason for a camera locked after a crash while it ran, camera.unlock lets it stream again (api 64)
+export const CAMERA_LOCKED = 'LOCKED_AFTER_CRASH';
+// a Tron opens its setup WLAN after the trial by a gesture at its buttons (setup_wifi in the host's status)
+export const SETUP_WIFI_API = 64;
+// the gesture: On/OK pressed this often within this many seconds, the setup WLAN then open this long
+export const SETUP_WIFI_PRESSES = 5;
+export const SETUP_WIFI_WITHIN_S = 5;
+export const SETUP_WIFI_MINUTES = 30;
+// root's password that host.ssh takes, in characters, without control characters
+export const SSH_PASSWORD = {min: 8, max: 128};
+
+// a Tron as system.info names its platform (its driver's name): the one whose loader has a USB mode and whose buttons
+// open its setup WLAN. how long the host may take to answer the restart into the USB mode
+export const TRON_PLATFORM = 'airseekers_tron';
+export const USB_MODE_MS = 30000;
+
+// MowBite OS calibrates as IDLE with this sub state, the phases its CALIBRATION events name in their order
+export const CALIBRATING = 'CALIBRATING';
+export const CALIBRATION_PHASES = ['start', 'align', 'stand', 'line', 'spin_left', 'spin_right', 'evaluate', 'end'] as const;
+
+// obstacle_mode by its names in vision.obstacles.list
+export const OBSTACLE_MODES = ['off', 'show', 'stop', 'avoid'];
 
 // above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
 export const DOCKED_VOLTAGE = 5;
@@ -158,7 +263,7 @@ export const COMMAND: Record<string, {method: string; params?: Record<string, un
   [ACTION.skipArea]: {method: 'mowing.skip_area'},
   [ACTION.skipPath]: {method: 'mowing.skip_path'},
   [ACTION.abortUndocking]: {method: 'undocking.abort'},
-  'mower_logic:docking/abort_docking': {method: 'docking.abort'},
+  [ACTION.abortDocking]: {method: 'docking.abort'},
   [ACTION.startRecording]: {method: 'recording.start'},
   [ACTION.recording('exit_recording_mode')]: {method: 'recording.exit'},
   [ACTION.recording('start_recording')]: {method: 'recording.ring_start'},
@@ -186,6 +291,10 @@ export const PARAM = {
   // where the gps antenna sits from the point the mower turns around, xbot_positioning takes it out of the pose
   antennaX: '/xbot_positioning/antenna_offset_x',
   antennaY: '/xbot_positioning/antenna_offset_y',
+  // OpenMower's sounds (1.5.0 on, not in its legacy mode): the file is the language's sounds_<code>.yaml
+  soundEnabled: '/ll/services/sound/enabled',
+  soundVolume: '/ll/services/sound/volume',
+  soundConfigFile: '/ll/services/sound/config_file',
 } as const;
 
 // mower_logic's own defaults (MowerLogic.cfg, the same in 1.4.0 and edge). params/json is sent when xbot_monitoring
@@ -212,3 +321,19 @@ export const PATHS = {
 
 // the source of the mower logic, linked next to events so you can see where they come from
 export const LOGIC_SOURCE = 'https://github.com/ClemensElflein/open_mower_ros/blob/main/src/mower_logic/src/mower_logic/';
+
+// values for mower_params.yaml by their path ("ll/services/sound/volume"), as yaml to enter by hand
+export function paramsYaml(pairs: [string, string | number | boolean][]): string {
+  const tree: Record<string, unknown> = {};
+  for (const [path, value] of pairs) {
+    const keys = path.replace(/^\//, '').split('/');
+    let at = tree;
+    keys.slice(0, -1).forEach((k) => (at = (at[k] ??= {}) as Record<string, unknown>));
+    at[keys[keys.length - 1]] = value;
+  }
+  const yaml = (o: Record<string, unknown>, ind = ''): string =>
+    Object.entries(o)
+      .map(([k, v]) => (typeof v === 'object' ? `${ind}${k}:\n${yaml(v as Record<string, unknown>, ind + '  ')}` : `${ind}${k}: ${v}\n`))
+      .join('');
+  return yaml(tree);
+}

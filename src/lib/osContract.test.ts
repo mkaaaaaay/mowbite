@@ -2,52 +2,49 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {sensorId} from '@/hooks/useMowerSensors';
 import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
-import {COMMAND, RPC} from './openmower';
-import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
+import {COMMAND, DOCK_TEST_RUNS, RPC} from './openmower';
+import {DOCK_CAUSES, DOCK_DETAILS, DOCK_TEST_CAUSES, EMERGENCY_BITS, GUIDED, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
+import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
+import {KIND_NAMES, PHOTO_PIECE} from './obstacles';
 import {SITUATION_NAMES} from './sound';
+import {SHAPE_KINDS, SHAPE_LIMITS} from './robotShape';
+import {IMAGE_BYTES, KEEP_LIMIT_MS, KEEP_MS, OPEN_SCREENS, ROLE_NAMES, SAFETY_WHY, SKIP_TEXT} from './setup';
 import {PARTS} from './stats';
+import {ACTIVITIES} from './stops';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
 // there over os-api.schema.json and put its commit and checksum here, the tests then say which words are missing
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '622cc8c07e9b317eb583eab192a503d719e20d27',
-  sha256: 'aed5cf855c5ef3c2716654ab53d6b1340056c4687d91eaff68267c399f84d24c',
+  commit: '27cadf6003446088540490440cdd151619ed9155',
+  sha256: '71e53eeafbad1c0e81eb69022a73e8691e862692f0dcab039e504c4d85931eb2',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
 type Rating = {severity: string; resume: string; when?: Record<string, string | number | boolean>[]};
 const api = JSON.parse(raw.toString()) as {
   'x-api': number;
+  'x-api-break': number;
   'x-reasons': Record<string, Record<string, Rating>>;
   'x-emergency-bits': {bit: number; name: string}[];
   'x-methods': Record<string, unknown>;
-  'x-sensors': Record<string, {name: string}>;
+  'x-sensors': Record<string, {name: string; key: string}>;
   'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
   'x-schedule-log': Record<string, unknown>;
+  'x-setup': {limits: Record<string, number>; open: string[]; shape_kinds: string[]; roles: Record<string, {texts: Record<string, {name: string}>}>};
   $defs: Record<string, unknown>;
 };
 
 // the OS's methods the app doesn't offer (yet), each with why. a new method in the contract stays red until the app
 // calls it or it is put here
 const NOT_OFFERED: Record<string, string> = {
-  'calibration.start': "to come: the OS's calibration assistant (masterplan 40 (6), after the way home without planner)",
-  'calibration.check': 'as calibration.start',
-  'calibration.abort': 'as calibration.start',
-  'calibration.result': 'as calibration.start',
-  'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 12)',
-  'host.restart_os': "to come: MowBite OS's state while it's down and starting it again (mowbite/host/status)",
-  'events.history.delete': 'as position.history.delete',
-  'position.history.delete': 'to come: deleting the track (location data) and the events in the settings, low priority',
-  'ntrip.get': 'to come: NTRIP set up without a terminal (masterplan 20, E1), the access never in logs or diagnosis files',
-  'ntrip.set': 'as ntrip.get',
-  'ntrip.delete': 'as ntrip.get',
   'sensors.list': 'the sensors come over MQTT (sensor_infos/json)',
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
@@ -87,9 +84,11 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     expect(createHash('sha256').update(raw).digest('hex')).toBe(PINNED.sha256);
   });
 
-  it('lies in the api range public/app.json gives (osApi in package.json)', () => {
-    const {min, max} = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')).osApi;
+  it('fits the api public/app.json gives (osApi in package.json)', () => {
+    const {min, max, break: brk} = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')).osApi;
+    expect(brk).toBe(api['x-api-break']);
     expect(min).toBeLessThanOrEqual(api['x-api']);
+    // an OS that doesn't give its break yet still goes by max
     expect(max).toBeGreaterThanOrEqual(api['x-api']);
   });
 
@@ -101,6 +100,37 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('has words for every reason of every event', () => {
     for (const [type, reasons] of Object.entries(groups))
       for (const reason of Object.keys(reasons)) expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
+  });
+
+  it("has the catalog's words for each cause and detail of the dock camera and the docking test, in german too", () => {
+    type Texts = Record<string, Record<'en' | 'de', {name: string; help: string; fix: string}>>;
+    for (const type of ['DOCKING_RETRY', 'DOCKING_FAILED']) {
+      const props = (api.$defs[`event.${type}`] as {properties: Record<string, {enum: string[]; 'x-texts'?: Texts}>}).properties;
+      const causes = props.cause['x-texts']!;
+      // the planner's causes are reasons of their own
+      expect(props.cause.enum.filter((c) => !causes[c] && !reasonNames.has(c)), type).toEqual([]);
+      for (const [c, t] of Object.entries(causes)) {
+        expect(DOCK_CAUSES[c] ?? DOCK_TEST_CAUSES[c], c).toEqual({help: t.en.help, fix: t.en.fix});
+        expect([de[t.en.help], de[t.en.fix]], c).toEqual([t.de.help, t.de.fix]);
+        const name = pick(REASONS.dock_failed, {type, reason: 'dock_failed', cause: c})!.en;
+        expect(de[name]?.toLowerCase(), c).toBe(t.de.name.toLowerCase());
+      }
+      const details = props.detail['x-texts']!;
+      expect(Object.keys(DOCK_DETAILS).sort(), type).toEqual(Object.keys(details).sort());
+      for (const [d, t] of Object.entries(details)) {
+        const want = Object.fromEntries((['name', 'help', 'fix'] as const).flatMap((f) => (t.en[f] ? [[f, t.en[f]]] : [])));
+        expect(DOCK_DETAILS[d], d).toEqual(want);
+        for (const f of ['name', 'help', 'fix'] as const) if (t.en[f]) expect(de[t.en[f]], `${d} ${f}`).toBe(t.de[f]);
+      }
+    }
+  });
+
+  it('says what led the mower in, for each guide', () => {
+    const guides = (api.$defs['event.DOCKED'] as {properties: {guide: {enum: string[]}}}).properties.guide.enum;
+    for (const guide of guides) {
+      expect(pick(EVENTS.DOCKED.variants, {guide})?.when, guide).toEqual({guide});
+      expect(de[GUIDED[guide]], guide).toBeTruthy();
+    }
   });
 
   it('says why an area was recorded without the exact edge, for each reason the OS gives', () => {
@@ -157,6 +187,10 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     }
   });
 
+  it("goes by OpenMower's id for each own key of a sensor", () => {
+    for (const [id, s] of Object.entries(api['x-sensors'])) expect(sensorId(s.key), id).toBe(sensorId(id));
+  });
+
   it('has every sensor name in german, a name without small letters (NTRIP) stays as it is', () => {
     const names = Object.values(api['x-sensors']).map((s) => s.name);
     expect(names.filter((n) => /[a-z]/.test(n) && !de[n])).toEqual([]);
@@ -191,9 +225,56 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     expect(parts.filter((p) => !PARTS[p] || !de[PARTS[p].label])).toEqual([]);
   });
 
+  it('names every activity of the stop book, in german too', () => {
+    type Last = {properties: {last: {items: {properties: {activity: {enum: string[]}}}}}};
+    const activities = (api.$defs['stats.stops.result'] as Last).properties.last.items.properties.activity.enum;
+    expect(activities.filter((a) => !ACTIVITIES[a] || !de[ACTIVITIES[a]])).toEqual([]);
+  });
+
   it('names every sound situation, in german too', () => {
     const situations = (api.$defs['sound.play.params'] as {properties: {situation: {enum: string[]}}}).properties.situation.enum;
     expect(situations.filter((n) => !SITUATION_NAMES[n] || !de[SITUATION_NAMES[n]])).toEqual([]);
+  });
+
+  it('downloads incidents in pieces as large as the OS gives, and keeps a note as short as it takes', () => {
+    const defs = api.$defs as Record<string, {properties: Record<string, {maximum?: number; description: string}>}>;
+    expect(defs['incidents.download.params'].properties.size.maximum).toBe(PIECE_BYTES);
+    expect(defs['incidents.mark.params'].properties.note.description).toContain(`at most ${MAX_NOTE} characters`);
+  });
+
+  it("takes an obstacle's photo in pieces as large as the OS gives, and has a sign and words for each kind", () => {
+    const defs = api.$defs as Record<string, {properties: Record<string, {maximum?: number; enum?: string[]; items?: {properties: Record<string, {enum: string[]}>}}>}>;
+    expect(defs['vision.obstacles.image.params'].properties.size.maximum).toBe(PHOTO_PIECE);
+    const kinds = defs['vision.obstacles.list.result'].properties.obstacles.items!.properties.kind.enum;
+    expect([...kinds].sort()).toEqual(Object.keys(KIND_NAMES).sort());
+    for (const k of kinds) expect(de[KIND_NAMES[k as keyof typeof KIND_NAMES]], k).toBeTruthy();
+  });
+
+  it('offers as many dockings in a row for the docking test as the OS takes', () => {
+    const {runs} = (api.$defs['docking.test.params'] as {properties: {runs: {description: string}}}).properties;
+    expect(runs.description.startsWith(`1 to ${DOCK_TEST_RUNS} `)).toBe(true);
+  });
+
+  it("takes the setup program's images, notes, screens and shapes within the OS's limits", () => {
+    const {limits, open, shape_kinds} = api['x-setup'];
+    expect([IMAGE_BYTES, SKIP_TEXT]).toEqual([limits.image_bytes, limits.skip_text]);
+    // the lock of the safety: a text for each why but no measurement (the program's own) and each cause without a step
+    const safety = (api.$defs.setup as {properties: {safety: {properties: {why: {enum: (string | null)[]}}}}}).properties.safety.properties;
+    const whys = safety.why.enum.filter((w): w is string => !!w && w !== 'NO_SAFETY_MEASUREMENT');
+    for (const w of [...whys, 'UNREADABLE']) expect([SAFETY_WHY[w], de[SAFETY_WHY[w]]], w).not.toContain(undefined);
+    // setup.keep well within the second the OS waits
+    expect(KEEP_LIMIT_MS).toBe(limits.keep * 1000);
+    expect(KEEP_MS).toBeLessThanOrEqual(KEEP_LIMIT_MS / 2);
+    expect(SHAPE_LIMITS).toEqual({parts: limits.shape_parts, partPoints: limits.shape_part_points, points: limits.shape_points});
+    expect([...SHAPE_KINDS].sort()).toEqual([...shape_kinds].sort());
+    expect(Object.keys(OPEN_SCREENS).sort()).toEqual([...open].sort());
+    for (const {label} of Object.values(OPEN_SCREENS)) expect(de[label], label).toBeTruthy();
+  });
+
+  it('names every role of an input as the OS does', () => {
+    const {roles} = api['x-setup'];
+    expect(Object.keys(ROLE_NAMES).sort()).toEqual(Object.keys(roles).sort());
+    for (const [k, name] of Object.entries(ROLE_NAMES)) expect([name, de[name]], k).toEqual([roles[k].texts.en.name, roles[k].texts.de.name]);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

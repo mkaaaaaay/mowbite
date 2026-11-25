@@ -10,6 +10,7 @@ import type {Run} from '@/lib/events';
 import {gpsLog, gpsLogSince} from '@/lib/gpslog';
 import {inEnglish, tr} from '@/lib/i18n';
 import {loadKept} from '@/lib/mowerParams';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {loadPlannerSettings, type PlannerSettings} from '@/lib/mowerBody';
 import {apiBase, mowerFetch} from '@/lib/mowers';
 import {RPC} from '@/lib/openmower';
@@ -28,6 +29,7 @@ const quiet = <T,>(p: Promise<T>, fallback: T) => p.catch(() => fallback);
 export function DiagnosisDownload({run}: {run: Run}) {
   const params = useMowerParams();
   const map = useMowerMap();
+  const os = useMowbiteOs();
   const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle');
 
   const make = async () => {
@@ -102,7 +104,7 @@ export function DiagnosisDownload({run}: {run: Run}) {
         map,
         planner: planner ? Object.fromEntries(Object.entries(planner.settings).map(([k, s]) => [k, s.value])) : null,
         gps,
-        gpsLimit: numParam(params, PARAM.maxPositionAccuracy) ?? 0.2,
+        gpsLimit: numParam(params, PARAM.maxPositionAccuracy, os) ?? 0.2,
         ros,
         plannerLines: mergePlanner(plannerKept, plannerLog),
         sensors: readSensors(sensorsText),
@@ -110,6 +112,7 @@ export function DiagnosisDownload({run}: {run: Run}) {
         // the same shape as the map the app has (outlines not closed), so the two compare
         startMap: startMap && Array.isArray(startMap.areas) ? openRings(startMap) : null,
         plans,
+        os,
         garden: gardenExport({
           created: Date.now() / 1000,
           appVersion: APP_VERSION,

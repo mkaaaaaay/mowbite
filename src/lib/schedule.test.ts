@@ -17,9 +17,15 @@ import {
   parseRunStop,
   parseSchedule,
   posixTz,
+  refusedText,
+  ScheduleRefused,
   readyText,
   runStopText,
   reachesDark,
+  sameSchedule,
+  scheduleSaver,
+  toggleDay,
+  tzUnreadable,
   SCHEDULE_LOG_TEXT,
   scheduleLogLine,
   scheduleNow,
@@ -96,10 +102,23 @@ describe('parse / serialize', () => {
     const turned = schedule([{...plan([1], '09:00'), fresh: true, angle: 90}, {...plan([4], '09:00'), angle: -45}, {...plan([6], '09:00'), angle: 0}]);
     expect(serializeSchedule(turned)).toContain('plan 1 09:00 fresh=1 angle=90\nplan 4 09:00 angle=-45\nplan 6 09:00 angle=0\n');
     expect(parseSchedule(serializeSchedule(turned)).plans.map((p) => p.angle)).toEqual([90, -45, 0]);
-    expect(parseSchedule('plan 1 09:00 angle=abc\n').plans[0]).toEqual({days: [1], time: '09:00', areas: ['angle=abc']});
+    expect(parseSchedule('plan 1 09:00 angle=abc\n').plans[0]).toEqual({days: [1], time: '09:00', areas: [], more: ['angle=abc']});
     expect(text).toContain('pause 2026-09-30 a,b\n');
     expect(parseSchedule(text)).toEqual(s);
     expect(parseSchedule('pause 2026-09-30 all').pause).toEqual({until: '2026-09-30', areas: 'all'});
+  });
+
+  it("never takes a word with = for the areas, keeps words and lines it doesn't know", () => {
+    const text = 'enabled 1\nplan 1,3 09:00 a,b turn=12.5 end=18:00\nplan 2 10:00 angle=12.5\nrobot nx60i\n';
+    const s = parseSchedule(text);
+    expect(s.plans[0]).toEqual({days: [1, 3], time: '09:00', areas: ['a', 'b'], end: '18:00', more: ['turn=12.5']});
+    expect(s.plans[1].areas).toEqual([]);
+    const back = serializeSchedule(s);
+    expect(back).toContain('plan 1,3 09:00 a,b end=18:00 turn=12.5\n');
+    expect(back).toContain('plan 2 10:00 angle=12.5\n');
+    expect(back).toMatch(/\nrobot nx60i\n$/);
+    // one the plan writes itself goes only once
+    expect(serializeSchedule({...s, plans: [{...s.plans[1], angle: 20}]})).toContain('plan 2 10:00 angle=20\n');
   });
 
   it('drops start times without a day', () => {
@@ -402,6 +421,7 @@ describe('the leftovers in the log', () => {
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'battery', more: '62'})).toBe('Leftovers not mowed, battery only at 62 % after six hours');
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'cold', more: '3.5'})).toBe('Leftovers not mowed, too cold (3.5 °C)');
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'end'})).toBe("Leftovers not mowed, the run's end time had come");
+    expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'off'})).toBe('Leftovers not mowed, switched off meanwhile');
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'MOWING'})).toBe("Leftovers not mowed, the mower wasn't ready");
     expect(scheduleLogLine({t: 0, what: 'leftovers_waiting_battery', detail: '40'})).toBe('Leftovers: waiting for the battery (40 %)');
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'hold'})).toBe('Leftovers not mowed, an update was running');
@@ -514,6 +534,11 @@ describe('when the run going on goes home', () => {
 
 describe('the words the scheduler logs', () => {
   const SH = readFileSync(join(__dirname, '../../docker/scheduler.sh'), 'utf8');
+  // what weather_skip says: forecast, cold
+  const weatherWords = () => {
+    const body = SH.slice(SH.indexOf('weather_skip() {'), SH.indexOf('\n}\n', SH.indexOf('weather_skip() {')));
+    return [...body.matchAll(/echo "?([a-z_]+)/g)].map((m) => m[1]);
+  };
   it('each has a text', () => {
     const sh = SH.split('\n')
       .filter((l) => !l.trim().startsWith('#'))
@@ -522,6 +547,9 @@ describe('the words the scheduler logs', () => {
     // stopped_$why: end, dark, hand
     for (const why of ['end', 'dark', 'hand']) words.add(`stopped_${why}`);
     words.delete('stopped_');
+    // skip_$weather: forecast, cold
+    for (const w of weatherWords()) words.add(`skip_${w}`);
+    words.delete('skip_');
     // with their own texts by the detail
     const own = ['leftovers_skip', 'retry_skip', 'started_by_hand'];
     const missing = [...words].filter((w) => !SCHEDULE_LOG_TEXT[w] && !own.includes(w));
@@ -530,9 +558,22 @@ describe('the words the scheduler logs', () => {
   });
   it('each reason not to start again too', () => {
     const body = SH.slice(SH.indexOf('no_retry() {'), SH.indexOf('\n}\n', SH.indexOf('no_retry() {')));
-    const why = [...body.matchAll(/echo ([a-z_]+); return/g)].map((m) => m[1]);
-    expect(why.length).toBeGreaterThan(6);
-    for (const w of why) expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: w}), w).not.toBe('Not started again');
+    const why = [...body.matchAll(/echo "?([a-z_]+)[ ";]/g)].map((m) => m[1]);
+    expect(why).toContain('clock');
+    expect(why).toContain('battery');
+    // the weather's words, and the start that couldn't be stored
+    for (const w of [...why, ...weatherWords(), 'storage'])
+      expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: w, more: '5'}), w).not.toBe('Not started again');
+  });
+  it('each reason not to mow the leftovers too', () => {
+    const body = SH.slice(SH.indexOf('leftovers_after() {'), SH.indexOf('\n}\n', SH.indexOf('leftovers_after() {')));
+    const why = [...body.matchAll(/log leftovers_skip ([a-z_]+)/g)].map((m) => m[1]);
+    expect(why).toContain('undocked');
+    for (const w of [...why, ...weatherWords()])
+      expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: w, more: '5'}), w).not.toBe("Leftovers not mowed, the mower wasn't ready");
+  });
+  it('says when the weather didn\'t come', () => {
+    for (const w of weatherWords()) expect(scheduleLogLine({t: 0, what: 'weather_unknown', detail: w})).not.toBe('No weather came, started without it');
   });
   it('takes the mower for docked at the voltage the app does', () => {
     const sh = readFileSync(join(__dirname, '../../docker/openmower.sh'), 'utf8');
@@ -574,7 +615,9 @@ describe("MowBite OS's own schedule", () => {
       {days: [6], time: '14:00', areas: [], dark: true, fresh: true},
     ]);
     expect(s).toMatchObject({enabled: true, minBattery: 60, skipRain: true, skipForecast: false, skipCold: true, minTemp: 8});
-    expect(s.os).toEqual({available: true, clockReason: 'clock_jump', sun: answer(3).sun});
+    expect(s.os).toEqual({available: true, reason: null, clockReason: 'clock_jump', sun: answer(3).sun});
+    // not while the map of an older backup waits to be confirmed (api 58)
+    expect(fromOs({...answer(3), available: false, reason: 'data_rollback'}).os).toMatchObject({available: false, reason: 'data_rollback'});
     const back = toOs(s);
     expect(back).toEqual({...answer(3).schedule, plans: [answer(3).schedule.plans[0], {...answer(3).schedule.plans[1], areas: []}]});
     // its sun by the schedule's clock
@@ -606,6 +649,18 @@ describe("MowBite OS's own schedule", () => {
     }
   });
 
+  it("says which line the container didn't take and keeps what it has", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad pause\n', {status: 400, headers: {'content-type': 'text/plain'}})));
+    try {
+      const e = await saveSchedule(schedule([plan([1], '09:00')])).catch((x) => x);
+      expect(e).toBeInstanceOf(ScheduleRefused);
+      expect(refusedText(e)).toBe("The mower didn't take the schedule, it can't read a pause in it. Nothing was changed, this is how the mower has it.");
+      expect(refusedText(new ScheduleRefused('no tz'))).toMatch(/time zone was missing/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('says the words of its log', () => {
     expect(scheduleLogLine({t: 0, what: 'skip_clock', detail: 'gnss_mismatch'})).toBe("Not started: the mower's clock doesn't match the GPS time");
     expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'CLOCK_UNSAFE', more: 'never_synced'})).toBe(
@@ -630,5 +685,82 @@ describe("MowBite OS's own schedule", () => {
     expect(readyText({ok: true, reason: null})).toBe('Ready to start as things are now');
     expect(readyText({ok: false, reason: 'skip_not_docked'})).toBe('Not ready as things are now: not in the dock');
     expect(readyText({ok: false, reason: 'skip_something_new'})).toBe('Not ready as things are now: skip something new');
+  });
+});
+
+describe('a time zone in other words', () => {
+  it('reads one with names in letters, the switches at 2:00 when it says no time', () => {
+    process.env.TZ = 'Asia/Tokyo';
+    try {
+      for (const tz of ['CET-1CEST,M3.5.0,M10.5.0/3', 'CET-1CEST-2,M3.5.0/2,M10.5.0/3']) {
+        expect(tzOffset(tz, new Date(Date.UTC(2026, 0, 15))), tz).toBe(60);
+        expect(tzOffset(tz, new Date(Date.UTC(2026, 6, 15))), tz).toBe(120);
+        // the last sunday of march, 02:00 by the clock is 01:00 UTC
+        expect(tzOffset(tz, new Date(Date.UTC(2026, 2, 29, 0, 59))), tz).toBe(60);
+        expect(tzOffset(tz, new Date(Date.UTC(2026, 2, 29, 1, 0))), tz).toBe(120);
+        expect(tzUnreadable(tz)).toBe(false);
+      }
+      expect(tzOffset('EST5', new Date(Date.UTC(2026, 6, 15)))).toBe(-300);
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
+
+  it("is marked when it can't be read, not when there's none", () => {
+    expect(tzUnreadable('Europe/Berlin')).toBe(true);
+    expect(tzUnreadable(posixTz())).toBe(false);
+    expect(tzUnreadable(undefined)).toBe(false);
+  });
+});
+
+describe('the days of a start time', () => {
+  it('go on and off, the last one stays', () => {
+    expect(toggleDay([1, 3], 5)).toEqual([1, 3, 5]);
+    expect(toggleDay([1, 3], 3)).toEqual([1]);
+    expect(toggleDay([3], 3)).toBeNull();
+  });
+});
+
+describe('saving from the schedule page', () => {
+  const os = new Set(['schedule.get', 'schedule.set']);
+  const answer = (s: Schedule) => ({version: 1, available: true, clock_ok: true, clock_reason: null, schedule: toOs(s), sun: null});
+
+  it('is done once the last change is through', async () => {
+    vi.mocked(rpcMethods).mockResolvedValue(os);
+    const call = vi.mocked(callRpc);
+    call.mockResolvedValue(answer(schedule([])));
+    const done = vi.fn();
+    const save = scheduleSaver(done);
+    try {
+      const first = save(schedule([plan([1], '09:00')]));
+      const last = save(schedule([plan([2], '09:00')]));
+      await Promise.all([first, last]);
+      expect(done).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.mocked(rpcMethods).mockResolvedValue(null);
+      call.mockReset();
+    }
+  });
+
+  it('is done after a failed one too, which still fails', async () => {
+    vi.mocked(rpcMethods).mockResolvedValue(os);
+    const call = vi.mocked(callRpc);
+    call.mockRejectedValue(new Error('gone'));
+    const done = vi.fn();
+    try {
+      await expect(scheduleSaver(done)(schedule([]))).rejects.toThrow('gone');
+      expect(done).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.mocked(rpcMethods).mockResolvedValue(null);
+      call.mockReset();
+    }
+  });
+
+  it('keeps what it shows when the mower has the same', () => {
+    const shown = schedule([plan([5, 1], '09:00')]);
+    const mower = parseSchedule(serializeSchedule(shown, {lat: 52.25, lon: 10.56}));
+    expect(sameSchedule(shown, mower)).toBe(true);
+    expect(sameSchedule(shown, {...mower, minBattery: 60})).toBe(false);
+    expect(sameSchedule(shown, {...mower, more: ['robot nx60i']})).toBe(false);
   });
 });

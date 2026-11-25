@@ -2,20 +2,22 @@
 
 import {useMowerStateValue} from '@/hooks/useMowerState';
 import {leavingLoses} from '@/lib/leaving';
+import {plainIdle} from '@/lib/status';
 import {isApp} from '@/lib/native';
 import {useEffect, useRef} from 'react';
 
 // The container's web server sends no cache headers, so a phone's browser may keep showing an older build for a
 // while after an update. The build on the mower says its version in version.json: when that differs from the one
 // running here, the page is fetched again past the cache and reloaded. Once per version and page, so it can't loop.
-// Not while the mower does something other than wait (mowing, docking, recording, driving or calibrating by hand) or
-// something unsaved would be lost: then the next time the page is shown again.
+// Not while the mower does something other than wait (mowing, docking, recording, driving or calibrating by hand or by
+// itself, a step of the setup that needs the app) or something unsaved would be lost: then the next time the page is
+// shown again.
 export default function FreshPage() {
-  const state = useMowerStateValue((l) => l.state?.current_state);
+  const busyNow = useMowerStateValue((l) => !!l.state && !plainIdle(l.state));
   const busy = useRef(false);
   useEffect(() => {
-    busy.current = !!state && state !== 'IDLE';
-  }, [state]);
+    busy.current = busyNow;
+  }, [busyNow]);
   useEffect(() => {
     // the android app brings its own build
     if (isApp()) return;

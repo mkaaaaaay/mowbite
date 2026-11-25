@@ -1,8 +1,9 @@
 import {requestCalib, requestCalibBack} from './autoUpdate';
 import {fmt, tr} from './i18n';
+import {keptValue} from './mowerParams';
 import {topicStore} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
-import {callRpc} from './rpc';
+import {callCommand, callRpc} from './rpc';
 
 // The mower's sizes measured from a recording (format mowbite-calib/1): on OpenMower the MowBite Planner records a drive
 // by hand with the joystick or the next mow and works the values out (planner.calib.*), the MowBite Updater writes the
@@ -69,6 +70,14 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? 
 const readRtk = (v: unknown): Rtk =>
   v && typeof v === 'object' ? {fixed: (v as {fixed?: unknown}).fixed === true, accuracy: num((v as {accuracy?: unknown}).accuracy)} : {fixed: false, accuracy: null};
 
+// a value of a result, null for one without a name
+export function readValue(v: Record<string, unknown> | null | undefined): CalibValue | null {
+  const name = str(v?.name);
+  if (!v || !name) return null;
+  const quality = v.quality === 'good' || v.quality === 'fair' || v.quality === 'poor' ? v.quality : null;
+  return {name, value: num(v.value), unit: str(v.unit) ?? '', old: num(v.old), sigma: num(v.sigma), quality, ok: v.ok === true && num(v.value) !== null, warning: str(v.warning)};
+}
+
 export function readResult(answer: unknown): CalibResult | null {
   const r = answer as Record<string, unknown> | null;
   if (!r || typeof r !== 'object' || !Array.isArray(r.values)) return null;
@@ -78,12 +87,7 @@ export function readResult(answer: unknown): CalibResult | null {
     basedOn: {m: num(b.m) ?? 0, turns: num(b.turns) ?? 0, runs: num(b.runs) ?? 0},
     warnings: Array.isArray(r.warnings) ? r.warnings.filter((w): w is string => typeof w === 'string') : [],
     info: r.info && typeof r.info === 'object' ? (r.info as Record<string, unknown>) : {},
-    values: r.values.flatMap((v: Record<string, unknown>) => {
-      const name = str(v?.name);
-      if (!name) return [];
-      const quality = v.quality === 'good' || v.quality === 'fair' || v.quality === 'poor' ? v.quality : null;
-      return [{name, value: num(v.value), unit: str(v.unit) ?? '', old: num(v.old), sigma: num(v.sigma), quality, ok: v.ok === true && num(v.value) !== null, warning: str(v.warning)}];
-    }),
+    values: r.values.flatMap((v: Record<string, unknown>) => readValue(v) ?? []),
   };
 }
 
@@ -96,16 +100,19 @@ export const calibByHand = (p: CalibProgress | null, unsaid = false) =>
 // own and nothing writes the topic there
 export const canCalibrate = (methods: Set<string> | null | undefined, os: boolean) =>
   CALIB_SHOWN && !os && !!methods?.has(RPC.plannerCalibStart);
-// what keeps the calibration page from offering it: MowBite OS (a drive of its own), not in this build, rpc.methods
-// not answered yet, no planner for it
+// the way to a calibration this mower has: MowBite OS's own drive where it lists it (start and stop together, or its
+// result alone), the planner's recording where it offers one, null without either
+const OS_DRIVE = [RPC.calibrationCheck, RPC.calibrationStart, RPC.calibrationAbort];
+export function calibrationWay(methods: Set<string> | null | undefined, os: boolean): 'os' | 'planner' | null {
+  if (os) return OS_DRIVE.every((m) => !!methods?.has(m)) || !!methods?.has(RPC.calibrationResult) ? 'os' : null;
+  return canCalibrate(methods, os) ? 'planner' : null;
+}
+// what keeps the calibration page from offering it: MowBite OS (a drive of its own, lib/osCalibration), not in this
+// build, rpc.methods not answered yet, no planner for it
 export const calibMissing = (methods: Set<string> | null | undefined, os: boolean) =>
-  os ? 'os' : !CALIB_SHOWN ? 'build' : methods === undefined ? 'connecting' : canCalibrate(methods, os) ? null : 'planner';
-export const calibMissingText = (missing: 'os' | 'build' | 'planner') =>
-  missing === 'os'
-    ? tr("Calibrating isn't there for mowers with MowBite OS.")
-    : missing === 'build'
-      ? tr("Calibrating isn't in this version of MowBite yet.")
-      : tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.');
+  os ? 'os' : !CALIB_SHOWN ? 'build' : methods === undefined ? 'connecting' : calibrationWay(methods, os) ? null : 'planner';
+export const calibMissingText = (missing: 'build' | 'planner') =>
+  missing === 'build' ? tr("Calibrating isn't in this version of MowBite yet.") : tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.');
 
 export function readProgress(payload: string): CalibProgress | null {
   let p: Record<string, unknown>;
@@ -143,20 +150,9 @@ export function readPaths(s: string | undefined): Record<string, CalibPath> {
   return out;
 }
 
-// what the updater did with the last request (calib): written, back, refused, waiting for the dock, error, with why
-export interface CalibState {
-  what: 'written' | 'back' | 'refused' | 'waiting' | 'error';
-  at: number;
-  why: string | null;
-}
-export function readState(s: string | undefined): CalibState | null {
-  const [what, at, why] = (s ?? '').split(' ');
-  if (!['written', 'back', 'refused', 'waiting', 'error'].includes(what) || !Number.isFinite(+at)) return null;
-  return {what: what as CalibState['what'], at: +at, why: why || null};
-}
-// the updater's answer to a request: its state once it differs from the one before the request (before, null without
-// a request), not by the time (the phone's and the mower's clocks may differ)
-export const answerTo = (s: string | undefined, before: string | null) => (before === null || (s ?? '') !== before ? readState(s) : null);
+// why only a calibration is turned down, in words
+export const calibRefused = (why: string) =>
+  why === 'changed_since' ? tr('Not set back: sound settings were written since, the copy from before would take them back.') : null;
 
 // what it wrote last (calib_last "<unix> <path> <old> <new> ..."), for "last calibration"
 export interface CalibLast {
@@ -202,7 +198,7 @@ export function calibLines(values: CalibValue[], chosen: Set<string>, paths: Rec
   for (const v of values) {
     if (!chosen.has(v.name) || !v.ok || v.value === null) continue;
     const p = paths[v.name];
-    if (p && v.value >= p.min && v.value <= p.max) lines.push(`${p.path} ${v.value}`);
+    if (p && v.value >= p.min && v.value <= p.max) lines.push(`${p.path} ${keptValue(v.value)}`);
     else byHand.push(v);
   }
   return {lines: lines.length ? lines.join('\n') + '\n' : '', byHand};
@@ -334,7 +330,7 @@ export async function calibCheck(): Promise<CalibCheck | null> {
 export function calibStart(mode: CalibMode) {
   // a new recording may start with the same message as the left over one
   markLeftOver(null);
-  return callRpc(RPC.plannerCalibStart, {mode}, 20000);
+  return callCommand(RPC.plannerCalibStart, {mode}, 20000);
 }
 export const calibStop = () => callRpc(RPC.plannerCalibStop, {}, 20000);
 export const calibResult = async () => readResult(await callRpc(RPC.plannerCalibResult, {}, 60000));

@@ -1,7 +1,7 @@
 {
   "name": "MowBite",
   "short_name": "MowBite",
-  "description": "Web app for OpenMower robot mowers",
+  "description": "A web app for robot mowers",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

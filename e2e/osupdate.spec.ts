@@ -55,6 +55,17 @@ test.describe('updates of MowBite OS', () => {
     await expect(page.locator('#updates')).toHaveCount(0);
   });
 
+  test('an update waiting for a start of the schedule says when it is', async ({page}) => {
+    await demoWith(page, 'Updates');
+    await demoFlag(page, 'mowbiteDemoUpdateGate', 'SCHEDULED_START');
+    await page.goto('/settings/#update');
+    const group = page.locator('#update');
+    await group.locator('[data-part="os"]').getByRole('button', {name: 'Update', exact: true}).click();
+    const gate = group.locator('[data-update="os"] [data-step="waiting_gate"]');
+    await expect(gate).toContainText(/The schedule starts mowing at \d\d:\d\d\./);
+    await expect(gate).toContainText('It waits for 30 minutes at most.');
+  });
+
   test('updates from the net: stable only or previews too, how the last look went', async ({page}) => {
     await demoWith(page, 'Updates');
     await page.goto('/settings/#update');
@@ -103,8 +114,9 @@ test.describe('updates of MowBite OS', () => {
     await expect(group).toContainText('MowBite OS: update taken back');
     await expect(os).toContainText('Taken back');
     await expect(os).toContainText("This version isn't installed by itself any more, a newer one is.");
-    // held back, it isn't counted as an update
-    await expect(group).toContainText('Everything is up to date');
+    // held back, it isn't counted as an update. why is in the box above, not on the part again
+    await expect(group).toContainText('1 update held back');
+    await expect(os).not.toContainText('the mower went back');
     await os.getByRole('button', {name: 'Install anyway'}).click();
     await expect(os.getByRole('heading')).toContainText('anyway?');
     await os.getByRole('button', {name: 'Cancel'}).click();

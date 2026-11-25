@@ -1,0 +1,38 @@
+/* MowBite OS off or to be started again: the boxes and buttons are the ones of the updater's card (AutoUpdate.module.css) */
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.box button {
+  width: auto;
+  padding: 0 16px;
+}
+
+/* the question before the USB mode over the card's width */
+.box > div {
+  align-self: stretch;
+}
+
+/* the point to tick before the mower is sent into its USB mode */
+.tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.tick input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
+/* on the dashboard, its text as large as the banners there */
+.banner {
+  font-size: 14px;
+}

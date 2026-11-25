@@ -11,10 +11,11 @@ import {antennaOf, besideStep, OUT, OUT_MIN, SETTLE_S, STAND_S, standOn, standPo
 import {tick} from '@/lib/haptics';
 import {fmt, tr} from '@/lib/i18n';
 import {onTopic} from '@/lib/mqttClient';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {PARAM, TOPIC} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {generateId} from '@/lib/splitPolygon';
-import {onCharger} from '@/lib/status';
+import {gpsQuality, onCharger} from '@/lib/status';
 import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
 
@@ -69,8 +70,9 @@ export default function StationGuide({
   const params = useMowerParams();
   const charging = onCharger(state, useSensorValue('om_v_charge', (v) => v));
   const o = {x: numParam(params, PARAM.antennaX) ?? 0, y: numParam(params, PARAM.antennaY) ?? 0};
-  // the gps in OpenMower's position: in recording mode with a fix, else 999 (idle it leaves the gps out)
-  const inUse = (state?.pose.pos_accuracy ?? 999) < 1;
+  // measured only with an rtk fix in OpenMower's position (idle it leaves the gps out, 999 then): a float puts the
+  // station off by decimetres
+  const inUse = gpsQuality(state?.pose.pos_accuracy, numParam(params, PARAM.maxPositionAccuracy, useMowbiteOs())) === 'fix';
 
   // the station as it was when the guide started, the new one compared to it
   const [before, setBefore] = useState<DockingStation | null | undefined>(undefined);

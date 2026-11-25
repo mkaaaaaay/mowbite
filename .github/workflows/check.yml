@@ -56,10 +56,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # the calibration isn't in releases yet, the click tests go through it
+      # the calibration and OpenMower's sounds aren't in releases yet, the click tests go through them
       - run: npm run build
         env:
           CALIBRATION: '1'
+          OM_SOUNDS: '1'
       # without --with-deps: the image has chromium's libraries, the click tests need none of its extra fonts and no apt
       - run: npx playwright install chromium
       - run: npm run e2e

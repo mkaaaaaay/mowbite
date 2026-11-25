@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {mapKey, recordedIn, sameContent, sameMap} from './sameMap';
+import {DROPPED_WORDS, droppedSettings, mapKey, NEW_AREA_SETTINGS, recordedIn, sameContent, sameMap, samePlanning} from './sameMap';
 import {closedRings} from './rings';
 
 const map = (): MowerMap => ({
@@ -66,6 +66,16 @@ describe('sameContent', () => {
     expect(sameContent(off, map())).toBe(false);
   });
 
+  it('takes a map an older openmower wrote back without the newer area settings as the same, not one set otherwise', () => {
+    const sent = map();
+    sent.areas[0].properties = {...sent.areas[0].properties, mowable: false, angle_min: 0.1, angle_max: 0.5, drawn: true};
+    sent.areas[1].properties.drawn = true;
+    expect(sameContent(map(), sent)).toBe(true);
+    const back = map();
+    back.areas[0].properties.angle_min = 0.2;
+    expect(sameContent(back, sent)).toBe(false);
+  });
+
   it('still spots a real change', () => {
     const back = map();
     back.areas[0].outline[1] = {x: 1.01, y: 0};
@@ -73,6 +83,30 @@ describe('sameContent', () => {
     const setting = map();
     setting.areas[0].properties.angle = 0.5;
     expect(sameContent(map(), setting)).toBe(false);
+  });
+});
+
+describe('samePlanning', () => {
+  it('passes over names, cutting heights, decoration, drafts, docks and the order of areas and keys', () => {
+    const next = map();
+    next.areas[0].properties = {type: 'mow', name: 'Back', mow_height_mm: 50};
+    next.areas.reverse();
+    next.areas.push({id: 'p', properties: {type: 'decor', pin: true}, outline: [{x: 0, y: 0}, {x: 0.1, y: 0}, {x: 0.1, y: 0.1}]});
+    next.areas.push({id: 'q', properties: {}, outline: [{x: 3, y: 3}, {x: 4, y: 3}, {x: 4, y: 4}]});
+    next.docking_stations[0].heading = 2;
+    expect(samePlanning(map(), next)).toBe(true);
+  });
+
+  it("spots an area's planner values, settings, outline and an obstacle", () => {
+    const changed = (f: (m: MowerMap) => void) => {
+      const next = map();
+      f(next);
+      return !samePlanning(map(), next);
+    };
+    expect(changed((m) => (m.areas[0].properties.planner = {pattern: 'spiral'}))).toBe(true);
+    expect(changed((m) => (m.areas[0].properties.angle = 0.5))).toBe(true);
+    expect(changed((m) => (m.areas[0].outline[1] = {x: 1.2, y: 0}))).toBe(true);
+    expect(changed((m) => m.areas.pop())).toBe(true);
   });
 });
 
@@ -117,5 +151,25 @@ describe('recordedIn', () => {
     expect(recordedIn('dock', before, {...before, docking_stations: [{id: 'd', position: {x: 2.1, y: 2}, heading: 1}]})).toBe(true);
     expect(recordedIn('dock', {...before, docking_stations: []}, map())).toBe(true);
     expect(recordedIn('dock', before, {...before, docking_stations: []})).toBe(false);
+  });
+});
+
+describe('settings an older mower drops', () => {
+  const sent = {id: 'a', properties: {type: 'mow', mowable: false, mow_around: true, margin: 0.3, planner: {angle: 1}}, outline: []};
+  const kept = {id: 'a', properties: {type: 'mow'}, outline: []};
+
+  it('notices each one the app relies on', () => {
+    expect(droppedSettings(sent, kept)).toEqual(['mowable', 'mow_around', 'margin', 'planner']);
+    expect(droppedSettings(sent, sent)).toEqual([]);
+  });
+
+  it('takes the mower that dropped them for having the map sent', () => {
+    const m = map();
+    const s = {...m, areas: [{...m.areas[0], properties: {...m.areas[0].properties, mow_around: true, margin: 0.3}}, m.areas[1]]};
+    expect(sameContent(m, s)).toBe(true);
+  });
+
+  it('has a word for each, but drawn says it its own way', () => {
+    for (const k of NEW_AREA_SETTINGS) if (k !== 'drawn') expect(DROPPED_WORDS[k]).toBeTruthy();
   });
 });

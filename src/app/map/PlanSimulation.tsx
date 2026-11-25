@@ -172,7 +172,7 @@ export function SimulationView({model, locked, wait, error, result, shown, canCa
       {!r && wait === null && (
         <span className={styles.dim}>
           {tr(
-            "The planner drives the plan the way your mower would: OpenMower's controller with the errors of GPS, wheels and drive (realistic) or a mower that drives exactly (ideal). It shows what's left unmowed, where the body gets into the safety distance and how long it takes. On the mower that takes about half a minute for ten minutes of mowing.",
+            "The planner drives the plan the way your mower would: the mower's controller with the errors of GPS, wheels and drive (realistic) or a mower that drives exactly (ideal). It shows what's left unmowed, where the body gets into the safety distance and how long it takes. On the mower that takes about half a minute for ten minutes of mowing.",
           )}
         </span>
       )}
@@ -215,7 +215,7 @@ export function SimulationView({model, locked, wait, error, result, shown, canCa
                 : tr('{n} places where the controller would give up (crosses on the map)', {n: r.navErrors.length})}
             </span>
           )}
-          {r.aborted && <span className={styles.warningText}>{tr('OpenMower would give up the area.')}</span>}
+          {r.aborted && <span className={styles.warningText}>{tr('The mower would give up the area.')}</span>}
           {r.offPlan && (
             <span className={styles.dim}>
               {tr('Deviation from the plan on the lanes: usually {usual} cm, at most {max} cm.', {usual: fmt(r.offPlan.usual * 100, 1), max: fmt(r.offPlan.max * 100, 0)})}

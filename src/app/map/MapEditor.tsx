@@ -26,10 +26,10 @@ import {Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSync
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
-import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
+import {datumWarning, deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
-import {decorRedo, decorUndo, endsJob, goneLooks, JOB_CHECK_MS, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, JOB_CHECK_MS, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox, {NewArea} from './OrderBox';
@@ -37,7 +37,7 @@ import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPane
 import {ACTION, PARAM} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
-import {sameContent} from '@/lib/sameMap';
+import {DROPPED_WORDS, droppedSettings, NEW_AREA_SETTINGS, sameContent, samePlanning} from '@/lib/sameMap';
 import {savePlanCase} from '@/lib/planCase';
 import {useAreaProperties} from '@/lib/areaProps';
 import {useMowPlan} from './useMowPlan';
@@ -62,8 +62,9 @@ import {
   type BodySpot,
 } from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {usePlatform} from '@/lib/mowerOs';
 import {osOwn, osSet, osTidy} from '@/lib/plannerOwn';
+import {useJobAsk} from '@/components/AskSheet';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
 import PlannerWaiting from '@/components/PlannerWaiting';
@@ -72,6 +73,8 @@ import {areaLook, pinSize, type Look} from '@/components/gardenLook';
 import {PICTURES} from '@/components/gardenPictures';
 import {useKeptState} from '@/hooks/useKeptState';
 import {tick} from '@/lib/haptics';
+import {ObstacleCard} from '@/components/ObstacleCard';
+import {useObstacles} from '@/hooks/useObstacles';
 import {dropLooks, looksOf, restoreLooks, saveSettings, settingsStore, withLooks, type KeptLooks} from '@/lib/settings';
 
 // '0' when the map was unpinned on this device
@@ -213,6 +216,7 @@ function MapEditor() {
   const backupFirst = useBackupFirst(setSaveError);
   const conflictArmed = !!armedFor && armedFor === liveMap;
   const [saveWarning, setSaveWarning] = useState(false);
+  const {ask: askJob, sheet: jobSheet} = useJobAsk();
   // a job the mower interrupted that a save or restore ends (editing endsJob): asked first, dropped after like on the dashboard
   const {hasAction, publishAction} = useMowerActions();
   const interrupted = hasAction(ACTION.resetJob);
@@ -291,7 +295,9 @@ function MapEditor() {
   // OpenMower's own mowing values can be changed here (params.set)
   const canSetParams = useCanSetParams();
   // MowBite OS: the planner is the one place for the mowing values, an area's own are in OpenMower's keys of the map
-  const os = useMowbiteOs();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const margins = useMemo(() => {
     if (slic3rPlans(plannerSettings)) return null;
     const value = (k: string) => plannerSettings?.settings[k]?.value;
@@ -335,6 +341,11 @@ function MapEditor() {
   const simResult = simOnMap?.result;
   const simClock = useMemo(() => (simResult ? createSimClock(simResult.frames) : null), [simResult]);
   const simShown = useMemo(() => (simResult && simClock ? {frames: simResult.frames, clock: simClock} : undefined), [simResult, simClock]);
+  // what the obstacle sensors saw, on the map while nothing is being edited; the one tapped with its photo over it
+  const seen = useObstacles().obstacles;
+  const [seenPicked, setSeenPicked] = useState<number | null>(null);
+  const seenShown = mode === 'idle' && !simShown ? seen : undefined;
+  const seenCard = selectedArea ? undefined : seenShown?.find((o) => o.id === seenPicked);
   const simLeft = useMemo(() => simResult?.left.map((l) => l.outline), [simResult]);
   const pickedText = (() => {
     const pose = fitPlace?.pose;
@@ -683,7 +694,7 @@ function MapEditor() {
       setSelectedAreaId(null);
     }
     if (!jobDropped && endsJob(interrupted, before, put)) dropJob();
-  }, dropJob);
+  }, dropJob, askJob);
   // restoring the backup shown ends the job the mower interrupted
   const restoreEnds = !!preview && endsJob(interrupted, liveMap, preview.map);
 
@@ -695,15 +706,31 @@ function MapEditor() {
     for (const a of newSaved.areas) {
       const now = liveMap.areas.find((x) => x.id === a.id);
       if (!now) continue;
-      for (const k of NEW_AREA_SETTINGS) if (a.properties[k] !== undefined && now.properties[k] === undefined) lost.add(k);
+      for (const k of droppedSettings(a, now)) lost.add(k);
     }
     return [...lost];
   }, [newSaved, liveMap]);
-  const droppedNote = dropped.length
-    ? tr("Your OpenMower version doesn't know {what} yet, it got dropped when saving.", {
-        what: [...new Set(dropped.map((k) => `"${tr(k === 'mowable' ? "don't mow" : 'angle range')}"`))].join(', '),
-      })
-    : null;
+  const settingsLost = dropped.filter((k) => k !== 'drawn');
+  const droppedNote =
+    [
+      settingsLost.length
+        ? tr(om ? "Your OpenMower version doesn't know {what} yet, it got dropped when saving." : "The mower's software doesn't know {what} yet, it got dropped when saving.", {
+            what: [...new Set(settingsLost.map((k) => `"${tr(DROPPED_WORDS[k])}"`))].join(', '),
+          })
+        : '',
+      // the planner would take a drawn edge for the path of the mower's middle and go up to half its width past it
+      dropped.includes('drawn')
+        ? om
+          ? tr(
+              "Your OpenMower version doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update OpenMower.",
+            )
+          : tr(
+              "The mower's software doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update the mower's software.",
+            )
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ') || null;
 
   // anyway: asked already (decorating asks on its own), saved while the mower is busy too. next: the map to save, the one
   // edited unless it was just put together with the mower's. true once it's on the mower
@@ -728,6 +755,8 @@ function MapEditor() {
     const pins = [...((base ?? liveMap)?.areas.filter(isPin).map((a) => a.id) ?? []), ...Object.keys(decor?.kept ?? {})];
     const gone = [...new Set(pins)].filter((id) => !next.areas.some((a) => a.id === id));
     try {
+      // a change to what the planner plans from asks first while it holds a mow's plans, unless the save ends that job
+      if (!ends && !(liveMap && samePlanning(liveMap, next)) && !(await askJob())) return false;
       // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
       if ((await backupFirst.first(liveMap, 'before saving')) === 'failed') return false;
       offLateDrop.current();
@@ -1152,8 +1181,15 @@ function MapEditor() {
                 marginPlaces={simResult ? simResult.touches : marginPlaces.length ? marginPlaces : undefined}
                 jumpPlaces={realPlan?.checks ? [...realPlan.checks.jumps, ...realPlan.checks.unchecked] : undefined}
                 focus={spot ?? undefined}
+                obstacles={seenShown}
+                obstaclePicked={seenCard?.id ?? null}
+                onObstaclePick={(id) => {
+                  setSeenPicked(id);
+                  if (id !== null) deselect();
+                }}
               />
             )}
+            {!preview && seenCard && <ObstacleCard obstacle={seenCard} onClose={() => setSeenPicked(null)} />}
 
             {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && !simClock && (
               <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateDirection} onEdit={touchAngle} />
@@ -1185,6 +1221,7 @@ function MapEditor() {
                 restoring={restoring}
                 confirm={confirmRestore}
                 error={restoreError}
+                datumNote={datumWarning(preview.datum, datum)}
                 onRestore={() => (confirmRestore ? void restore(restoreEnds) : setConfirmRestore(true))}
                 onDisarm={() => setConfirmRestore(false)}
                 onClose={closePreview}
@@ -1351,14 +1388,14 @@ function MapEditor() {
                       await saveBackup(liveMap, name, false);
                       await refreshBackups();
                     }}
-                    onPreview={async (b) => setPreview({map: await loadBackup(b.id), label: backupLabel(b)})}
+                    onPreview={async (b) => setPreview({...(await loadBackup(b.id)), label: backupLabel(b)})}
                     onDelete={async (b) => {
                       await deleteBackup(b.id);
                       await refreshBackups();
                     }}
                     onDownload={download}
                     onDownloadGeo={downloadGeo}
-                    onFile={(m, name) => setPreview({map: m, label: name})}
+                    onFile={(m, name, d) => setPreview({map: m, label: name, datum: d})}
                     // a geojson file goes into the map being edited, checked like any edit, undone or saved from here
                     geo={
                       datum
@@ -1540,6 +1577,7 @@ function MapEditor() {
           </div>
         </div>
       </main>
+      {jobSheet}
     </div>
   );
 }

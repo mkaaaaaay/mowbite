@@ -26,21 +26,28 @@
   align-items: start;
 }
 
-/* two beside each other where there's room (a computer, a tablet lying) */
+/* two beside each other where there's room (a computer, a tablet lying), no gap left beside one across both */
 @media (min-width: 720px) {
   .parts {
     grid-template-columns: 1fr 1fr;
+    grid-auto-flow: dense;
   }
+}
+
+/* the update going on among the parts (the updater's view): across both columns */
+.wide {
+  grid-column: 1 / -1;
 }
 
 /* a part that can't be changed while another one updates */
 .off {
-  opacity: 0.55;
+  opacity: 0.75;
 }
 
 .facts {
   display: grid;
   grid-template-columns: auto 1fr;
+  align-items: baseline;
   gap: 3px 12px;
   font-size: 13px;
   user-select: text;
@@ -185,7 +192,8 @@
   padding-top: 2px;
 }
 
-.steps small {
+.steps small,
+.busy small {
   font-size: 13px;
   color: var(--text-secondary);
 }
@@ -263,6 +271,63 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* how far the step it's on is */
+.bar {
+  display: grid;
+  gap: 4px;
+}
+
+.track {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--well);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+
+/* no telling how far: a piece of the bar runs along */
+.moving {
+  position: absolute;
+  top: 0;
+  left: -35%;
+  width: 35%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: moving 1.4s ease-in-out infinite;
+}
+
+@keyframes moving {
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moving {
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
+/* something it does without steps: what, and the bar */
+.busy {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
 /* asked before going back or installing what was held back */
 .ask {
   display: grid;
@@ -285,4 +350,17 @@
 
 .ask label {
   align-items: flex-start;
+}
+
+/* its two buttons beside each other, one under the other where their words need the width */
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.answers button {
+  flex: 1 1 auto;
+  width: auto;
+  white-space: nowrap;
 }

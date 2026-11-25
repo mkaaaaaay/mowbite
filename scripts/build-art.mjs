@@ -25,6 +25,8 @@ const MODULES = {
   '@/lib/geometry': 'src/lib/geometry.ts',
   '@/lib/mowStripes': 'src/lib/mowStripes.ts',
   '@/lib/mowerBody': 'src/lib/mowerBody.ts',
+  '@/lib/robotShape': 'src/lib/robotShape.ts',
+  '@/lib/tronShape': 'src/lib/tronShape.ts',
   '@/lib/sun': 'src/lib/sun.ts',
   // the real edges' polygon clipping (Boost Software License)
   'clipper-lib': 'node_modules/clipper-lib/clipper.js',
@@ -42,7 +44,8 @@ const STUBS = {
   '@/lib/mowers': 'module.exports = {apiBase: () => ""};',
   '@/lib/openmower': 'module.exports = {RPC: {}};',
   '@/lib/rpc':
-    'module.exports = {callRpc: async () => null, isMissingMethod: () => true, methodsUnknown: () => true, rpcMethods: async () => [], RpcError: class extends Error {}};',
+    'module.exports = {callRpc: async () => null, callCommand: async () => null, isMissingMethod: () => true, methodsUnknown: () => true, rpcMethods: async () => [], RpcError: class extends Error {}};',
+  '@/lib/mqttClient': 'module.exports = {getMqttClient: () => ({once() {}, off() {}})};',
   '@/lib/mowerOs': 'module.exports = {isMowbiteOs: () => false, systemInfo: async () => null};',
   '@/lib/settings': 'module.exports = {saveSettings() {}, syncSettings() {}, settingsStore: {get: () => ({}), subscribe: () => () => {}}};',
   '@/lib/areaPlan': 'module.exports = {};',

@@ -1,6 +1,7 @@
 #!/bin/sh
 # map backups in the /data volume, gzipped. one <id>.json.gz per backup and <id>.meta with
-# name, number of areas and whether it was made automatically before a save
+# name, number of areas, whether it was made automatically before a save and the how manyth one it is (the id has the
+# time, the clock may go back)
 # the app on another mower may ask too (several mowers in one app)
 . /origin.sh
 D=/data/backups
@@ -45,17 +46,17 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     { rm -f "$D/$new.json.gz.tmp"; fail 500 'not saved'; }
   # a connection that broke off hands over less than it said
   [ "$(zcat "$D/$new.json.gz.tmp" | wc -c)" -eq "$len" ] || { rm -f "$D/$new.json.gz.tmp"; fail 400 'incomplete'; }
-  mv "$D/$new.json.gz.tmp" "$D/$new.json.gz" || { rm -f "$D/$new.json.gz.tmp"; fail 500 'not saved'; }
-  # without its meta it wouldn't be listed nor thinned out
-  printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta.tmp" && mv "$D/$new.meta.tmp" "$D/$new.meta" ||
-    { rm -f "$D/$new.meta.tmp" "$D/$new.json.gz"; fail 500 'not saved'; }
-  # only the automatic ones are thinned out, the ones made by hand stay. the one just made stays whatever its time (the
-  # clock may have gone back since the others) and is one of those kept
-  others=$KEEP_AUTO
-  [ "${auto:-0}" = 1 ] && others=$((KEEP_AUTO - 1))
-  ls "$D"/*.meta 2>/dev/null | sort -r | while read -r m; do
-    [ "$m" != "$D/$new.meta" ] && [ "$(sed -n 3p "$m")" = 1 ] && echo "$m"
-  done | tail -n +$((others + 1)) | while read -r m; do
+  # (on the disk before it's in the list: a power cut right after leaves it whole)
+  sync "$D/$new.json.gz.tmp" && mv "$D/$new.json.gz.tmp" "$D/$new.json.gz" || { rm -f "$D/$new.json.gz.tmp"; fail 500 'not saved'; }
+  # without its meta it wouldn't be listed nor thinned out. one at a time, each its own number
+  exec 8> /tmp/backups.lock && flock 8
+  n=$(awk 'FNR == 4 && $0 + 0 > n { n = $0 + 0 } END { print n + 1 }' "$D"/*.meta 2>/dev/null)
+  printf '%s\n%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" "${n:-1}" > "$D/$new.meta.tmp" && sync "$D/$new.meta.tmp" &&
+    mv "$D/$new.meta.tmp" "$D/$new.meta" || { rm -f "$D/$new.meta.tmp" "$D/$new.json.gz"; fail 500 'not saved'; }
+  # only the automatic ones are thinned out, the ones made by hand stay: the ones made first go (one without a number
+  # is from before those had one)
+  awk 'FNR == 3 && $0 == "1" { a[FILENAME] = 1 } FNR == 4 { k[FILENAME] = $0 }
+    END { for (f in a) { v = k[f]; gsub(/[^0-9]/, "", v); print (v == "" ? 0 : v), f } }' "$D"/*.meta 2>/dev/null | sort -k1,1nr -k2,2r | tail -n +$((KEEP_AUTO + 1)) | while read -r _ m; do
     rm -f "$m" "${m%.meta}.json.gz"
   done
   cors
@@ -65,6 +66,7 @@ fi
 
 if [ -n "$id" ]; then
   [ -f "$D/$id.json.gz" ] || fail 404 'not found'
+  gzip -t "$D/$id.json.gz" 2> /dev/null || fail 500 'damaged'
   cors
   printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
   zcat "$D/$id.json.gz"

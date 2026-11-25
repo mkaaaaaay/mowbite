@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {mowerByAddress, parseAddress, sameMowBite} from './mowers';
+import {addressPortBad, mowerByAddress, parseAddress, portOf, sameMowBite} from './mowers';
 
 const stored = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -121,9 +121,10 @@ describe("MowBite's port on a mower", () => {
     // kept for the next page, until it runs OpenMower again
     const next = await open();
     expect(next.apiBase()).toBe('http://b:80');
+    expect(next.keptOs()).toBe(true);
     next.noteOs(false);
     expect(next.apiBase()).toBe('http://b:8082');
-    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+    expect(next.keptOs()).toBe(false);
   });
 
   it('stays the one typed for it on MowBite OS too', async () => {
@@ -370,5 +371,22 @@ describe('a mower taken out of the list', () => {
     const m = await open();
     m.forgetMqtt5(A, [{...A, id: 'a2', appPort: 8090}]);
     expect(stored.has('mowbite.mqtt5.ws://a:9001|')).toBe(true);
+  });
+});
+
+describe('a port as typed', () => {
+  it('is a whole number from 1 to 65535', () => {
+    expect(portOf('8082')).toBe(8082);
+    expect(portOf(' 65535 ')).toBe(65535);
+    for (const t of ['0', '-1', '65536', '8082.5', 'abc', '', '1e3']) expect(portOf(t), t).toBeNull();
+  });
+
+  it('after an address is told apart from none', () => {
+    expect(addressPortBad('openmower:99999')).toBe(true);
+    expect(addressPortBad('openmower:123456')).toBe(true);
+    expect(parseAddress('openmower:123456')).toEqual({host: 'openmower', port: null});
+    expect(addressPortBad('openmower:8082')).toBe(false);
+    expect(addressPortBad('openmower')).toBe(false);
+    expect(addressPortBad('[::1]')).toBe(false);
   });
 });

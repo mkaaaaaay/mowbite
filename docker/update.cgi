@@ -32,21 +32,17 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   *) echo "${UPDATER_URL:-${MOWER_MQTT_HOST:+http://$MOWER_MQTT_HOST:8083}}" ;;
   esac
   ;;
-"POST conf")
+# (the updater's settings, a calibration's or the sounds' lines "<name> <value>", it checks them against its list)
+"POST conf" | "POST calib" | "POST sound")
+  case $QUERY_STRING in conf) max=4000 ;; calib) max=1000 ;; *) max=200 ;; esac
   len=${CONTENT_LENGTH:-0}
-  [ "$len" -gt 0 ] && [ "$len" -le 4000 ] || plain bad
-  plain "$(post conf "$(head -c "$len")")"
+  [ "$len" -gt 0 ] && [ "$len" -le "$max" ] || plain bad
+  plain "$(post "$QUERY_STRING" "$(head -c "$len")")"
   ;;
-# (a calibration's lines "<path> <value>", the updater checks them against its list)
-"POST calib")
-  len=${CONTENT_LENGTH:-0}
-  [ "$len" -gt 0 ] && [ "$len" -le 1000 ] || plain bad
-  plain "$(post calib "$(head -c "$len")")"
-  ;;
-"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all" | "POST self" | "POST calib=back")
+"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all" | "POST self" | "POST calib=back" | "POST switch=os" | "POST switch=openmower")
   plain "$(post "$QUERY_STRING" "")"
   ;;
-"POST now="* | "POST back="*)
+"POST now="* | "POST back="* | "POST nokeep="*)
   printf '%s' "${QUERY_STRING#*=}" | grep -Eqx '[a-z][a-z0-9_]{0,40}' || plain bad
   plain "$(post "$QUERY_STRING" "")"
   ;;
@@ -54,9 +50,33 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   printf '%s' "${QUERY_STRING#free=img:}" | grep -Eqx '[0-9a-f]{12}' || plain bad
   plain "$(post "$QUERY_STRING" "")"
   ;;
-*)
+# the models of MowBite OS that fit this mower, with their texts
+"GET models")
   cors
   printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
+  wget -q -T 10 -O - "$(updater)/cgi-bin/updater?models" 2>/dev/null || echo '{}'
+  ;;
+# a model's picture: only a png or svg, sent so that nothing in it runs
+"GET models="*)
+  k=${QUERY_STRING#models=}
+  printf '%s' "$k" | grep -Eqx '[a-z0-9-]{1,32}' || plain bad
+  f=$(mktemp) || plain failed
+  t=$(wget -q -S -T 10 -O "$f" "$(updater)/cgi-bin/updater?models=$k" 2>&1 | tr -d '\r' |
+    sed -n 's/^ *[Cc]ontent-[Tt]ype: *//p' | grep -Ex 'image/(png|svg\+xml)')
+  if [ -z "$t" ] || [ ! -s "$f" ]; then
+    rm -f "$f"
+    plain bad
+  fi
+  cors
+  printf 'Content-Type: %s\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n' "$t"
+  printf "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox\r\n\r\n"
+  cat "$f"
+  rm -f "$f"
+  ;;
+*)
+  # the time here: the app counts the updater's times by it, not by the phone's clock
+  cors && printf 'Access-Control-Expose-Headers: X-Now\r\n'
+  printf 'X-Now: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n' "$(date +%s)"
   wget -q -T 10 -O - "$(updater)/cgi-bin/updater" 2>/dev/null || echo '{}'
   ;;
 esac

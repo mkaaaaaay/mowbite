@@ -45,7 +45,8 @@ send_push() {
       # (one at a time with notify.cgi)
       *" 404"* | *" 410"*) (
         flock 9
-        { grep -vxF "push $ep" "$C" || :; } > "$C.$$" && mv "$C.$$" "$C"
+        # (cat notices a full disk, the old file stays then)
+        grep -vxF "push $ep" "$C" | cat > "$C.$$" && mv "$C.$$" "$C" || rm -f "$C.$$"
       ) 9> /tmp/notify.lock ;;
       esac
     fi

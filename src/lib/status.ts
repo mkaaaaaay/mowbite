@@ -1,6 +1,7 @@
 import type {MowerLink} from '@/hooks/useMowerState';
 import {clock} from './dates';
 import {tr} from './i18n';
+import {CALIBRATING} from './openmower';
 
 export type StatusColor = 'success' | 'warning' | 'error' | 'accent';
 
@@ -77,8 +78,20 @@ export function dockText(charge: Charge, confirmed?: boolean | null): {text: str
   return {text: charge === 'done' ? tr('Charged, in the dock') : tr('Charging in the dock'), warn: false};
 }
 
+// a step of the setup program turns the wheels (MowBite OS from api 44)
+export const inSetupStep = (s: {current_state: string; current_sub_state?: string}) => s.current_state === 'IDLE' && s.current_sub_state === 'SETUP';
+
+// idle with nothing running: MowBite OS drives to a point, calibrates or runs a setup step as IDLE with a sub state
+export const plainIdle = (s: {current_state: string; current_sub_state?: string}) => s.current_state === 'IDLE' && !s.current_sub_state;
+
+// MowBite OS's calibration drive runs: the mower drives by itself, without the blade
+export const inCalibration = (s: {current_state: string; current_sub_state?: string}) => s.current_state === 'IDLE' && s.current_sub_state === CALIBRATING;
+
+// MowBite OS runs as no mower yet, it waits for the choice in the setup (api 57): no driver, no actions
+export const choosingPlatform = (s: {current_state: string; current_sub_state?: string}) => s.current_state === 'SETUP' && s.current_sub_state === 'PLATFORM';
+
 export function statusText(
-  state: {current_state: string; emergency: number; is_charging: number} | null | undefined,
+  state: {current_state: string; current_sub_state?: string; emergency: number; is_charging: number} | null | undefined,
   docked: boolean,
   charge: Charge,
   confirmed?: boolean | null,
@@ -86,6 +99,9 @@ export function statusText(
   if (!state) return '';
   if (state.emergency) return tr('Emergency');
   if (docked) return dockText(charge, confirmed).text;
+  if (inSetupStep(state)) return tr('Setup step running');
+  if (inCalibration(state)) return tr('Calibration drive running');
+  if (choosingPlatform(state)) return tr('Choose the mower');
   const names: Record<string, string> = {
     // not in the dock (that's above), as the dashboard says it
     IDLE: 'Waiting on the lawn',
@@ -99,6 +115,9 @@ export function statusText(
   if (name) return tr(name);
   return state.current_state.toLowerCase().replace(/_/g, ' ');
 }
+
+// said with it for a mower on a way it was sent on from here: without the connection it isn't stopped from here
+export const GOES_ON = 'The mower goes on without the app. To stop it, press STOP at the mower.';
 
 // why what's shown isn't live (isLive) and since when. os: MowBite OS, it has no mower_logic
 export function staleText(link: MowerLink, os = false): string {

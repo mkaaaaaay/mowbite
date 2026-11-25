@@ -1,14 +1,18 @@
 'use client';
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useSetup} from '@/hooks/useSetup';
+import {safetyFailed} from '@/lib/setup';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
+import {useHostOnline} from '@/lib/hostOs';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {RPC, UPDATE_GATED} from '@/lib/openmower';
 import {
   abortUpdate,
+  apiMisfit,
   appTooOld,
   askUpdateStatus,
   checkUpdates,
@@ -25,7 +29,6 @@ import {
   shortRevision,
   startUpdate,
   updating,
-  useHostOnline,
   useUpdateStatus,
   versionInText,
   versionLabel,
@@ -47,7 +50,7 @@ import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
 import shared from './AutoUpdate.module.css';
 import styles from './OsUpdate.module.css';
-import {Ask, HOUR, Head, Note, OffCard, PART_TEXT, RIGHT_AWAY, ReloadNote, RunHead, Steps, Summary} from './updateParts';
+import {Ask, Bar, HOUR, Head, Note, OffCard, PART_TEXT, RIGHT_AWAY, ReloadNote, RunHead, Steps, Summary} from './updateParts';
 
 // what each part's update asks of the mower. A part a newer MowBite OS adds has none
 const HINTS: Record<string, string> = {
@@ -67,7 +70,7 @@ const STEPS: Record<Step, {label: string; title: string; done?: string}> = {
 };
 
 // a reason of the updater in words, as a sentence
-const why = (reason: string, type = 'UPDATE') => reasonSentence(reason, type);
+const why = (reason: string, type = 'UPDATE', fields: object = {}) => reasonSentence(reason, type, fields);
 
 // the app is older than a version needs: which one to update first, by where this one comes from
 function appFirst(min: string): string {
@@ -98,7 +101,13 @@ function Result({last, name}: {last: Last; name: string}) {
 }
 
 // what waits at the gate and how it goes on
-function GateNote({reason}: {reason: string}) {
+function GateNote({reason, at}: {reason: string; at?: number | null}) {
+  if (reason === 'SCHEDULED_START')
+    return (
+      <Note look={shared.warn} title={why(reason, 'UPDATE', {at})}>
+        {tr('Until then no update begins.')}
+      </Note>
+    );
   if (reason === 'JOB_OPEN')
     return (
       <Note look={shared.warn} title={tr('A mowing job is still open.')}>
@@ -149,14 +158,18 @@ function Running({
     if (step === 'waiting_gate' && held)
       return (
         <>
-          <GateNote reason={s.reason!} />
+          <GateNote reason={s.reason!} at={s.at} />
           <small>
             {runsByItself(s)
-              ? tr('It waits for 30 minutes at most, not beyond the time window. After that it gives up and everything stays as it is.')
-              : tr('It waits for 30 minutes at most. After that it gives up and everything stays as it is.')}
+              ? tr('It waits for 30 minutes at most, not beyond the time window. After that it gives up, everything stays as it is and it tries again the next night.')
+              : tr('It waits for 30 minutes at most. After that it gives up and everything stays as it is, start it again later.')}
           </small>
         </>
       );
+    if ((step === 'verifying' || step === 'unpacking') && typeof s.percent === 'number') {
+      const mb = typeof s.bytes === 'number' ? ` · ${tr(step === 'verifying' ? '{mb} MB copied' : '{mb} MB unpacked', {mb: Math.round(s.bytes / 1e6)})}` : '';
+      return <Bar label={tr(STEPS[step].label)} pct={s.percent} detail={`${s.percent} %${mb}`} />;
+    }
     if (step === 'switching' && gated) return <small>{tr("MowBite OS restarts. The mower stays in the dock, the app's displays stand still that long.")}</small>;
     if (step === 'checking')
       return (
@@ -222,6 +235,8 @@ function Part({
   off,
   onStart,
   onBack,
+  checkFailed,
+  told,
 }: {
   c: Component;
   // its update went through within the last hour
@@ -232,6 +247,10 @@ function Part({
   off: boolean;
   onStart: (revision?: string) => void;
   onBack: (resetJobs: boolean) => void;
+  // a safety step failed and closed the lock (setup.get safety.why)
+  checkFailed: boolean;
+  // the reason the box of the last update says above, not said again here
+  told: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [ask, setAsk] = useState<'back' | 'anyway' | null>(null);
@@ -239,6 +258,7 @@ function Part({
   const {available: a, running, previous} = c;
   const blocked = a?.blocked ?? null;
   const tooOld = appTooOld(a);
+  const misfit = apiMisfit(a);
   // the mower runs another version of the app than this page shows
   const reload = c.id === 'app' && pageFromMower() && !!running?.version && running.version !== APP_VERSION;
 
@@ -287,10 +307,17 @@ function Part({
         <div className={shared.warn}>
           {blocked.reason === 'ROLLED_BACK_BY_HAND'
             ? `${why(blocked.reason)}${blocked.result ? ` ${tr('A newer one is.')}` : ''}`
-            : `${blocked.result ? tr("This version isn't installed by itself any more, a newer one is.") : tr("This version isn't installed by itself.")} ${why(blocked.reason)}`}
+            : `${blocked.result ? tr("This version isn't installed by itself any more, a newer one is.") : tr("This version isn't installed by itself.")}${blocked.reason === told ? '' : ` ${why(blocked.reason)}`}`}
         </div>
       )}
       {a && tooOld && <div className={shared.warn}>{appFirst(a.min_app!)}</div>}
+      {a && !tooOld && misfit && (
+        <div className={shared.warn}>
+          {misfit === 'OS_TOO_OLD'
+            ? why(misfit)
+            : tr("This app ({v}) doesn't speak the interface of this version. After the update the mower serves the app that comes with MowBite OS until this one is updated as well.", {v: APP_VERSION})}
+        </div>
+      )}
       {a && !blocked && !tooOld && hint && <span className={shared.dim}>{tr(hint)}</span>}
       {a && !blocked && (
         <button className={[shared.control, shared.primary].join(' ')} disabled={locked || tooOld} onClick={() => onStart()}>
@@ -353,6 +380,10 @@ function Part({
               onYes={answer(() => onBack(resetJobs))}
               onNo={answer()}
             >
+              {c.id === 'os' && checkFailed && (
+                // an OS before the lock could be taken back (api 45) opens it again by the date kept by hand
+                <p className={shared.error}>{tr('A safety step failed. An older MowBite OS may not know that and let the mower drive by itself again.')}</p>
+              )}
               {UPDATE_GATED.includes(c.id) && (
                 <p>
                   {tr('The mower has to stand ready in the dock for this.')}
@@ -413,6 +444,7 @@ export function OsUpdate() {
   const seen = useUpdateStatus();
   const online = useHostOnline() !== false;
   const methods = useRpcMethods();
+  const setup = useSetup();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unanswered, setUnanswered] = useState(false);
@@ -447,6 +479,7 @@ export function OsUpdate() {
   const locked = busy || !online || s.phase !== 'idle';
   // one held back isn't counted, it's only installed when asked
   const count = s.components.filter((c) => c.available && !c.available.blocked).length;
+  const held = s.components.filter((c) => c.available?.blocked).length;
   const next = nextByItself(s);
   const last = s.last;
   const lastName = last && (s.components.find((c) => c.id === last.component)?.name ?? last.component);
@@ -463,7 +496,7 @@ export function OsUpdate() {
           onSkipJob={() => run(() => withoutJobWait(s))}
         />
       ) : (
-        <Summary count={count} checked={checked === null ? null : clock(checked)} locked={locked} onCheck={() => run(() => checkUpdates().then(() => setChecked(Date.now() / 1000)))} />
+        <Summary count={count} held={held} checked={checked === null ? null : clock(checked)} locked={locked} onCheck={() => run(() => checkUpdates().then(() => setChecked(Date.now() / 1000)))} />
       )}
       {!online && <span className={shared.dim}>{tr("The mower's updater doesn't answer right now, shown is what it said at {t}.", {t: clock(at)})}</span>}
       {error && <span className={shared.warn}>{error}</span>}
@@ -481,6 +514,8 @@ export function OsUpdate() {
               off={!!now}
               onStart={(revision) => run(() => startUpdate(c.id, revision ? {revision} : {}))}
               onBack={(resetJobs) => run(() => rollBack(c.id, resetJobs))}
+              checkFailed={safetyFailed(setup)}
+              told={last && last.component === c.id && last.result !== 'installed' && last.result !== 'aborted' ? last.reason : null}
             />
           ))}
       </div>

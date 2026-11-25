@@ -1,7 +1,10 @@
 'use client';
 
-import {CALIB_SHOWN, calibMissingText} from '@/lib/calibration';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {CALIB_SHOWN, calibMissingText, calibrationWay} from '@/lib/calibration';
+import {reasonSentence} from '@/lib/events';
 import {tr, useLang} from '@/lib/i18n';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import Link from 'next/link';
 import {useId} from 'react';
 import styles from './page.module.css';
@@ -49,16 +52,72 @@ function Turn({x, y, left, arrow}: {x: number; y: number; left: boolean; arrow: 
   );
 }
 
+// MowBite OS's own drive: where, what it does, what stays the user's, what becomes of the result (title, text, a note)
+const OS_CARDS: [string, string, string?][] = [
+  [
+    'Where',
+    'On a level piece of lawn inside a mowing area, away from the docking station and with an RTK fix. The calibration page shows the strip the mower needs and what still stands in its way.',
+  ],
+  [
+    'The drive',
+    'The mower lines up with its lane, stands still, then drives the lane to and fro and turns on the spot at each end, for a few rounds. Forward only and slowly, the blade stays off. It ends where it began.',
+  ],
+  [
+    'You stay with it',
+    "Keep the strip clear and stay next to the mower, a hand at its STOP button: the mower only knows what is on the map. Stop in the app only works while it is connected, and closing the app doesn't stop the mower.",
+  ],
+  [
+    'The result',
+    'Each value next to the one set now, with how far it changes and how sure it is. Only values the mower trusts and accepts can be ticked, big changes you tick yourself. What you apply the mower saves as its sizes, the values before stay to set back until the next drive.',
+    'If the sizes were changed after a drive, its values no longer fit: drive again. In the setup its step is ticked once you apply values or keep the sizes on purpose, a new drive opens it again.',
+  ],
+  [
+    'Afterwards: the docking station',
+    'If the antenna sits differently than assumed, the docking station lies off on the map. MowBite tells you after applying: record the station again then, the record page guides you.',
+  ],
+];
+
+// MowBite OS drives the calibration itself
+function OsGuide() {
+  return (
+    <div className={styles.page}>
+      <main className={styles.main}>
+        <Link href="/calibration" className={styles.back}>
+          ← {tr('Calibration')}
+        </Link>
+        <h1>{tr('Calibrating')}</h1>
+        <p className={styles.lead}>{tr('The mower measures its sizes itself on a drive.')}</p>
+        {OS_CARDS.map(([title, text, more], i) => (
+          <section key={title} className={styles.card}>
+            <h2>
+              <span className={styles.num}>{i + 1}</span>
+              {tr(title)}
+            </h2>
+            <p>{tr(text)}</p>
+            {more && <p className={styles.dim}>{tr(more)}</p>}
+          </section>
+        ))}
+        <Link href="/calibration" className={styles.next}>
+          {tr('To the calibration')}
+        </Link>
+      </main>
+    </div>
+  );
+}
+
 // how to calibrate, in cards with a drawing each: before, standing, straight runs, turns, while mowing, the result
 export default function CalibrationGuidePage() {
   useLang();
-  if (!CALIB_SHOWN)
+  const os = useMowbiteOs();
+  const methods = useRpcMethods();
+  if (calibrationWay(methods, os) === 'os') return <OsGuide />;
+  if (os || !CALIB_SHOWN)
     return (
       <div className={styles.page}>
         <main className={styles.main}>
           <h1>{tr('Calibrating')}</h1>
           <section className={styles.card}>
-            <p>{calibMissingText('build')}</p>
+            <p>{!os ? calibMissingText('build') : methods === undefined ? tr('connecting…') : reasonSentence('CALIBRATION_MISSING', 'CALIBRATION_REFUSED')}</p>
           </section>
         </main>
       </div>

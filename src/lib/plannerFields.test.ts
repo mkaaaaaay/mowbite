@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {FIELDS, fromInput, hidden, toInput, STYLES, styleOf} from './plannerFields';
+import {expertKeys, FIELDS, fromInput, helpOf, hidden, roundsOf, toInput, STYLES, styleOf} from './plannerFields';
+import {OM_WORDS, OS_WORDS} from './platformWords';
 
 describe('planner fields', () => {
   it('shows angles in degrees and meters as they are', () => {
@@ -43,6 +44,26 @@ describe('planner fields', () => {
   });
 });
 
+describe('help per platform', () => {
+  const named = ['angle_strategy', 'perimeter_offset', 'lane_spacing_mode', 'overlap', 'perimeter_passes', 'lane_overlap_passes'];
+
+  it("has a help without OpenMower's names for MowBite OS", () => {
+    for (const k of named) expect(FIELDS[k].helpOs, k).toBeTruthy();
+    // the choice of planner is ignored on MowBite OS
+    for (const [k, f] of Object.entries(FIELDS)) if (k !== 'planner') expect(helpOf(f, false), k).not.toMatch(OM_WORDS);
+  });
+
+  it('keeps MowBite OS out of the help on OpenMower', () => {
+    for (const [k, f] of Object.entries(FIELDS)) expect(helpOf(f, true), k).not.toMatch(OS_WORDS);
+    expect(helpOf(FIELDS.perimeter_offset, true)).toContain('outline_offset');
+  });
+
+  it('takes the help where there is no other', () => {
+    expect(helpOf(FIELDS.turn_radius, false)).toBe(FIELDS.turn_radius.help);
+    expect(helpOf(undefined, true)).toBe('');
+  });
+});
+
 describe('settings left out', () => {
   it('leaves out the drive and what the planner says it goes without', () => {
     expect(hidden('drive', {})).toBe(true);
@@ -72,5 +93,41 @@ describe('style of the planner settings', () => {
 
   it('leaves out what an older planner does not have', () => {
     expect(styleOf(settings({turn_on_spot: true}))).toBe('quick');
+  });
+
+  it('lists for experts by platform: fill not on MowBite OS, nothing set by mower_logic there, sizes in their own card', () => {
+    const all = {
+      skip_lanes: {settable: true},
+      recorded_loop: {settable: true},
+      skip_outline_loops: {settable: false},
+      skip_obstacle_loops: {settable: false},
+      mower_width: {settable: false},
+      robot_outline: {settable: false},
+      angle_steps: {settable: false},
+    };
+    expect(expertKeys(all, true)).toEqual({keys: ['skip_lanes'], fixed: ['skip_outline_loops', 'skip_obstacle_loops']});
+    expect(expertKeys(all, false)).toEqual({keys: [], fixed: []});
+  });
+
+  it('names every setting it lists for experts', () => {
+    for (const k of ['skip_lanes', 'recorded_loop', 'recorded_loop_margin', 'skip_outline_loops', 'skip_obstacle_loops']) {
+      expect(FIELDS[k]?.label, k).toBeTruthy();
+    }
+  });
+});
+
+describe('rounds typed in', () => {
+  it('are whole and taken up to what the planner takes', () => {
+    expect(roundsOf('3', {max: 255})).toEqual({n: 3});
+    expect(roundsOf('2,6', {max: 255})).toEqual({n: 3});
+    expect(roundsOf(' ', {max: 255})).toEqual({});
+    expect(roundsOf('1000', undefined)).toEqual({n: 1000});
+  });
+
+  it('are turned down with why above its max, below 0 or not a number', () => {
+    expect(roundsOf('300', {max: 255}).error).toBe('Only 0 to 255 rounds, it stays as it was.');
+    expect(roundsOf('-1', {max: 255}).error).toBe('Only 0 to 255 rounds, it stays as it was.');
+    expect(roundsOf('-1', undefined).error).toBe('At least 0 rounds, it stays as it was.');
+    expect(roundsOf('x', {max: 255}).error).toBe('Not a number, it stays as it was.');
   });
 });

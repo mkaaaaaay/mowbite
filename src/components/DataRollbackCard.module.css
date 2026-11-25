@@ -1,0 +1,93 @@
+/* in the status card under the buttons and on the schedule, as wide as its place */
+.card {
+  composes: card from './setup/SetupCard.module.css';
+}
+
+.card p {
+  line-height: 1.45;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--tint-accent);
+  color: var(--accent);
+}
+
+.card[data-waits] .sign {
+  background: var(--tint-warn);
+  color: var(--soft-warn);
+}
+
+.held {
+  composes: warn from './setup/Sheet.module.css';
+}
+
+.card p.held {
+  color: var(--soft-warn);
+  font-weight: 600;
+}
+
+.held svg {
+  flex: none;
+}
+
+.card p.failed {
+  color: var(--error);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.card .linkButton,
+.card .pillButton,
+.card .quiet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.row .linkButton,
+.row .pillButton {
+  flex: 1 1 140px;
+}
+
+.card .quiet {
+  min-width: 96px;
+}
+
+.card .pillButton {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--btn-3d);
+}

@@ -11,6 +11,9 @@ const DISMISSED_KEY = 'updateDismissed';
 const BEHIND_KEY = 'mowerBehindDismissed';
 
 export const APP_VERSION = process.env.APP_VERSION ?? '0.0.0';
+// the api of MowBite OS it works with (osApi in package.json): an OS of the same break from min on, one without a break
+// from min to max
+export const OS_API: {min: number; max: number; break: number} | null = process.env.APP_OS_API ? JSON.parse(process.env.APP_OS_API) : null;
 // built for google play (STORE=play): the store updates the app there, no word about a newer apk
 export const FROM_STORE = process.env.APP_STORE === 'play';
 

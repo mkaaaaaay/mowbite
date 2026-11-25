@@ -3,11 +3,13 @@ import type {MapArea} from '@/hooks/useMowerMap';
 import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
-import {RPC} from './openmower';
+import {getMqttClient, onTopic} from './mqttClient';
+import {RPC, TOPIC} from './openmower';
 import {isMowbiteOs, providerGone, runsMowbiteOs, systemInfo} from './mowerOs';
+import {tr} from './i18n';
 import {askPlan} from './plannerProgress';
-import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, onMethodsChanged, RpcError, rpcMethods} from './rpc';
-import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
+import {askUntilAnswered, callCommand, callRpc, isMissingMethod, knownMethods, onMethodsChanged, RpcError, rpcMethods} from './rpc';
+import {saveSettings, settingsStore, sharedSettings, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
 // the point the path is for (OpenMower's base_link, the middle between the rear drive wheels), robot_front ahead of
@@ -56,6 +58,8 @@ export interface PlannerSetting {
   max?: number;
   choices?: string[];
   settable: boolean;
+  // robot.geometry on MowBite OS: when the user set or confirmed it (unix s), null before (the setup program asks)
+  confirmed?: number | null;
   // where its value comes from while it isn't set for the planner (a mower_logic parameter)
   from?: string;
   nullable?: boolean;
@@ -76,6 +80,8 @@ export interface PlannerSettings {
   angle_turned?: number;
   // all finished mows (perimeter_direction random draws the way round anew from it)
   finished_mows?: number;
+  // the planner holds a mow's plans (until it's done or reset): an area whose plan a change alters starts again
+  job_open?: boolean;
 }
 
 // the settings the app shows as the mower's sizes, in this order
@@ -154,6 +160,28 @@ export function plannerSettings(): PlannerSettings | null | undefined {
   return current;
 }
 
+// a save asks first while the planner holds a mow's plans, not when an older planner doesn't say
+export const jobOpen = () => current?.job_open === true;
+
+// how long a save waits for the planner's settings read anew before it asks
+const JOB_READ_WAIT = 5000;
+
+// job_open read anew before a save. A read that fails or takes too long (the planner planning) goes by the last answer
+// and asks then whenever the planner says job_open at all, it may have changed since
+export async function jobOpenNow(): Promise<boolean> {
+  if (current === null) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const slow = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error('slow')), JOB_READ_WAIT)));
+  try {
+    const s = await Promise.race([loadPlannerSettings(true), slow]);
+    return s?.job_open === true;
+  } catch {
+    return typeof current?.job_open === 'boolean';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // the planner answers its requests one after another, behind a plan that takes minutes. Waited for as long as it takes,
 // asked again each minute: the newest question is answered right after the old ones, a lost one costs a minute at most
 const PLANNER_WAIT = 60_000;
@@ -226,10 +254,27 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
 // changes some settings (null: back to the default), the planner checks them as a whole and answers like
 // planner.settings
 export async function savePlannerSettings(values: Record<string, unknown>): Promise<PlannerSettings> {
-  const s = await change<PlannerSettings>(RPC.plannerSettingsSet, values);
-  saves++;
-  set(s);
-  return s;
+  const call = change<PlannerSettings>(RPC.plannerSettingsSet, values).then((s) => {
+    saves++;
+    set(s);
+    return s;
+  });
+  return untilLost(RPC.plannerSettingsSet, call);
+}
+
+// a call that isn't sent again fails once the connection drops before its answer: what's shown as wanted isn't
+// confirmed then. the settings are read anew once it's back, a late answer still counts
+function untilLost<T>(method: string, call: Promise<T>): Promise<T> {
+  const c = getMqttClient();
+  let drop = () => {};
+  const lost = new Promise<never>((_, reject) => {
+    drop = () => {
+      c.once('connect', () => void loadPlannerSettings(true).catch(() => {}));
+      reject(new RpcError(method, 'lost', tr("Not confirmed: the connection dropped before the planner answered. It's read again once the connection is back.")));
+    };
+    c.once('close', drop);
+  });
+  return Promise.race([call, lost]).finally(() => c.off('close', drop));
 }
 
 // MowBite OS keeps the sizes itself (robot.geometry), each like a planner setting with value, default (the platform's),
@@ -242,10 +287,39 @@ export interface Geometry {
 
 export const loadGeometry = () => callRpc<Geometry>(RPC.geometry, {});
 
-// changes sizes on MowBite OS (idle only, all or nothing), the ones in reset back to the platform's. Its planner takes
+// the docking station from above (dock_footprint, MowBite OS from api 38): given around the docked mower, which needn't
+// stand inside it, [ahead, left] along the station's heading. That's the way the mower drives onto the contacts, the
+// docked mower faces against it where they sit behind the axle (dock_contact_x < 0). null where the mower leaves it to
+// its planner (an empty list) or doesn't give one
+export function dockFootprint(g: {settings: Record<string, {value: unknown}>} | null | undefined): Outline | null {
+  const v = g?.settings.dock_footprint?.value;
+  if (!Array.isArray(v) || v.length < 3) return null;
+  const ok = v.every((p) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n)));
+  const contact = g?.settings.dock_contact_x?.value;
+  const back = typeof contact === 'number' && contact < 0;
+  return ok ? v.map(([ahead, left]) => (back ? [-ahead, -left] : [ahead, left])) : null;
+}
+
+// a contour around the mower as points of the map, for the mower at x, y facing heading (rad, ccw)
+export function outlineAt(o: Outline, x: number, y: number, heading: number): {x: number; y: number}[] {
+  const at = placedAt(x, y, heading);
+  return o.map(([ahead, left]) => at(ahead, left));
+}
+
+// a point ahead and left of the mower at x, y facing heading (rad, ccw) as a point of the map
+const placedAt = (x: number, y: number, heading: number) => {
+  const c = Math.cos(heading);
+  const s = Math.sin(heading);
+  return (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+};
+
+// changes sizes on MowBite OS (idle only, all or nothing, only while connected), the ones in reset back to the platform's. Its planner takes
 // them a moment later, until then the planner's shown with them
-export async function saveGeometry(version: number, settings: Record<string, unknown>, reset: string[]): Promise<Geometry> {
-  const g = await callRpc<Geometry>(RPC.geometrySet, {version, settings, ...(reset.length ? {reset} : {})});
+export const saveGeometry = async (version: number, settings: Record<string, unknown>, reset: string[]): Promise<Geometry> =>
+  geometryChanged(await callCommand<Geometry>(RPC.geometrySet, {version, settings, ...(reset.length ? {reset} : {})}, 10000));
+
+// the sizes the mower answered a change with, shown until its planner has them
+export function geometryChanged(g: Geometry): Geometry {
   if (current) {
     const next = {...current.settings};
     for (const [k, s] of Object.entries(g.settings)) if (next[k]) next[k] = {...next[k], value: s.value};
@@ -255,14 +329,21 @@ export async function saveGeometry(version: number, settings: Record<string, unk
   return g;
 }
 
+// the sizes of MowBite OS the user hasn't set or confirmed yet, and confirming them as they are
+export const unconfirmed = (g: Geometry | null) =>
+  Object.entries(g?.settings ?? {}).flatMap(([k, s]) => (s.settable && s.confirmed === null ? [k] : []));
+export const confirmGeometry = (version: number, keys: string[]) => callCommand<Geometry>(RPC.geometrySet, {version, confirm: keys}, 10000);
+
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
 // outline gets that outline from the app by itself: once per start (until it went through), after the shared settings
 // are in (the rectangle may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower
 // holds its sizes itself (robot.geometry), the planner only shows them. Until it's known what runs there it waits for
-// the next time
+// the next time. Not while the planner holds a mow's plans (job_open), it would plan them again: given with the first
+// answer after that, read anew once the job is over
 let outlineChecked = false;
 export async function giveOutline() {
   if (outlineChecked || !current?.settings.robot_outline?.settable) return;
+  if (current.job_open === true) return holdOutline();
   outlineChecked = true;
   const info = await systemInfo();
   if (info === undefined) {
@@ -272,7 +353,16 @@ export async function giveOutline() {
   if (isMowbiteOs(info)) return;
   try {
     await syncSettings();
+    // only with the settings read from the mower: a rectangle kept there would be passed over (next time then)
+    if (!sharedSettings()) {
+      outlineChecked = false;
+      return;
+    }
     if (!current || outlineOf(current.settings.robot_outline?.value)) return;
+    if (jobOpen()) {
+      outlineChecked = false;
+      return holdOutline();
+    }
     const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
     if (!m?.outline) return;
     await savePlannerSettings({robot_outline: grownOutline(m.outline, OUTLINE_LEEWAY)});
@@ -284,6 +374,24 @@ export async function giveOutline() {
   }
 }
 
+// a job's end reads the settings anew, the outline goes with that answer
+let outlineHeld = false;
+function holdOutline() {
+  if (outlineHeld) return;
+  outlineHeld = true;
+  onTopic(TOPIC.events, (payload) => {
+    const text = payload.toString();
+    if (!text.includes('JOB_') || current?.job_open !== true) return;
+    let type: unknown;
+    try {
+      type = JSON.parse(text)?.type;
+    } catch {
+      return;
+    }
+    if (type === 'JOB_COMPLETE' || type === 'JOB_RESET') void loadPlannerSettings(true).catch(() => {});
+  });
+}
+
 // the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there
 export async function resetPlannerAngle(): Promise<PlannerSettings> {
   const s = await change<PlannerSettings>(RPC.plannerAngleReset, {});
@@ -293,7 +401,7 @@ export async function resetPlannerAngle(): Promise<PlannerSettings> {
 }
 
 // a setting's number, null without one (planner.settings or robot.geometry)
-export const num = (s: Pick<PlannerSettings, 'settings'> | null | undefined, key: string) => {
+export const num = (s: {settings: Record<string, {value: unknown}>} | null | undefined, key: string) => {
   const v = s?.settings[key]?.value;
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 };
@@ -426,9 +534,7 @@ export async function checkBody(req: PlanRequest): Promise<BodyCheck | null> {
 
 // the corners of the body and the blade's centre in the map, for the mower at x, y facing heading (rad, ccw)
 export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
-  const c = Math.cos(heading);
-  const s = Math.sin(heading);
-  const at = (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+  const at = placedAt(x, y, heading);
   return {
     // the contour's points, or the rectangle's corners
     corners: b.outline
@@ -490,6 +596,8 @@ export const MOWER_MODELS: {
   label: string;
   sizes: Required<Omit<MowerSizes, 'outline'>>;
   outline?: Outline;
+  // the outline measured on the mower itself, not on a photo
+  outlineOnMower?: boolean;
   turnRadius: number;
 }[] = [
   // the same body on all three
@@ -547,12 +655,10 @@ export const MOWER_MODELS: {
     sizes: {width: 0.47, front: 0.6, rear: 0.12, blade: 0.281, bladeAhead: 0.23, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
-    // from a photo from straight above, scaled to the length from the front to the back: the bar in front, the omni wheels
-    // at its corners, widest at the rear wheels, the handle narrower behind them, both sides averaged
-    outline: [
-      [0.6, 0.13], [0.562, 0.188], [0.441, 0.227], [0.067, 0.235], [-0.042, 0.226], [-0.057, 0.205], [-0.12, 0.07],
-      [-0.12, -0.07], [-0.057, -0.205], [-0.042, -0.226], [0.067, -0.235], [0.441, -0.227], [0.562, -0.188], [0.6, -0.13],
-    ],
+    // as robot_outline of MowBite OS (measured on the mower, 16.11.): 4 to 5 mm outside the bar in front, which reaches 3 mm past
+    // the front above, widest from its tips to the back. only for OpenMower, MowBite OS has its own (robot.geometry)
+    outline: [[0.605, 0.15], [0.54, 0.235], [-0.12, 0.235], [-0.12, -0.235], [0.54, -0.235], [0.605, -0.15]],
+    outlineOnMower: true,
   },
 ];
 
@@ -615,6 +721,9 @@ export function modelOf(s: MowerSizes | undefined): string | null {
   });
   return model?.key ?? null;
 }
+
+// where a model's outline was measured, for the sizes cards
+export const measuredWhere = (m: (typeof MOWER_MODELS)[number]) => tr(m.outlineOnMower ? 'on the mower' : 'on a photo from straight above');
 
 // the model with a measured outline these sizes are exactly: its outline goes with them on its own, unless the
 // rectangle is kept

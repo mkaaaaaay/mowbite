@@ -1,4 +1,5 @@
 import {leaveFirst} from './leaving';
+import type {SetupWifiGesture} from './mowerOs';
 import {isApp} from './native';
 import {settingsStore, type OtherMower} from './settings';
 
@@ -19,14 +20,24 @@ const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
 // a mower's address as typed: the host, and MowBite's port when one is typed after it (http:// and a path left out).
 // null when it isn't an address
 export function parseAddress(input: string): {host: string; port: number | null} | null {
-  const m = /^(?:https?:\/\/)?(\[[^\]]*\]|[^/:]*)(?::(\d{1,5}))?/i.exec(input.trim());
+  const m = ADDRESS.exec(input.trim());
   const host = (m?.[1] ?? '').toLowerCase();
   // (only digits and dots is an IPv4 address)
   const ip = /^[\d.]+$/.test(host);
   if (!HOST.test(host) || (ip && !(IPV4.test(host) && host.split('.').every((n) => Number(n) < 256)))) return null;
-  const port = Number(m?.[2]);
-  return {host, port: port > 0 && port < 65536 ? port : null};
+  return {host, port: portOf(m?.[2] ?? '')};
 }
+const ADDRESS = /^(?:https?:\/\/)?(\[[^\]]*\]|[^/:]*)(?::(\d+))?/i;
+
+// a port as typed: a whole number from 1 to 65535, null for anything else
+export function portOf(text: string): number | null {
+  const t = text.trim();
+  const n = Number(t);
+  return /^\d+$/.test(t) && n > 0 && n < 65536 ? n : null;
+}
+
+// an address typed with a port after it that isn't one (parseAddress leaves it out)
+export const addressPortBad = (input: string) => !!ADDRESS.exec(input.trim())?.[2] && parseAddress(input)?.port === null;
 
 export function appMowers(): OtherMower[] {
   try {
@@ -156,14 +167,27 @@ export const OS_PORT = 80;
 export const WS_PORT = 9001;
 // how long a look for MowBite at an address waits
 export const PROBE_MS = 6000;
-// this device found the mower to run MowBite OS, kept for it like mowerKey has it
+// what this device found the mower to run, true MowBite OS, false OpenMower, kept for it like mowerKey has it
 const OS_KEY = 'mowbiteOs';
 
-// what system.info said about the mower looked at
-export function noteOs(os: boolean) {
+// what system.info said about the mower looked at, kept for it (not for the demo)
+function noteForMower(key: string, value: unknown) {
   const m = selectedMower();
-  if (m && m.id !== DEMO_ID) writeMower(OS_KEY, os || null);
+  if (m && m.id !== DEMO_ID) writeMower(key, value);
 }
+export const noteOs = (os: boolean) => noteForMower(OS_KEY, os);
+
+// what system.info said last time about the mower looked at, null where it never answered here
+export const keptOs = (): boolean | null => {
+  const os = readMower<boolean>(OS_KEY);
+  return typeof os === 'boolean' ? os : null;
+};
+
+const SETUP_WIFI_KEY = 'mowbiteSetupWifi';
+
+// the gesture that opens the setup WLAN of the mower looked at, kept for when the app can't reach it any more
+export const noteSetupWifi = (gesture: SetupWifiGesture | null) => noteForMower(SETUP_WIFI_KEY, gesture);
+export const keptSetupWifi = () => readMower<SetupWifiGesture>(SETUP_WIFI_KEY);
 
 // whether MowBite OS serves the app at a host: its app.json there names the app (scripts/version.mjs writes it). only
 // an OS that lets another origin read it can tell

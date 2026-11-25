@@ -1,14 +1,19 @@
+import {tr} from './i18n';
+import {RECORDED_LOOP} from './recordedLoop';
 // How the app shows the MowBite Planner's settings (planner.settings gives value, default, type, range and choices,
 // this adds a name, what it does, a group and how a value is typed in). Settings the planner has but this doesn't
 // know show up with their own name under "More", so a newer planner's settings can be set too. The groups are the
 // sections of the planner menu, the same for all areas and for one area.
+
+// the name of the first outline pass's distance, the planner's and OpenMower's alike
+export const FIRST_PASS = 'First pass from the line';
 
 export type Group = 'pattern' | 'angle' | 'edge' | 'obstacles' | 'turns' | 'route' | 'fine';
 
 export interface Field {
   label: string;
   help: string;
-  // on MowBite OS, where mower_logic has no lane spacing
+  // in place of help on MowBite OS, which has none of OpenMower's settings
   helpOs?: string;
   group: Group;
   // how it's typed in: degrees for an angle the planner takes in rad
@@ -23,6 +28,14 @@ export interface Field {
   // only under "More"
   advanced?: boolean;
 }
+
+// the help with OpenMower's names only on OpenMower
+export const helpOf = (f: Field | undefined, om: boolean): string => (om ? f?.help : (f?.helpOs ?? f?.help)) ?? '';
+// angle_strategy with none stored: on OpenMower mower_logic sends the angle, MowBite OS sends none and the planner picks
+export const noOwnStrategy = (om: boolean) =>
+  om
+    ? {label: 'OpenMower', text: "From the outline's first point, for a recorded area the way you set off."}
+    : {label: "Planner's default", text: 'No way of its own: the planner picks the direction the way it does by default.'};
 
 export const GROUPS: {key: Group; label: string}[] = [
   {key: 'pattern', label: 'Pattern'},
@@ -91,6 +104,7 @@ export const FIELDS: Record<string, Field> = {
   angle_strategy: {
     label: 'Automatic direction',
     help: "For areas without a mow angle of their own: how the direction of the lanes is worked out. OpenMower: from the outline's first point, for a recorded area the way you set off.",
+    helpOs: 'For areas without a mow angle of their own: how the direction of the lanes is worked out.',
     group: 'angle',
     choices: {longest_edge: 'Along the longest edge', min_width: 'Across the narrowest width', optimal: 'Fewest lanes and turns'},
     area: true,
@@ -137,12 +151,14 @@ export const FIELDS: Record<string, Field> = {
   perimeter_passes: {
     label: 'Outline passes',
     help: "For all areas, an area's own outline passes still count. Automatic: as many as the lanes' turns leave unmowed along the edge. Empty: OpenMower's (outline_count).",
+    helpOs: "For all areas, an area's own outline passes still count. Automatic: as many as the lanes' turns leave unmowed along the edge. Empty: the planner's default.",
     group: 'edge',
     step: 1,
   },
   lane_overlap_passes: {
     label: 'Overlapping passes',
     help: "How many outline passes the lanes reach into. Empty: OpenMower's (outline_overlap_count).",
+    helpOs: "How many outline passes the lanes reach into. Empty: the planner's default.",
     group: 'edge',
     step: 1,
     area: true,
@@ -161,13 +177,38 @@ export const FIELDS: Record<string, Field> = {
     area: true,
   },
   perimeter_offset: {
-    label: 'Outline offset',
-    help: "How far inside the lines of the map the first outline pass runs. Empty: OpenMower's (outline_offset). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
+    label: FIRST_PASS,
+    help: "How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: OpenMower's value for all areas (outline_offset). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
+    helpOs: 'How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: the edge of the blade on the line (half the blade width in). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.',
     group: 'edge',
     unit: 'm',
     step: 0.05,
     advanced: true,
   },
+  skip_lanes: {
+    label: 'Lanes inside the area',
+    help: 'Left out: only the outline passes and the passes round obstacles, no lanes inside the area.',
+    group: 'pattern',
+    ways: ['Mowed', 'Left out'],
+    advanced: true,
+  },
+  recorded_loop: {
+    label: 'Recorded outline pass',
+    help: 'The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The other outline passes and the ones round obstacles stay as set.',
+    group: 'edge',
+    advanced: true,
+  },
+  recorded_loop_margin: {
+    label: 'Distance of the recorded outline pass',
+    help: 'How far inside the recorded line the mower drives this pass. 0: right on the line, the blade then mows half its width beyond it.',
+    group: 'edge',
+    unit: 'm',
+    step: 0.01,
+    advanced: true,
+  },
+  // sent by mower_logic with every plan, here for their names
+  skip_outline_loops: {label: 'No outline passes', help: '', group: 'edge'},
+  skip_obstacle_loops: {label: 'No passes round obstacles', help: '', group: 'obstacles'},
   // in the planner menu, here for their names
   edges: {
     label: 'Lines of the map',
@@ -263,6 +304,11 @@ export const FIELDS: Record<string, Field> = {
     step: 0.01,
     area: true,
   },
+  back_out: {
+    label: 'Back out of dead ends',
+    help: "Where the mower can't turn at the end of a lane, it backs up along its own way to where it can. The body is checked like for any drive. Off: it turns only where it has room for it; where not, the end of the lane stays unmowed. For all areas.",
+    group: 'turns',
+  },
   body_fit: {
     label: 'Collision check',
     help: 'Where the body would stick out past a real edge or into an obstacle, the path goes another way, leaving a little out where nothing fits. Off: the path as planned.',
@@ -347,13 +393,26 @@ export const DROPPED_CHOICES: Record<string, string[]> = {fill_pattern: ['auto']
 // counted by the planner itself, not in the lists: the angle turned further (shown with it in the simple menu), the
 // finished mows the random way round goes by
 export const COUNTED = ['angle_steps', 'finished_mows'];
+// not offered on MowBite OS until it's cleared there (masterplan 3.4 F4)
+const NOT_ON_OS = ['skip_lanes'];
 // left out everywhere: the drive (slope and reverse drive backwards, set only with the app's warning once it has one)
 export const HIDDEN = ['drive'];
-// a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
+// a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored; the planner
+// menu shows the recorded outline pass and backing out anyway, with why)
 export const hidden = (key: string, s: {ignored?: unknown} | undefined) => HIDDEN.includes(key) || !!s?.ignored;
+// the planner's reasons for going without backing out, by how they begin
+const BACK_OUT_WHY: [string, string][] = [
+  ["OpenMower's FTC drives forwards only", 'OpenMower on this mower drives forwards only along a plan.'],
+  ['planner slic3r', 'Not with the planner "slic3r (OpenMower)".'],
+  ['no body set', 'The mower sizes are missing. Enter them under "Mower sizes".'],
+  ['MowBite OS: drives forwards only', 'MowBite OS drives forwards only for now.'],
+];
+export const backOutNote = (reason: string) =>
+  tr('Backing out not possible: {reason}', {reason: tr(BACK_OUT_WHY.find(([starts]) => reason.startsWith(starts))?.[1] ?? reason)});
 // in the planner menu at the map (PlannerSimple), the lists for experts leave them out
 export const SIMPLE = [
   'planner',
+  'back_out',
   'fill_pattern',
   'crosshatch_angle',
   'lane_spacing_mode',
@@ -369,6 +428,7 @@ export const SIMPLE = [
   'edges',
   'perimeter_passes',
   'obstacle_passes',
+  RECORDED_LOOP,
   'lane_overlap_passes',
   'lane_overlap_limit',
   'perimeter_order',
@@ -404,6 +464,24 @@ export const BODY_KEYS = [
   'robot_outline',
 ];
 
+// for the list for experts: keys, the ones the planner menu doesn't have (a direction for all areas: each area has its
+// own), NOT_ON_OS only once it's known to be OpenMower; fixed, the ones mower_logic sends with every plan
+export function expertKeys(all: Record<string, {settable: boolean; ignored?: unknown}>, om: boolean): {keys: string[]; fixed: string[]} {
+  const shown = (k: string) => !hidden(k, all[k]) && !BODY_KEYS.includes(k);
+  const keys = Object.keys(all).filter(
+    (k) =>
+      shown(k) &&
+      all[k].settable &&
+      !DROPPED.includes(k) &&
+      !RETIRED.includes(k) &&
+      !SIMPLE.includes(k) &&
+      !ANGLE_FOR_ALL.includes(k) &&
+      (om || !NOT_ON_OS.includes(k)),
+  );
+  const fixed = !om ? [] : Object.keys(all).filter((k) => shown(k) && !all[k].settable && !COUNTED.includes(k));
+  return {keys, fixed};
+}
+
 const DEG = 180 / Math.PI;
 
 // the value as typed in: degrees for angles, rounded so a stored rad value doesn't show 15 decimals
@@ -420,6 +498,19 @@ export function fromInput(field: Field | undefined, text: string): number | null
   const v = Number(t);
   if (!Number.isFinite(v)) return 'invalid';
   return field?.unit === 'deg' ? v / DEG : v;
+}
+
+// a number of rounds typed in, whole: none for an empty field. error: why it's turned down, below 0 or above the most the
+// planner takes (its max)
+export function roundsOf(text: string, setting: {max?: number} | undefined): {n?: number; error?: string} {
+  const typed = fromInput(undefined, text);
+  if (typed === null) return {};
+  if (typed === 'invalid') return {error: tr('Not a number, it stays as it was.')};
+  const v = Math.round(typed);
+  const max = setting?.max;
+  if (v < 0 || (max !== undefined && v > max))
+    return {error: max !== undefined ? tr('Only 0 to {max} rounds, it stays as it was.', {max}) : tr('At least 0 rounds, it stays as it was.')};
+  return {n: v};
 }
 
 // a few settings together, how the mower turns and covers an area (the planner menu's style). set: what choosing it

@@ -2,14 +2,14 @@
 
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {CheckIcon, CloseIcon, PlayIcon} from '@/components/icons';
+import {CheckIcon, CloseIcon, GuideIcon, PlayIcon} from '@/components/icons';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
-import {useMowerActions} from '@/hooks/useMowerActions';
+import {useJustReset} from '@/hooks/useEmergencyReset';
+import {lockedAfter, useCommandNote, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {loadUpdate} from '@/lib/autoUpdate';
+import {useUpdaterStatus} from '@/hooks/useUpdaterStatus';
 import {
-  answerTo,
   calibBack,
   calibCheck,
   calibLeftOver,
@@ -44,6 +44,7 @@ import {useRouter} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
 import Drive from './Drive';
+import {OsCalibration} from './OsCalibration';
 import {LastCalibration, ResultView, Sent} from './Result';
 import styles from './page.module.css';
 
@@ -53,31 +54,6 @@ const FREE_MB = 500;
 const LOW_BATTERY = 0.3;
 // the time of a tap (out here: what the page hands to a child, the compiler takes for something run while drawing)
 const nowMs = () => Date.now();
-
-// the updater's status, again every few seconds while the page is open (more often while it's asked something)
-function useUpdater(asked: string | null) {
-  const [status, setStatus] = useState<Record<string, string> | null>(null);
-  const [tick, setTick] = useState(0);
-  // more often while a request of this page has no answer yet (waiting counts as none)
-  const answer = answerTo(status?.calib, asked);
-  const fast = asked !== null && !(answer && answer.what !== 'waiting');
-  useEffect(() => {
-    let stop = false;
-    const t = setTimeout(
-      () =>
-        void loadUpdate()
-          .then((s) => !stop && setStatus(s?.status ?? null))
-          .catch(() => {})
-          .finally(() => !stop && setTick((n) => n + 1)),
-      tick ? (fast ? 3000 : 10000) : 0,
-    );
-    return () => {
-      stop = true;
-      clearTimeout(t);
-    };
-  }, [tick, fast]);
-  return {status, again: () => setTick((n) => n + 1)};
-}
 
 // before it starts: what MowBite checks, what the user confirms (driving by hand only)
 function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<string, string> | null; onGo: () => void; onClose: () => void}) {
@@ -110,7 +86,7 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
   // has its fix. so only shown when good, never a reason not to start: the planner checks the receiver's fix as it starts
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
   const acc = gpsAcc ?? state?.pose.pos_accuracy;
-  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy, useMowbiteOs()));
   const battery = state?.battery_percentage;
   const free = /^\d+$/.test(status?.disk_free ?? '') ? Number(status!.disk_free) : null;
   const byHand = mode === 'joystick';
@@ -196,7 +172,8 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
         ) : missing.length === 2 ? (
           <p className={styles.dim}>{tr('Tick both points above, then it starts.')}</p>
         ) : (
-          <Link href="/guide/calibration" className={styles.link}>
+          <Link href="/guide/calibration" className={`${styles.link} ${styles.guide}`}>
+            <GuideIcon size={16} />
             {tr('Read the guide first (2 min)')}
           </Link>
         )}
@@ -222,6 +199,8 @@ export default function CalibrationPage() {
   useLang();
   const missing = calibMissing(useRpcMethods(), useMowbiteOs());
   if (!missing) return <Calibration />;
+  // MowBite OS drives it itself
+  if (missing === 'os') return <OsCalibration />;
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -251,6 +230,12 @@ function Calibration() {
   const {state} = link;
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
+  // what became of a command: not sent and why, or the mower's answer
+  const commandNote = useCommandNote();
+  // the start held back like the dashboard's: in an emergency stop, right after its reset and right after a tap
+  const justReset = useJustReset(!!state?.emergency);
+  const [tapped, tap] = useTapLock();
+  const startLocked = !live || !!state?.emergency || justReset || (!!tapped && lockedAfter(tapped, ACTION.startMowing));
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
@@ -260,7 +245,7 @@ function Calibration() {
   const [sent, setSent] = useState<{before: string; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
   // a request of this page to the updater (taking values, setting back): its state before, to tell the answer from it
   const [asked, setAsked] = useState<string | null>(null);
-  const {status, again} = useUpdater(asked);
+  const {status, again} = useUpdaterStatus('calib', asked);
   const paths = readPaths(status?.calib_paths);
 
   const recordingMode = state?.current_state === 'AREA_RECORDING';
@@ -433,7 +418,14 @@ function Calibration() {
           <p className={styles.now}>{tr("It mows and measures along. You don't need to do anything.")}</p>
           <p className={styles.dim}>{tr('Ends by itself once there\'s enough, after {n} hours at the latest.', {n: 2})}</p>
           {hasAction(ACTION.startMowing) && (
-            <button className={styles.primary} disabled={!live} onClick={() => publishAction(ACTION.startMowing)}>
+            <button
+              className={styles.primary}
+              disabled={startLocked}
+              onClick={() => {
+                tap(ACTION.startMowing);
+                publishAction(ACTION.startMowing);
+              }}
+            >
               <PlayIcon size={18} />
               {tr('Start mowing')}
             </button>
@@ -520,7 +512,8 @@ function Calibration() {
             <PlayIcon size={20} />
             {tr('Start calibration')}
           </button>
-          <Link href="/guide/calibration" className={styles.link}>
+          <Link href="/guide/calibration" className={`${styles.link} ${styles.guide}`}>
+            <GuideIcon size={16} />
             {tr('Guide: how to drive it right')}
           </Link>
         </section>
@@ -549,6 +542,7 @@ function Calibration() {
           </Link>
         )}
         {error && <p className={styles.warn}>{error}</p>}
+        {commandNote && <p className={commandNote.warn ? styles.warn : styles.dim}>{commandNote.text}</p>}
         {/* first back to the dock (the updater writes only there), the result under it */}
         {homeDrive && (
           <>

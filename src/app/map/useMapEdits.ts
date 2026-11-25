@@ -5,10 +5,7 @@ import {mergeMaps} from '@/lib/mergeMap';
 import {sameMap} from '@/lib/sameMap';
 import {setUnsavedMap} from '@/lib/unsavedMap';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {mowerMap, type Sent} from './editing';
-
-// the same points, also when they came back from the mower after a save
-const sameOutline = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y));
+import {markDrawn, mowerMap, sameOutline, type Sent} from './editing';
 
 // The map being edited: the live map until the first edit, after that a copy of our own so updates don't overwrite
 // edits, with undo and redo steps. Kept while the app runs, a look at another tab doesn't lose them. Also notices when
@@ -28,8 +25,12 @@ export function useMapEdits(liveMap: MowerMap | null) {
   const [history, setHistory] = useKeptState<MowerMap[]>('map:history', []);
   // the steps undone, newest last, until something else gets changed
   const [future, setFuture] = useKeptState<MowerMap[]>('map:future', []);
+  // an edit: the rings it drew or reshaped get drawn (editing markDrawn), undo and redo put back maps as they were
   const setMap: typeof put = (next) => {
-    put(next);
+    put((prev) => {
+      const m = typeof next === 'function' ? next(prev) : next;
+      return m && markDrawn(m, prev);
+    });
     if (future.length) setFuture([]);
   };
   // per area its outlines before the first reduce and the ones it got reduced to, newest last, so the slider can go back

@@ -1,4 +1,4 @@
-import {demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
+import {bladeOn, demoAction, demoAround, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
 import {length} from '@/lib/planProgress';
 
@@ -31,11 +31,21 @@ test('the blade in recording mode goes off with its button and when the phone is
   const on = page.locator('button:visible', {hasText: 'Blade on'});
   const off = page.locator('button:visible', {hasText: 'Blade off'});
   const turning = page.getByText('The blade is turning, also while the mower stands still.').first();
+  // both at their own place, off tappable whenever connected, also while it's off
+  await expect(off).toBeEnabled();
+  // one tap only asks
+  await on.click();
+  await expect(on).toHaveText('Sure? Blade on');
+  await expect(turning).toBeHidden();
+  await page.waitForTimeout(700);
   await on.click();
   await expect(turning).toBeVisible();
+  // off goes at once, on stays held back for a moment after it
   await off.click();
   await expect(turning).toBeHidden();
-  await on.click();
+  await expect(on).toBeDisabled();
+  await expect(on).toBeEnabled();
+  await bladeOn(page);
   await expect(turning).toBeVisible();
   const away = (hidden: boolean) =>
     page.evaluate((hidden) => {
@@ -115,6 +125,20 @@ test('an emergency stop while recording is reset on the record page', async ({pa
   expect(await state(page)).toBe('AREA_RECORDING');
 });
 
+// the reset button takes the stick's place once the emergency stop comes: a tap meant for the stick mustn't reset it
+test('an emergency stop on the record page holds its reset a moment', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await expect(stick(page)).toBeVisible();
+  await demoEmergency(page);
+  const reset = page.locator('button:visible', {hasText: 'Reset emergency'});
+  await expect(reset).toBeDisabled();
+  await expect(reset).toBeEnabled();
+  await reset.click();
+  await expect(reset).toBeHidden();
+});
+
 // the stick takes the reset button's place once the emergency stop is let go: a second tap meant for the reset mustn't
 // drive, also not when it's held on
 test('after an emergency reset on the record page the stick waits a moment', async ({page}) => {
@@ -179,8 +203,10 @@ test('a pad held through an emergency stop drives again only once pressed anew',
   let from = await pose(page);
   await expect.poll(() => moved(from)).toBeGreaterThan(0.05);
   await demoEmergency(page);
-  // reset with a second finger, the first one stays and moves on past the second it waits
-  await page.locator('button:visible', {hasText: 'Reset emergency'}).dispatchEvent('click');
+  // reset with a second finger once it's let, the first one stays and moves on past the second it waits
+  const reset = page.locator('button:visible', {hasText: 'Reset emergency'});
+  await expect(reset).toBeEnabled();
+  await reset.dispatchEvent('click');
   await expect.poll(() => state(page)).toBe('AREA_RECORDING');
   await page.waitForTimeout(1300);
   await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, {steps: 2});
@@ -196,6 +222,18 @@ test('a pad held through an emergency stop drives again only once pressed anew',
 });
 
 // the same on the overview: start comes where the reset button was
+// the reset button takes the place of what was under the finger once the emergency stop comes: a tap meant for that
+// mustn't reset it
+test('an emergency stop on the overview holds its reset a moment', async ({page}) => {
+  await page.goto('/');
+  await demoDocked(page);
+  await expect(page.getByRole('button', {name: 'Start', exact: true})).toBeVisible();
+  await demoEmergency(page);
+  const reset = page.getByRole('button', {name: 'Reset emergency'});
+  await expect(reset).toBeDisabled();
+  await expect(reset).toBeEnabled();
+});
+
 test('after an emergency reset start waits a moment', async ({page}) => {
   await page.goto('/');
   await demoDocked(page);
@@ -302,6 +340,32 @@ test('back takes the end of the line away while the mower stays', async ({page})
   await button('Back 1 m').click();
   await expect(button('Back 1 m')).toBeHidden();
   await expect(button('Stop')).toBeVisible();
+});
+
+// on MowBite OS points taken back lose the exact edge: said with why, and the outline thrown away and started again
+// from where the mower stands
+test('the exact edge lost while recording, the outline started again', async ({page}) => {
+  await demoWith(page, 'Os', 'Undo');
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  const lost = page.getByText(/^No exact edge any more/);
+  await button('Record outline').click();
+  await holdStick(page);
+  await expect.poll(() => lineLength(page), {timeout: 15000}).toBeGreaterThan(1.5);
+  await expect(lost).toHaveCount(0);
+  await expect(button('Record again for the exact edge')).toBeHidden();
+  await page.mouse.up();
+  await page.waitForTimeout(1500);
+  await button('Back 1 m').click();
+  await expect(lost).toContainText('(recording interrupted)');
+  await button('Record again for the exact edge').click();
+  await page.waitForTimeout(700);
+  await button('Sure? Discard the line and start again here').click();
+  await expect.poll(() => lineLength(page)).toBeLessThan(0.2);
+  await expect(button('Stop')).toBeVisible();
+  await expect(button('Save as mowing area')).toBeHidden();
 });
 
 test('no back button on OpenMower', async ({page}) => {
@@ -424,12 +488,39 @@ test('the overview in recording mode leads back to recording and out of it', asy
   await expect(page.locator('button:visible', {hasText: 'Discard area'}).first()).toBeVisible();
 });
 
+// the station's guide has no blade buttons: asked for with the blade on, it switches it off first
+test('the guide for the docking station opens with the blade off', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await bladeOn(page);
+  const turning = page.getByText('The blade is turning, also while the mower stands still.').first();
+  await expect(turning).toBeVisible();
+  await page.locator('button:visible', {hasText: /Record (the )?docking station/}).first().click();
+  await expect(page.getByText('it measures where it charges')).toBeVisible();
+  await expect(turning).toBeHidden();
+  expect((await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json')).find((a) => a.action_id.endsWith('stop_manual_mowing'))?.enabled).toBeFalsy();
+});
+
+// a float puts the station off by decimetres: it measures only with an rtk fix
+test('the guide for the docking station waits for an rtk fix', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await demoAround(page, {accuracy: 0.12});
+  await page.locator('button:visible', {hasText: /Record (the )?docking station/}).first().click();
+  const waiting = page.getByText('Waiting for an RTK fix');
+  await expect(waiting).toBeVisible();
+  await demoAround(page, {accuracy: 0.02});
+  await expect(page.getByText('it measures where it charges')).toBeVisible();
+  await expect(waiting).toBeHidden();
+});
+
 // with the blade turning a reload asks first: what the page sends while it unloads doesn't get out
 test('a reload while the blade turns in recording mode asks first', async ({page}) => {
   await page.goto('/record/');
   await demoDocked(page);
   await page.getByRole('button', {name: 'Start recording mode'}).click();
-  await page.locator('button:visible', {hasText: 'Blade on'}).click();
+  await bladeOn(page);
   await expect(page.getByText('The blade is turning, also while the mower stands still.').first()).toBeVisible();
   const asked = new Promise<string>((done) =>
     page.once('dialog', (d) => {
@@ -457,6 +548,77 @@ test('skip area while paused goes out and is done on continue', async ({page}) =
   await expect(undo).toBeHidden({timeout: 8000});
   await page.getByRole('button', {name: 'Continue', exact: true}).click();
   await expect.poll(area).not.toBe(before);
+});
+
+// leaving the dashboard while the undo still counts drops the skip
+test('leaving the page drops a waiting skip', async ({page}) => {
+  await page.goto('/');
+  await expect.poll(() => state(page)).toBe('MOWING');
+  const area = async () => (await demoHas<{current_area: number}>(page, 'robot_state/json')).current_area;
+  await expect.poll(area).toBeGreaterThanOrEqual(0);
+  const before = await area();
+  await page.getByRole('button', {name: 'Pause', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('PAUSED');
+  await page.getByRole('button', {name: 'Skip area'}).click();
+  await expect(page.getByRole('button', {name: /^Undo \(\d s\)$/})).toBeVisible();
+  await tab(page, '/settings').click();
+  await expect(page).toHaveURL(/\/settings\/$/);
+  await tab(page, '/').click();
+  await expect(page.getByRole('button', {name: 'Skip area'})).toBeVisible();
+  // longer than the countdown, the skip would have gone out meanwhile
+  await page.waitForTimeout(5000);
+  await page.getByRole('button', {name: 'Continue', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('MOWING');
+  await page.waitForTimeout(1500);
+  expect(await area()).toBe(before);
+});
+
+test('putting the app away drops a waiting skip', async ({page}) => {
+  await page.goto('/');
+  await expect.poll(() => state(page)).toBe('MOWING');
+  const area = async () => (await demoHas<{current_area: number}>(page, 'robot_state/json')).current_area;
+  await expect.poll(area).toBeGreaterThanOrEqual(0);
+  const before = await area();
+  await page.getByRole('button', {name: 'Pause', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('PAUSED');
+  await page.getByRole('button', {name: 'Skip area'}).click();
+  await expect(page.getByRole('button', {name: /^Undo \(\d s\)$/})).toBeVisible();
+  const seen = (v: string) =>
+    page.evaluate((v) => {
+      Object.defineProperty(document, 'visibilityState', {value: v, configurable: true});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, v);
+  await seen('hidden');
+  await seen('visible');
+  await expect(page.getByRole('button', {name: 'Skip area'})).toBeVisible();
+  // longer than the countdown, the skip would have gone out meanwhile
+  await page.waitForTimeout(5000);
+  await page.getByRole('button', {name: 'Continue', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('MOWING');
+  await page.waitForTimeout(1500);
+  expect(await area()).toBe(before);
+});
+
+// the emergency stop hides the undo of a waiting skip: it doesn't go out then
+test('an emergency stop drops a waiting skip', async ({page}) => {
+  await page.goto('/');
+  await expect.poll(() => state(page)).toBe('MOWING');
+  const area = async () => (await demoHas<{current_area: number}>(page, 'robot_state/json')).current_area;
+  await expect.poll(area).toBeGreaterThanOrEqual(0);
+  const before = await area();
+  await page.getByRole('button', {name: 'Pause', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('PAUSED');
+  await page.getByRole('button', {name: 'Skip area'}).click();
+  await expect(page.getByRole('button', {name: /^Undo \(\d s\)$/})).toBeVisible();
+  await demoEmergency(page);
+  await page.getByRole('button', {name: 'Reset emergency'}).click();
+  await expect(page.getByRole('button', {name: 'Skip area'})).toBeVisible();
+  // longer than the countdown, the skip would have gone out meanwhile
+  await page.waitForTimeout(5000);
+  await page.getByRole('button', {name: 'Continue', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('MOWING');
+  await page.waitForTimeout(1500);
+  expect(await area()).toBe(before);
 });
 
 // a new garden has no docking station yet: the guide measures where it charges and the way out of it

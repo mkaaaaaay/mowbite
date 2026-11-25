@@ -50,18 +50,28 @@ NIGHT=$(zone 0)
 dow() { TZ=$1 date -d "+${2:-0} min" +%u; }
 hm() { TZ=$1 date -d "+${2:-0} min" +%H:%M; }
 day() { TZ=$1 date -d "${2:-today}" +%F; }
+# a zone $2 minutes behind zone $1 (TST-3: three hours ahead of UTC)
+behind() {
+  local o=${1#TST}
+  o=$((-o * 60 - $2))
+  if [ $o -ge 0 ]; then printf 'TST-%d:%02d' $((o / 60)) $((o % 60)); else printf 'TST+%d:%02d' $((-o / 60)) $((-o % 60)); fi
+}
 base() { printf 'enabled 1\nminbattery %s\nskiprain 1\nskipforecast 0\ntz %s\n' "${MINBAT:-0}" "$1"; }
 state() {
   printf '{"current_state":"%s","emergency":%s,"rain_detected":%s,"battery_percentage":%s}' "${1:-IDLE}" "${2:-0}" "${3:-0}" "${4:-0.9}"
 }
 # start <case> <robot state> <schedule> [VAR=value ...]: the case's scheduler with its pretend mower, under its own prefix
+# (@D@, @M@ and @M+n@ in the schedule: see case.sh). with BATCH set a few at a time in the background, until wait
 start() {
   local name=$1 st=$2 sched=$3 e envs=()
   shift 3
   for e in "$@"; do envs+=(-e "$e"); done
-  docker run -d --name "mbt-$name" --label "$LABEL" --network "$NET" -v "$PWD/test:/t:ro" \
+  set -- docker run -d --name "mbt-$name" --label "$LABEL" --network "$NET" -v "$PWD/test:/t:ro" \
     -e MOWER_MQTT_HOST=mbt-mq -e "MOWER_MQTT_PREFIX=$name/" -e "STATE=$st" -e "SCHED=$sched" "${envs[@]}" \
-    --entrypoint sh "$IMAGE" /t/case.sh > /dev/null
+    --entrypoint sh "$IMAGE" /t/case.sh
+  if [ -z "${BATCH:-}" ]; then "$@" > /dev/null; return; fi
+  while [ "$(jobs -rp | wc -l)" -ge "$BATCH" ]; do wait -n; done
+  "$@" > /dev/null &
 }
 # the robot state case $1's mower says from now on
 restate() { docker exec "mbt-$1" sh -c 'printf %s "$1" > /tmp/state' _ "$2"; }
@@ -103,39 +113,40 @@ logs() {
 }
 
 until docker exec mbt-mq mosquitto_pub -h localhost -t up -m 1 2> /dev/null; do sleep 0.5; done
-# the plans are for this minute, they all start well within it
+# the plans for later minutes start well before them
 while [ $((10#$(date +%S))) -gt 40 ]; do sleep 1; done
-D=$(dow "$DAY") M=$(hm "$DAY") DN=$(dow "$NIGHT") MN=$(hm "$NIGHT")
+D=$(dow "$DAY") M=$(hm "$DAY")
+BATCH=8
 AREAS='{"areas":[{"id":"front","properties":{"type":"mow"},"outline":[]},{"id":"back","properties":{"type":"mow"},"outline":[]}]}'
-start start "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"
-start disabled "$(state)" "$(base "$DAY" | sed 's/^enabled 1/enabled 0/')"$'\n'"plan $D $M"
+start start "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@"
+start disabled "$(state)" "$(base "$DAY" | sed 's/^enabled 1/enabled 0/')"$'\n'"plan @D@ @M@"
 start otherday "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M"
-start dark "$(state)" "$(base "$NIGHT")"$'\n'"plan $DN $MN"
-start darkok "$(state)" "$(base "$NIGHT")"$'\n'"plan $DN $MN dark=1"
+start dark "$(state)" "$(base "$NIGHT")"$'\n'"plan @D@ @M@"
+start darkok "$(state)" "$(base "$NIGHT")"$'\n'"plan @D@ @M@ dark=1"
 # push messages for the starts that didn't go, to a server that isn't there (notify.log says failed)
 NOTIFY=$'server http://127.0.0.1:9\ntopic mbt-test\nlang en\nevents schedule_skipped'
-start emergency "$(state IDLE 1)" "$(base "$DAY")"$'\n'"plan $D $M" "NOTIFY=$NOTIFY"
-start rain "$(state IDLE 0 1)" "$(base "$DAY")"$'\n'"plan $D $M" "NOTIFY=$NOTIFY"
-start busy "$(state MOWING)" "$(base "$DAY")"$'\n'"plan $D $M"
-start paused "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") all"
-start pausedbefore "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY" yesterday) all"
-start battery "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
-start fresh "$(state)" "$(base "$DAY")"$'\n'"plan $D $M fresh=1"
-start angle "$(state)" "$(base "$DAY")"$'\n'"plan $D $M angle=30" 'PARAMS={"/mower_logic/mow_angle_offset":5}'
-start stays "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=stays "NOTIFY=${NOTIFY/schedule_skipped/done}"
-start refused "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=refuses
-start areas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$AREAS" AREA=back
-start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
-start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
-start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
-start endshutdown "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
-start endkept "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)"
-start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
-start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
+start emergency "$(state IDLE 1)" "$(base "$DAY")"$'\n'"plan @D@ @M@" "NOTIFY=$NOTIFY"
+start rain "$(state IDLE 0 1)" "$(base "$DAY")"$'\n'"plan @D@ @M@" "NOTIFY=$NOTIFY"
+start busy "$(state MOWING)" "$(base "$DAY")"$'\n'"plan @D@ @M@"
+start paused "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@"$'\n'"pause $(day "$DAY") all"
+start pausedbefore "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@"$'\n'"pause $(day "$DAY" yesterday) all"
+start battery "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan @D@ @M@"
+start fresh "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ fresh=1"
+start angle "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ angle=30" 'PARAMS={"/mower_logic/mow_angle_offset":5}'
+start stays "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" MOWER=stays "NOTIFY=${NOTIFY/schedule_skipped/done}"
+start refused "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" MOWER=refuses
+start areas "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ front" "MAP=$AREAS" AREA=back
+start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
+start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
+start endtime "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ end=@M+1@"
+start endshutdown "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ end=@M+1@"
+start endkept "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ end=@M+10@"
+start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan @D@ @M@ end=@M+1@"
+start noarea "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ gone" "MAP=$AREAS"
 # braces in the areas' names: the plan's area is found, an inactive one isn't skipped
 BRACES='{"areas":[{"id":"front","properties":{"name":"Beet }","type":"mow"},"outline":[]},{"id":"back","properties":{"name":"{Rand}","type":"mow","active":false},"outline":[]}]}'
-start braces "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$BRACES" AREA=back
-start gone "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
+start braces "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ front" "MAP=$BRACES" AREA=back
+start gone "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan @D@ @M@"
 # summer time begins in two minutes and skips the hour with the plan: started at the end of the gap, once
 J=$((10#$(TZ=$DAY date -d "+2 min" +%j) - 1))
 SUMMER="${DAY}TDT,$J/$(hm "$DAY" 2),$(((J + 2) % 365))/0" SKIPPED=$(hm "$DAY" 32)
@@ -143,7 +154,9 @@ start summer "$(state)" "$(base "$SUMMER")"$'\n'"plan $(dow "$DAY" 32) $SKIPPED"
 # MowBite OS with its own schedule and its own store of the parameters
 OS_METHODS='{"jsonrpc":"2.0","result":["rpc.methods","system.info","schedule.get"],"id":"@ID@"}'
 OS_INFO='{"jsonrpc":"2.0","result":{"name":"mowbite-os","version":"0.1"},"id":"@ID@"}'
-start os "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
+start os "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
+# MowBite OS known from before a restart, not answering yet
+start osknown "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" OS_KNOWN=schedule UNANSWERED=rpc.methods
 # from before a restart of the container: a run of a plan for the front, a start waiting for the battery (its plan an
 # hour ago), the mowing direction of a plan that has none any more
 start restored "$(state MOWING)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back
@@ -151,9 +164,9 @@ start waited "$(state)" "$(base "$DAY")"$'\n'"plan $(dow "$DAY" -60) $(hm "$DAY"
   "WAITING=$(($(date +%s) + 600)) $(dow "$DAY" -60) $(hm "$DAY" -60) $(day "$DAY") -"
 start angleback "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M" ANGLE_NORMAL=7
 # the MowBite Updater's hold: one that ends soon, one too far ahead to be its own
-start held "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "HOLD={\"until\":$(($(date +%s) + 600))}"
-start heldfar "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "HOLD={\"until\":$(($(date +%s) + 7200))}"
-start waitnext "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
+start held "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" "HOLD={\"until\":$(($(date +%s) + 600))}"
+start heldfar "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" "HOLD={\"until\":$(($(date +%s) + 7200))}"
+start waitnext "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan @D@ @M@"
 # idle with the job of the run from before the restart still open, while actions/json grows the way OpenMower and
 # MowBite OS send it after a start: empty, then mower_logic's own group, the idle one last
 ROOT='{"action_id":"mower_logic/reset_emergency","action_name":"Reset Emergency","enabled":0}'
@@ -166,10 +179,42 @@ start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600))
 start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
 # the undocking fails: once, every time, an emergency stop during the wait (seconds here, 3 minutes on the mower), and off
 # the charge contacts
-start retry "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)" MOWER=undock_once RETRY_WAIT=5
-start retries "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=3
-start retrystop "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=30
-start retryaway "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=3 V_CHARGE=0.4
+start retry "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ end=@M+10@" MOWER=undock_once RETRY_WAIT=5
+start retries "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" MOWER=undock_fails RETRY_WAIT=3
+start retrystop "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" MOWER=undock_fails RETRY_WAIT=10 "AFTER=$(state IDLE 1)"
+start retryaway "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" MOWER=undock_fails RETRY_WAIT=10 AFTER_V=0.4
+# and the rain sensor wet or the battery low by then: not started again either
+start retryrain "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" MOWER=undock_fails RETRY_WAIT=10 "AFTER=$(state IDLE 0 1)"
+start retrybattery "$(state)" "$(MINBAT=80 base "$DAY")"$'\n'"plan @D@ @M@" MOWER=undock_fails RETRY_WAIT=10 "AFTER=$(state IDLE 0 0 0.5)"
+# not with the clock unconfirmed, nor out of the dock
+start clock "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" CLOCK=5
+start undocked "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" V_CHARGE=0.4
+# without dark=1 home at sunset also without an end time (6 pm without a position)
+start sunset "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@"
+# the run's state or the start's mark can't be written
+start fullrun "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" BROKEN=/data/run.state
+start fullown "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" BROKEN=/tmp/start.own
+# the weather asked for but not to be had (no position here): logged, started anyway
+start noweather "$(state)" "$(base "$DAY" | sed 's/^skipforecast 0/skipforecast 1\nskipcold 1/')"$'\n'"plan @D@ @M@" WGET=fail
+# taken out of the dock while its mowing direction is set: no start
+start lifted "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ angle=30" 'PARAMS={"/mower_logic/mow_angle_offset":5}' LIFT=1
+# the plan's direction without the usual one to go back to, and the usual one not taken back
+start anglenone "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ angle=30"
+start angleback2 "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@" 'PARAMS={"/mower_logic/mow_angle_offset":30}' ANGLE_NORMAL=7 NOSET=1
+# a run from before a restart, the mower's first robot state only after half a minute
+start restoredquiet "$(state MOWING)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back QUIET=30 SOON=50
+# a helper of the run dies: the scheduler ends (the container starts anew and carries the run on)
+start helper "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ end=@M+10@"
+# a run whose skipping helper ended after its time (24 h, here 5 s): the scheduler goes on
+start helperlong "$(state)" "$(base "$DAY")"$'\n'"plan @D@ @M@ end=@M+10@" SKIP_FOR=5
+# a wait between two looks of over two minutes passes a start: logged
+MISSED=$(hm "$DAY" 2)
+start missed "$(state)" "$(base "$DAY")"$'\n'"plan $(dow "$DAY" 2) $MISSED" SLOWLOOP=1
+# two starts, then the clock goes back over the first: it doesn't start again
+TWICE1=$(hm "$DAY" 1) TWICE2=$(hm "$DAY" 2)
+# the container as it runs on the mower, without the scheduler
+docker run -d --name mbt-entry --label "$LABEL" --network "$NET" -e MOWER_MQTT_HOST=mbt-mq -e MOWBITE_SCHEDULER=off "$IMAGE" > /dev/null
+start twice "$(state)" "$(base "$DAY")"$'\n'"plan $(dow "$DAY" 1) $TWICE1"$'\n'"plan $(dow "$DAY" 2) $TWICE2" MOWER=stays
 # starts by hand: before the time set for them with the schedule off, after it, with neither on, to a mower mowing
 # already, and after a plan's run sent home whose job is still open (restored after a restart)
 HAND=$(hm "$DAY" 2)
@@ -178,15 +223,14 @@ start handlate "$(state)" "$(base "$DAY")"$'\n'"handstop $(hm "$DAY" -10)"$'\n'"
 start handoff "$(state)" "$(base "$DAY" | sed 's/^enabled 1/enabled 0/')"
 start handbusy "$(state MOWING)" "$(base "$DAY")"$'\n'"handstop $(hm "$DAY" 10)"
 start handafter "$(state)" "$(base "$DAY")" "RUN_STATE=$(date +%s) $(($(date +%s) + 3600)) end front" RUN_DUE=1 "ACTIONS=[$ROOT,$IDLE]"
+wait
+BATCH=
 # what the app, Home Assistant or OpenMower's page send
 byhand() { docker exec mbt-mq mosquitto_pub -h localhost -t "$1/action" -m mower_logic:idle/start_mowing; }
 sleep 5
 for c in hand handlate handoff handbusy handafter; do byhand $c; done
 # OpenMower restarting during a run with an end time
 waitlog endshutdown '^started' 30 && docker exec mbt-mq mosquitto_pub -h localhost -t endshutdown/events/json -m '{"type":"SHUTDOWN"}'
-# the emergency stop while it waits to start again
-waitlog retrystop '^undock_failed' 30 && sleep 2
-restate retrystop "$(state IDLE 1)"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -291,11 +335,41 @@ expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start
 logs "scheduler: a failed start after the third one" retries '^start_failed undock path_failed( at=[0-9:]+)?$' 60
 sleep 5
 expect "scheduler: three starts, not more" "$(sent retries | grep -c 'start_mowing$') $(slog retries | grep -c '^start_retry')" "3 2"
+expect "scheduler: no one left listening for the answers" "$(docker exec mbt-retries sh -c 'ps -o args | grep -c "^timeout 600"')" 0
 logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed 1( at=[0-9:]+)?$'
 logs "scheduler: not started again with the emergency stop" retrystop '^retry_skip emergency( at=[0-9:]+)?$' 40
 expect "scheduler: and the mower got one start" "$(sent retrystop | grep -c 'start_mowing$')" 1
 logs "scheduler: not started again off the charge contacts" retryaway '^retry_skip undocked( at=[0-9:]+)?$' 40
 expect "scheduler: and the mower got one start there" "$(sent retryaway | grep -c 'start_mowing$')" 1
+logs "scheduler: not started again with the rain sensor wet" retryrain '^retry_skip rain( at=[0-9:]+)?$' 40
+logs "scheduler: not started again with the battery low" retrybattery '^retry_skip battery 50( at=[0-9:]+)?$' 40
+expect "scheduler: one start each" "$(sent retryrain | grep -c 'start_mowing$') $(sent retrybattery | grep -c 'start_mowing$')" "1 1"
+logs "scheduler: not with the clock unconfirmed" clock '^skip_clock( at=[0-9:]+)?$'
+logs "scheduler: not out of the dock" undocked '^skip_not_docked( at=[0-9:]+)?$'
+expect "scheduler: neither got a start" "$(sent clock | grep -c start_mowing) $(sent undocked | grep -c start_mowing)" "0 0"
+logs "scheduler: a plan without an end time" sunset '^started'
+expect "scheduler: goes home at sunset without dark=1" \
+  "$(docker exec mbt-sunset cat /data/run.state 2> /dev/null | sed -E 's/^[0-9]+ [0-9]+ /<began> <stop> /')" '<began> <stop> dark all'
+logs "scheduler: no start without its run kept" fullrun '^start_failed storage( at=[0-9:]+)?$'
+logs "scheduler: no start without its mark" fullown '^start_failed storage( at=[0-9:]+)?$'
+expect "scheduler: neither went out" "$(sent fullrun | grep -c start_mowing) $(sent fullown | grep -c start_mowing)" "0 0"
+logs "scheduler: weather that didn't come is logged" noweather '^started'
+expect "scheduler: both, and started" "$(slog noweather | sed 's/ at=.*//' | tr '\n' '|')" 'weather_unknown forecast|weather_unknown cold|started 90|'
+logs "scheduler: taken out of the dock just before the start" lifted '^skip_not_docked( at=[0-9:]+)?$'
+expect "scheduler: and not started" "$(sent lifted | grep -c start_mowing)" 0
+logs "scheduler: no own direction without the usual one" anglenone '^angle_failed 30( at=[0-9:]+)?$'
+sent anglenone | grep -q mow_angle_offset && bad "scheduler: and not turned" "$(sent anglenone)" || ok "scheduler: and not turned"
+logs "scheduler: the usual direction not taken back" angleback2 '^angle_failed 7( at=[0-9:]+)?$'
+expect "scheduler: and kept for the next try" "$(docker exec mbt-angleback2 cat /data/angle.normal 2> /dev/null)" 7
+logs "scheduler: a run from before a restart waits for the mower's state" restoredquiet '^skipped_area back$' 90
+logs "scheduler: a run with helpers" helper '^started'
+sleep 2
+docker exec mbt-helper sh -c 'kill -9 $(awk "\$3 == \"home\" { print \$1 }" /tmp/run.workers)'
+for ((i = 0; i < 40; i++)); do [ "$(docker inspect -f '{{.State.Running}}' mbt-helper)" = false ] && break; sleep 1; done
+expect "scheduler: ends when a helper of the run died" "$(docker inspect -f '{{.State.Running}}' mbt-helper)" false
+logs "scheduler: a run whose skipping ends after its time" helperlong '^started'
+sleep 30
+expect "scheduler: goes on then" "$(docker inspect -f '{{.State.Running}}' mbt-helperlong)" true
 logs "scheduler: a start by hand before the time for those" hand "^started_by_hand $HAND\$"
 expect "scheduler: its run kept with the time for a restart" "$(docker exec mbt-hand cut -d' ' -f3,4 /data/run.state 2> /dev/null)" "hand all"
 logs "scheduler: a start by hand after the time for those" handlate '^started_by_hand$'
@@ -332,6 +406,7 @@ expect "scheduler: the next start would go" "$(ready otherday)" '{"ok":true,"rea
 expect "scheduler: the next start wouldn't, the rain sensor is wet" "$(ready rain)" '{"ok":false,"reason":"skip_rain"}'
 expect "scheduler: the next start wouldn't, emergency stop" "$(ready emergency)" '{"ok":false,"reason":"skip_emergency"}'
 expect "scheduler: a start waiting for the battery says so" "$(ready waitnext)" '{"ok":false,"reason":"waiting_battery"}'
+expect "scheduler: the next start wouldn't go, the clock" "$(ready clock)" '{"ok":false,"reason":"skip_clock"}'
 expect "scheduler: nothing ready to tell while switched off" "$(ready disabled)" ""
 gets os '"method":"rpc.methods"' 30 && sleep 3
 if [ -n "$(sent os)" ] && ! sent os | grep -q '^action'; then ok "scheduler: rests on MowBite OS, which has a schedule of its own"; else
@@ -374,14 +449,92 @@ done
 
 # --- the parameters kept by the app ---
 
-KEEP=$'enabled 1\n/mower_logic/mow_angle_offset 7'
-start keepom "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
+# (and one the app doesn't offer: never set)
+KEEP=$'enabled 1\n/mower_logic/mow_angle_offset 7\n/mower_logic/ignore_emergency true'
+start keepom "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5,"/mower_logic/ignore_emergency":false}' "KEEP=$KEEP"
 start keepos "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
+# a start of the schedule turned it and the schedule was switched off meanwhile: left for scheduler.sh to set back
+start keepturned "$(state MOWING)" 'enabled 0' RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" \
+  ANGLE_NORMAL=7
+# a plan with its own direction, but none turned now (OpenMower restarted): the kept one set again
+start keepplan "$(state)" $'enabled 1\nplan 1 03:00 angle=30' RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
 gets keepom '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: what the mower lost set again" ||
   bad "params: what the mower lost set again" "$(sent keepom)"
+gets keepplan '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: the kept direction with a plan of its own" ||
+  bad "params: the kept direction with a plan of its own" "$(sent keepplan)"
+sent keepturned | grep -q 'mow_angle_offset' && bad "params: a direction a start turned left alone" "$(sent keepturned)" ||
+  ok "params: a direction a start turned left alone"
 gets keepos '"method":"system.info"' 30 && sleep 3
 sent keepos | grep -q 'params.set' && bad "params: not on MowBite OS, it keeps them itself" "$(sent keepos)" ||
   ok "params: not on MowBite OS, it keeps them itself"
+
+logs "scheduler: a start passed by a long wait is logged" missed "^skip_missed at=$MISSED\$" 240
+expect "scheduler: and not started" "$(sent missed | grep -c start_mowing)" 0
+logs "scheduler: two starts" twice '^started.*'"at=$TWICE2" 120
+docker exec mbt-twice sh -c 'sed -i "s/^tz .*/tz $1/" /data/schedule.txt' _ "$(behind "$DAY" 3)"
+sleep 170
+expect "scheduler: the clock going back doesn't start one again" "$(slog twice | grep -c '^started')" 2
+expect "scheduler: rests on MowBite OS known from before a restart while it doesn't answer" \
+  "$(sent osknown | grep -c '^action')$(slog osknown)" 0
+[ "$(sent osknown | grep -c '"method":"rpc.methods"')" -ge 2 ] && ok "scheduler: and asks again soon" ||
+  bad "scheduler: and asks again soon" "$(sent osknown)"
+
+docker run --rm --entrypoint adjtimex "$IMAGE" 2> /dev/null | grep -q 'return value: [0-9]' &&
+  ok "scheduler: the image says how its clock is set" || bad "scheduler: the image says how its clock is set"
+# the broker with a pretend nc that finds one on the mower only
+fb() {
+  docker run --rm --entrypoint sh "$@" "$IMAGE" -c \
+    'mkdir /tmp/b && printf "#!/bin/sh\n[ \"\$4\" = 127.0.0.1 ]\n" > /tmp/b/nc && chmod +x /tmp/b/nc && PATH=/tmp/b:$PATH && . /broker.sh && find_broker'
+}
+expect "broker: the one on the mower" "$(fb)" 127.0.0.1
+expect "broker: only the one set, not another with its login" "$(fb -e MOWER_MQTT_HOST=mbt-elsewhere)" ""
+docker exec mbt-entry pkill -f /battery.sh
+for ((i = 0; i < 45; i++)); do [ "$(docker inspect -f '{{.State.Running}}' mbt-entry)" = false ] && break; sleep 1; done
+expect "container: ends when one of its services ended" "$(docker inspect -f '{{.State.Running}}' mbt-entry)" false
+
+# --- the leftovers after a finished mow ---
+
+# a time zone where it's about noon now, posix (the image has no zone files): no dark in the way (6 am to 6 pm without
+# a position)
+o=$((12 - 10#$(date -u +%H)))
+if [ "$o" -ge 0 ]; then noon="NOON-$o"; else noon="NOON+$((-o))"; fi
+LEFT_SET='{"leftovers":{"auto":true,"min":0.5}}'
+LEFT_ANSWER='{"jsonrpc":"2.0","result":{"areas":[{"stats":{"leftovers":{"left_m2":2.5}}}],"armed":3},"id":"@ID@"}'
+start leftfull "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
+start leftoff "$(state IDLE 0 0 0.5)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
+# after a plan's run for the front: only the front again; and out of the dock
+start leftareas "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER" "MAP=$AREAS" \
+  "LAST_RUN=$(($(date +%s) - 3600)) - - front"
+start leftaway "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER" V_CHARGE=0.4
+# job_complete <case>: told again only while its scheduler doesn't listen yet (a late one would end the run it starts)
+job_complete() {
+  local i j
+  for ((i = 0; i < 5; i++)); do
+    docker exec "mbt-$1" mosquitto_pub -h mbt-mq -t "$1/events/json" -m '{"type":"JOB_COMPLETE","job_id":"j1"}'
+    for ((j = 0; j < 10; j++)); do
+      sent "$1" | grep -q planner.settings && return 0
+      sleep 1
+    done
+  done
+  return 1
+}
+job_complete leftfull
+job_complete leftoff
+job_complete leftareas
+job_complete leftaway
+logs "leftovers: started once the battery is full" leftfull '^leftovers_started 2.50$' 60
+expect "leftovers: home at sunset like a run of the schedule" \
+  "$(docker exec mbt-leftfull cat /data/run.state 2> /dev/null | sed -E 's/^[0-9]+ [0-9]+ /<began> <stop> /')" '<began> <stop> dark all'
+expect "leftovers: its stop time to come" "$(due leftfull | wc -l)" 1
+logs "leftovers: after a run for some areas" leftareas '^leftovers_started 2.50$' 60
+expect "leftovers: only those again" "$(docker exec mbt-leftareas cut -d' ' -f4 /data/run.state 2> /dev/null)" front
+logs "leftovers: not out of the dock" leftaway '^leftovers_skip undocked$' 60
+logs "leftovers: waits for the battery" leftoff '^leftovers_waiting_battery 50$' 60
+docker exec mbt-leftoff sh -c 'printf %s "$1" > /data/settings.json' _ '{"leftovers":{"auto":false,"min":0.5}}'
+restate leftoff "$(state IDLE 0 0 0.95)"
+logs "leftovers: switched off while it waited, not started" leftoff '^leftovers_skip off$' 90
+sent leftoff | grep -q start_mowing && bad "leftovers: no start once switched off" "$(sent leftoff)" ||
+  ok "leftovers: no start once switched off"
 
 # --- the log keeper ---
 
@@ -469,14 +622,24 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 # on the same network, not some web page the phone happens to have open
 for o in http://localhost capacitor://localhost http://192.168.178.20:8082 http://10.0.0.5 http://172.20.1.2:8082 \
   http://100.101.102.103:8082 http://mower.local:8082 http://mower.fritz.box http://mower:8082 'http://[fd12::1]:8082' \
-  'http://[fe80::1]:8082' https://garden.example.org "http://127.0.0.1:$port"; do
+  'http://[fe80::1]:8082' http://openmower.speedport.ip https://garden.example.org "http://127.0.0.1:$port"; do
   expect "origin $o asks" "$(code -H "Origin: $o" "$W/version")" 200
 done
 for o in http://evil.example https://10.evil.com http://192.168.1.5.evil.com null http://172.32.0.1 http://100.128.0.1 \
-  'http://[2001:db8::1]' https://garden.example.org.evil.com http://mower.local.evil.com 'http://a"b'; do
+  'http://[2001:db8::1]' https://garden.example.org.evil.com http://mower.local.evil.com https://site.tail1234.ts.net \
+  'http://a"b'; do
   expect "origin $o turned down" "$(code -H "Origin: $o" "$W/version")" 403
 done
 expect "no origin (the page itself, curl) asks" "$(code "$W/version")" 200
+# asked at a name from the internet bound to the mower's address (dns rebinding): neither its page nor its reads count
+for h in openmower:8082 mower.local:8082 openmower.speedport.ip mower.tail1234.ts.net 192.168.178.20:8082 '[fd12::1]:8082' \
+  garden.example.org; do
+  expect "host $h asks" "$(code -H "Host: $h" "$W/version")" 200
+done
+for h in evil.example:8082 1.2.3.4:8082 mower.local.evil.com; do
+  expect "host $h turned down" "$(code -H "Host: $h" "$W/version")" 403
+  expect "host $h with itself as origin turned down" "$(code -X POST -H "Host: $h" -H "Origin: http://$h" "$W/update")" 403
+done
 expect "an origin that asks gets itself back for cors" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$W/version" | tr -d '\r' | sed -n 's/^access-control-allow-origin: //Ip')" \
   http://192.168.178.20:8082
@@ -502,9 +665,17 @@ expect "settings: its version readable from another origin" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$S" | tr -d '\r' | sed -n 's/^access-control-expose-headers: //Ip')" \
   X-Settings-Version
 
-body=$'enabled 1\nhandstop 19:00\nhandstop 9:00\nplan 1 10:00; rm -rf /\nplan 8 10:00\nplan 1 10:00 $(id)\npause 2026-01-01 all\nminbattery 1000\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45\nplan 3 08:00 angle=1000'
-kept=$'enabled 1\nhandstop 19:00\npause 2026-01-01 all\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45'
-expect "schedule: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$W/schedule")" "$kept"
+kept=$'enabled 1\nhandstop 19:00\npause 2026-01-01 all\ntz <+0100>-1<+0200>-2,M3.5.0/2,M10.5.0/3\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45\nplan 4 23:59 end=00:00'
+expect "schedule: lines it doesn't know are left out" "$(printf '%s\nfoo 1\n' "$kept" | curl -s --data-binary @- "$W/schedule")" "$kept"
+# a line it knows that doesn't fit: nothing saved, the app says so
+for l in 'plan 1 10:00; rm -rf /' 'plan 8 10:00' 'plan 1 10:00 $(id)' 'plan 1 24:00' 'plan 1 10:00 end=25:00' 'handstop 9:00' \
+  'handstop 24:30' 'plan 3 08:00 angle=1000' 'minbattery 1000' 'tz Europe/Berlin' 'tz <+0100>-1;id' 'pause 2026-01-01 a$b'; do
+  expect "schedule: $l turned down" "$(printf '%s\n%s\n' "$kept" "$l" | curl -s -w ' %{http_code}' --data-binary @- "$W/schedule" | tr -d '\n')" \
+    "bad ${l%% *} 400"
+done
+expect "schedule: times without the zone turned down" "$(curl -s -w ' %{http_code}' --data-binary $'enabled 1\nplan 1 10:00' "$W/schedule" | tr -d '\n')" \
+  'no tz 400'
+expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
 expect "schedule: a page elsewhere can't change it" "$(code -H 'Origin: http://evil.example' --data-binary 'enabled 0' "$W/schedule")" 403
 expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
 docker exec mbt-web sh -c 'echo "100 2000000000 end front" > /data/run.state && : > /data/run.due.100'
@@ -521,11 +692,12 @@ big() { head -c "$2" /dev/zero | tr '\0' x | code --data-binary @- "$1"; }
 expect "schedule: a body past its size is turned down" "$(big "$W/schedule" 20001) $(curl -s "$W/schedule")" "413 $kept"
 expect "schedule: one up to it is taken" \
   "$(printf '%s\n%s' "$kept" "$(head -c 15000 /dev/zero | tr '\0' x)" | curl -s --data-binary @- "$W/schedule")" "$kept"
+expect "schedule: switched off without a zone, no times in it" "$(curl -s --data-binary 'enabled 0' "$W/schedule")" 'enabled 0'
 
 P=$W/params
-body=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true\n/other/x 1\n/mower_logic/d 1e9\n/mower_logic/e $(id)'
-kept=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true'
-expect "params: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
+body=$'enabled 1\n/mower_logic/tool_width 0.15\n/mower_logic/dock_at_sunset true\n/mower_logic/outline_count 2.5\n/mower_logic/tool_width 5\n/mower_logic/ignore_emergency true\n/other/x 1\n/mower_logic/outline_count 1e9\n/mower_logic/e $(id)'
+kept=$'enabled 1\n/mower_logic/tool_width 0.15\n/mower_logic/dock_at_sunset true'
+expect "params: only the app's settings inside their range are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
 broken "$P" 'enabled 0'
 expect "params: a body that broke off leaves them as they were" "$(curl -s "$P")" "$kept"
 expect "params: a body past their size is turned down" "$(big "$P" 10001) $(curl -s "$P")" "413 $kept"
@@ -557,14 +729,20 @@ expect "backups: a name of 60 umlauts kept whole" "$(meta "$id")" "$(printf 'ä%
 long=$(printf 'a%.0s' $(seq 239))
 id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$long%C3%A4&auto=1" | bid)
 expect "backups: a name cut without half a character at its end" "$(meta "$id")" "$long"
-# one more automatic than are kept, the others with later times (a clock gone back): the oldest goes, not the new one
+# 30 automatic ones made with a clock ahead, then it went back: the ones made first go, not the ones with earlier times
 old=$(curl -s "$B" | grep -o '"id":"[0-9-]*","t":[0-9]*,"name":"auto"' | bid)
-docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\n0\n1\n" > $((2000000000 + i))-1.meta; echo | gzip > $((2000000000 + i))-1.json.gz; done'
+docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\n0\n1\n%s\n" $((100 + i)) > $((2000000000 + i))-1.meta; echo | gzip > $((2000000000 + i))-1.json.gz; done'
 id=$(curl -s --data-binary '{"areas":[]}' "$B?name=new&auto=1" | bid)
 expect "backups: the one just made is kept" "$(code "$B?id=$id")" 200
 expect "backups: the oldest automatic one goes" "$(code "$B?id=$old")" 404
+curl -s -o /dev/null --data-binary '{"areas":[]}' "$B?name=newer&auto=1"
+expect "backups: the one made before it stays, its time earlier than the others'" "$(code "$B?id=$id")" 200
+expect "backups: the first of the clock ahead went instead" "$(code "$B?id=2000000001-1")" 404
 expect "backups: as many automatic ones left as the list says" \
   "$(docker exec mbt-web sh -c 'awk "FNR == 3 && \$0 == 1 { n++ } END { print n + 0 }" /data/backups/*.meta')" 30
+# one damaged on the disk (a power cut) isn't handed out as if whole
+docker exec mbt-web sh -c "head -c 10 /data/backups/$id.json.gz > /tmp/d && cat /tmp/d > /data/backups/$id.json.gz"
+expect "backups: a damaged one is told as such" "$(curl -s -w ' %{http_code}' "$B?id=$id" | tr -d '\n')" 'damaged 500'
 
 N=$W/notify
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\ntoken secret-token-1\nenabled 1' "$N"
@@ -573,8 +751,29 @@ grep -q secret <<< "$got" && bad "notify: the token isn't handed out" "$got" || 
 grep -q '^token set$' <<< "$got" && ok "notify: it says there is one" || bad "notify: it says there is one" "$got"
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\nenabled 1' "$N"
 expect "notify: a save without the token keeps it" "$(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" secret-token-1
+expect "notify: a token that doesn't fit is turned down, the saved one stays" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\ntoken a b' "$N" | tr -d '\n') $(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" \
+  'bad token 400 secret-token-1'
+curl -s -o /dev/null --data-binary $'server https://elsewhere.invalid\ntopic mbt-test\nenabled 1' "$N"
+expect "notify: a save for another server without a token drops it" "$(docker exec mbt-web grep -c '^token' /data/notify.conf)" 0
+curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken tk_a.b~c+d/e=\nurl http://[fd12::1]:8082\nnew_thing 1' "$N"
+expect "notify: a bearer token, an IPv6 address and a setting it doesn't know (left out)" \
+  "$(docker exec mbt-web sh -c 'sed -n "s/^token //p; s/^url //p" /data/notify.conf; grep -c new_thing /data/notify.conf')" \
+  $'http://[fd12::1]:8082\ntk_a.b~c+d/e=\n0'
+expect "notify: an address with a query is turned down" \
+  "$(curl -s -w ' %{http_code}' --data-binary $'topic mbt-test\nurl http://mower:8082/?a=1' "$N" | tr -d '\n')" 'bad url 400'
 curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken -' "$N"
 expect "notify: token - drops it" "$(docker exec mbt-web grep -c '^token' /data/notify.conf)" 0
+# phones sign up over https, not to the mower itself
+web_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' mbt-web)
+for a in http://ntfy.invalid/upA https://127.0.0.1:8080/cgi-bin/update https://localhost/x 'https://[::1]/x' https://169.254.1.1/x \
+  "https://$(docker exec mbt-web hostname)/x" "https://$web_ip:8080/x" "https://$web_ip/x"; do
+  expect "notify: no phone at $a" "$(curl -s --data-binary "$a" "$N?push-add")" 'bad address'
+done
+expect "notify: a phone signed up" "$(curl -s --data-binary 'https://ntfy.invalid/upB?up=1' "$N?push-add")" ok
+got=$(curl -s "$N")
+expect "notify: told by the start of its address's sha256, not the address" \
+  "$(grep -c upB <<< "$got") $(grep '^push ' <<< "$got")" "0 push $(printf %s 'https://ntfy.invalid/upB?up=1' | sha256sum | cut -c1-16)"
 docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/notify.conf'
 expect "notify: a phone that's the only line goes" \
   "$(curl -s --data-binary 'https://ntfy.invalid/upA?up=1' "$N?push-remove") $(docker exec mbt-web cat /data/notify.conf | wc -l)" "ok 0"
@@ -584,8 +783,43 @@ docker exec mbt-web sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\nclean 2
 expect "stats: a part given other hours is told about again once due by them" \
   "$(code -X POST "$W/stats?due=blade&h=100") $(docker exec mbt-web cat /data/stats/reminded)" "200 clean 0"
 
+# the recorder's broker gone: what came since its last save is kept, its sampler ends with its sleep
+for _ in $(seq 20); do docker exec mbt-web test -s /data/sensors.tsv && break; sleep 1; done
+# (the first may be saved right away, the next within a minute only at the end)
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_first/data -m 1
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_test/data -m 1.5
+sleep 1
+docker exec mbt-web pkill -f '^mosquitto_sub -h [^ ]* -p [0-9]* -t web/sensors/'
+for _ in $(seq 5); do docker exec mbt-web grep -q '^mbt_test' /data/sensors.tsv && break; sleep 1; done
+expect "recorder: the last values kept when the broker goes" "$(docker exec mbt-web grep -c '^mbt_test' /data/sensors.tsv)" 1
+expect "recorder: no sleep of its sampler left" "$(docker exec mbt-web sh -c 'ps -o ppid,args | awk "\$1 == 1 && \$2 == \"sleep\" && \$3 == 60"' | wc -l)" 0
+
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
+# one adding up the cells at a time: another waits for it
+docker exec -d mbt-web sh -c 'exec 8> /tmp/gpslog.cells.lock && flock 8 && sleep 4'
+sleep 1
+# (its headers come first)
+expect "gpslog: the cells added up one at a time" "$(curl -s -m 2 "$W/gpslog?cells=20" | wc -c)" 0
+sleep 3
+expect "gpslog: and the next once that's done" "$(curl -s "$W/gpslog?cells=20" | head -n1 | cut -d' ' -f1-3)" "6 17 1"
+
+# a full disk leaves the push messages' settings and the parts' hours as they were (only httpd, the other services
+# would end the container)
+docker run -d --name mbt-full --label "$LABEL" --network "$NET" -p 127.0.0.1::8080 --tmpfs /data:size=1m,mode=1777 \
+  --entrypoint httpd "$IMAGE" -f -p 8080 -h /www > /dev/null
+F=http://127.0.0.1:$(docker port mbt-full 8080 | head -n1 | sed 's/.*://')/cgi-bin
+for _ in $(seq 40); do curl -sf "$F/version" > /dev/null && break; sleep 0.5; done
+curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-full\ntoken t1\nenabled 1' "$F/notify"
+curl -s -o /dev/null --data-binary 'https://ntfy.invalid/upA?up=1' "$F/notify?push-add"
+docker exec mbt-full sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\n" > /data/stats/maint'
+before=$(docker exec mbt-full sh -c 'cat /data/notify.conf /data/stats/maint')
+docker exec mbt-full sh -c 'dd if=/dev/zero of=/data/fill bs=4k 2> /dev/null; true'
+expect "full disk: a phone not signed up" "$(curl -s --data-binary 'https://ntfy.invalid/upB?up=1' "$F/notify?push-add")" 'not saved'
+expect "full disk: nor one taken off" "$(curl -s --data-binary 'https://ntfy.invalid/upA?up=1' "$F/notify?push-remove")" 'not saved'
+expect "full disk: the settings not saved" \
+  "$(code --data-binary $'server https://ntfy.invalid\ntopic mbt-full2\nenabled 1' "$F/notify") $(code -X POST "$F/stats?due=blade&h=100")" '500 200'
+expect "full disk: and all as it was" "$(docker exec mbt-full sh -c 'cat /data/notify.conf /data/stats/maint')" "$before"
 
 # httpd killed starts again after a pause
 docker exec mbt-web pkill httpd

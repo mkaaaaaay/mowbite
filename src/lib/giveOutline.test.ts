@@ -7,15 +7,20 @@ const fake = vi.hoisted(() => ({
   sent: [] as Record<string, unknown>[],
   app: {} as Record<string, unknown>,
   synced: false,
+  // the shared settings read from the mower (sharedSettings)
+  shared: true,
   // saves that time out before one goes through
   failing: 0,
   // what runs on the mower: OpenMower, MowBite OS (system.info) or not known yet (no answer to rpc.methods)
   os: 'openmower' as 'openmower' | 'mowbite-os' | 'unknown',
+  // the planner holds a mow's plans
+  jobOpen: false,
 }));
 const answer = (): PlannerSettings => ({
   settings: Object.fromEntries(
     Object.entries(fake.planner).map(([k, value]) => [k, {value, default: null, stored: true, type: k === 'robot_outline' ? 'points' : 'number', settable: true}]),
   ),
+  job_open: fake.jobOpen,
 });
 vi.mock('./rpc', () => ({
   callRpc: async (method: string, params: Record<string, unknown>) => {
@@ -27,16 +32,28 @@ vi.mock('./rpc', () => ({
     }
     return answer();
   },
+  callCommand: async () => answer(),
   isMissingMethod: () => false,
   onMethodsChanged: () => () => {},
   methodsUnknown: () => fake.os === 'unknown',
   rpcMethods: async () => (fake.os === 'unknown' ? null : new Set(fake.os === 'mowbite-os' ? ['system.info'] : [])),
+}));
+// the handlers of events/json
+const events = vi.hoisted(() => [] as ((payload: string) => void)[]);
+vi.mock('./mqttClient', async (real) => ({
+  ...(await real<typeof import('./mqttClient')>()),
+  getMqttClient: () => ({once() {}, off() {}}),
+  onTopic: (_: string, f: (payload: string) => void) => {
+    events.push(f);
+    return () => {};
+  },
 }));
 vi.mock('./settings', () => ({
   settingsStore: {subscribe: () => () => {}, snapshot: () => fake.app, serverSnapshot: () => ({})},
   syncSettings: async () => {
     fake.synced = true;
   },
+  sharedSettings: () => fake.shared,
   saveSettings: (next: Record<string, unknown>) => {
     fake.app = next;
   },
@@ -59,8 +76,11 @@ describe('the outline given to the planner on its own', () => {
     fake.sent = [];
     fake.app = {};
     fake.synced = false;
+    fake.shared = true;
     fake.failing = 0;
     fake.os = 'openmower';
+    fake.jobOpen = false;
+    events.length = 0;
   });
 
   it('gives none on MowBite OS, it holds the sizes itself', async () => {
@@ -101,6 +121,25 @@ describe('the outline given to the planner on its own', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(fake.sent).toHaveLength(1);
     expect(fake.app.autoOutline).toBe('yf-nx');
+  });
+
+  it('waits for the shared settings from the mower, a rectangle kept there would be passed over', async () => {
+    fake.shared = false;
+    const body = await start();
+    expect(fake.sent).toEqual([]);
+    fake.shared = true;
+    await body.loadPlannerSettings(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fake.sent).toHaveLength(1);
+  });
+
+  it("waits while the planner holds a mow's plans, given once the job is over", async () => {
+    fake.jobOpen = true;
+    await start();
+    expect(fake.sent).toEqual([]);
+    fake.jobOpen = false;
+    events.forEach((f) => f(JSON.stringify({id: 'a', t: 1, type: 'JOB_COMPLETE'})));
+    await vi.waitFor(() => expect(fake.sent).toHaveLength(1));
   });
 
   it('leaves the rectangle when it is kept', async () => {

@@ -1,10 +1,10 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {ACTION, RPC, TOPIC} from '../openmower';
 import {parseBattery} from '../battery';
 import {parseKept} from '../mowerParams';
 import {parseSchedule} from '../schedule';
 import {demoFetch} from './api';
-import {demoMap} from './garden';
+import {demoMap, DEMO_PARAMS} from './garden';
 import {areaPaths, buildRoute, createWorld, demoMows, poseIndex, twistOf} from './world';
 
 const NOW = Date.UTC(2026, 5, 15, 12, 0, 0);
@@ -245,6 +245,21 @@ describe('the demo mower', () => {
     expect(d.actions()[ACTION.resetJob]).toBe(0);
   });
 
+  it("says with the planner's settings whether it holds a job, until it's dropped", async () => {
+    vi.stubGlobal('window', {mowbiteDemoPlanner: true});
+    try {
+      const d = world();
+      expect(await d.rpc(RPC.plannerSettings)).toMatchObject({job_open: true});
+      d.act(ACTION.goHome);
+      d.pass(120);
+      expect(await d.rpc(RPC.plannerSettings)).toMatchObject({job_open: true});
+      d.act(ACTION.resetJob);
+      expect(await d.rpc(RPC.plannerSettings)).toMatchObject({job_open: false});
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('takes a saved map: the job is gone, it comes home and plans the new one', async () => {
     const d = world();
     const map = demoMap();
@@ -383,6 +398,12 @@ describe("the demo mower's container", () => {
     expect((await (await demoFetch(`/cgi-bin/backups?id=${mine.id}`)).json()).areas).toHaveLength(demoMap().areas.length);
     await demoFetch(`/cgi-bin/backups?action=delete&id=${mine.id}`, {method: 'POST'});
     expect(await list()).toHaveLength(before.length);
+  });
+
+  it("has its backups with the garden's datum, so restoring one doesn't warn", async () => {
+    const [first] = (await (await demoFetch('/cgi-bin/backups')).json()) as {id: string}[];
+    const b = await (await demoFetch(`/cgi-bin/backups?id=${first.id}`)).json();
+    expect(b.datum).toEqual({lat: DEMO_PARAMS['/ll/services/gps/datum_lat'], lon: DEMO_PARAMS['/ll/services/gps/datum_long']});
   });
 
   it('has the histories its recorders would have kept', async () => {
@@ -550,6 +571,186 @@ describe('the mower around it, for a mock mower', () => {
     expect(never.events.find((e) => e.type === 'DOCKING_FAILED')).toMatchObject({reason: 'approach_failed', attempts: 5});
     expect(never.types()).not.toContain('DOCKED');
     expect(never.w.inspect()).toMatchObject({state: 'IDLE', away: true});
+  });
+
+  it('drives home from idle off the station on docking.start, and turns it down on the contacts or with the emergency stop', async () => {
+    vi.stubGlobal('window', {mowbiteDemoDockTest: true});
+    try {
+      const answers: Record<string, unknown>[] = [];
+      const events: {type: string; [k: string]: unknown}[] = [];
+      let now = NOW;
+      const heard = (topic: string, text: string) => {
+        if (topic === TOPIC.rpcResponse) answers.push(JSON.parse(text));
+        if (topic === TOPIC.events) events.push(JSON.parse(text));
+      };
+      const w = createWorld(heard, {now, timer: false, start: 'docked', liveEvents: true});
+      const call = async () => {
+        w.published(TOPIC.rpcRequest, JSON.stringify({jsonrpc: '2.0', id: 'h', method: RPC.dockingStart, params: {client: 'app'}}));
+        await new Promise((r) => setTimeout(r, 60));
+        return answers.at(-1) as {result?: object; error?: {code: number; data: Record<string, unknown>}};
+      };
+      // on the contacts
+      expect((await call()).error).toMatchObject({code: -32600, data: {event: 'DRIVE_REFUSED', reason: 'ALREADY_THERE', state: 'IDLE'}});
+      expect(events.at(-1)).toMatchObject({type: 'DRIVE_REFUSED', reason: 'ALREADY_THERE'});
+      expect((answers.at(-1) as {error: {data: {event_id: string}}}).error.data.event_id).toBe(events.at(-1)!.id);
+      w.displace(-3, 1);
+      w.emergency(['STOP']);
+      expect((await call()).error?.data.reason).toBe('EMERGENCY');
+      w.published(TOPIC.action, ACTION.resetEmergency);
+      expect((await call()).result).toEqual({state: 'DOCKING', sub_state: ''});
+      expect(events.slice(-2)).toMatchObject([{type: 'DOCKING', reason: 'MANUAL', client: 'app'}, {type: 'STATE', state: 'DOCKING'}]);
+      // on its way it's busy
+      expect((await call()).error?.data).toMatchObject({reason: 'BUSY', state: 'DOCKING'});
+      for (let s = 0; s < 120; s++) w.tick((now += 1000));
+      expect(events.map((e) => e.type)).toContain('DOCKED');
+      expect(w.inspect()).toMatchObject({state: 'IDLE', docked: true});
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("drives MowBite OS's calibration drive: its checks, its phases, its stop and its result against the sizes", async () => {
+    vi.stubGlobal('window', {mowbiteDemoCalibration: true, mowbiteDemoGeometry: true, mowbiteDemoDockTest: true});
+    try {
+      const answers: {result?: unknown; error?: {code: number; data: Record<string, unknown>}}[] = [];
+      const events: {type: string; [k: string]: unknown}[] = [];
+      let now = NOW;
+      const heard = (topic: string, text: string) => {
+        if (topic === TOPIC.rpcResponse) answers.push(JSON.parse(text));
+        if (topic === TOPIC.events) events.push(JSON.parse(text));
+      };
+      const w = createWorld(heard, {now, timer: false, start: 'docked'});
+      const call = async (method: string, params: object = {}) => {
+        w.published(TOPIC.rpcRequest, JSON.stringify({jsonrpc: '2.0', id: 'c', method, params}));
+        await new Promise((r) => setTimeout(r, 60));
+        return answers.at(-1)!;
+      };
+      const pass = (seconds: number) => {
+        for (let s = 0; s < seconds; s++) w.tick((now += 1000));
+      };
+      const state = () => JSON.parse(w.retained(TOPIC.robotState)[0][1]);
+      expect((await call(RPC.methods)).result).toEqual(expect.arrayContaining([RPC.calibrationCheck, RPC.calibrationStart, RPC.calibrationAbort, RPC.calibrationResult]));
+      expect((await call(RPC.calibrationResult)).result).toBeNull();
+      // on the station: named by the check, the start turned down with it, its answer names the event it went out as
+      expect((await call(RPC.calibrationCheck)).result).toMatchObject({ok: false, problems: [{reason: 'ON_DOCK'}]});
+      expect((await call(RPC.calibrationStart, {client: 'app'})).error).toMatchObject({code: -32600, data: {event: 'CALIBRATION_REFUSED', reason: 'ON_DOCK', client: 'app'}});
+      expect(events.at(-1)).toMatchObject({type: 'CALIBRATION_REFUSED', reason: 'ON_DOCK', client: 'app', id: answers.at(-1)!.error!.data.event_id});
+      w.displace(-3, 1);
+      expect((await call(RPC.calibrationCheck)).result).toEqual({ok: true, problems: [], space: {length: 4.9, width: 1.9, lane_length: 3, heading: expect.any(Number)}});
+
+      expect((await call(RPC.calibrationStart)).result).toEqual({state: 'CALIBRATING'});
+      expect(state()).toMatchObject({current_state: 'IDLE', current_sub_state: 'CALIBRATING'});
+      // busy with it: no second start, no way home, no mowing
+      expect((await call(RPC.calibrationStart)).error?.data).toMatchObject({reason: 'BUSY', state: 'calibrating'});
+      expect((await call(RPC.dockingStart)).error?.data).toMatchObject({reason: 'BUSY', state: 'calibrating'});
+      w.published(TOPIC.action, ACTION.startMowing);
+      expect(state().current_state).toBe('IDLE');
+      const from = {...state().pose};
+      pass(5);
+      expect(Math.hypot(state().pose.x - from.x, state().pose.y - from.y)).toBeGreaterThan(0.5);
+      // stopped where it is
+      expect((await call(RPC.calibrationAbort)).result).toEqual({ok: true});
+      expect(state().current_sub_state).toBe('');
+      expect(events.slice(-2)).toMatchObject([{type: 'CALIBRATION_FAILED', reason: 'STOPPED'}, {type: 'CALIBRATION', phase: 'end'}]);
+      expect((await call(RPC.calibrationResult)).result).toMatchObject({status: 'failed', reason: 'STOPPED', values: []});
+      expect((await call(RPC.calibrationAbort)).result).toEqual({ok: false});
+
+      // a whole drive: every phase, back where it began, a result against the sizes set
+      const start = {...state().pose};
+      const before = events.length;
+      await call(RPC.calibrationStart);
+      pass(60);
+      const phases = events.slice(before).filter((e) => e.type === 'CALIBRATION').map((e) => e.phase);
+      expect([...new Set(phases)]).toEqual(['start', 'align', 'stand', 'line', 'spin_left', 'spin_right', 'evaluate', 'end']);
+      expect(events.slice(before).find((e) => e.type === 'CALIBRATION')).toMatchObject({phase: 'start', rounds: 4, expected_s: expect.any(Number)});
+      expect(events.at(-2)).toMatchObject({type: 'CALIBRATED', status: 'done'});
+      expect(Math.hypot(state().pose.x - start.x, state().pose.y - start.y)).toBeLessThan(0.05);
+      const result = (await call(RPC.calibrationResult)).result as {status: string; station_again: boolean; values: {key: string; ok: boolean; value: number; old: number}[]};
+      expect(result).toMatchObject({status: 'done', station_again: true});
+      expect(result.values.map((v) => [v.key, v.ok])).toEqual([
+        ['ticks_per_m', true],
+        ['track', false],
+        ['antenna_x', true],
+        ['antenna_y', true],
+        ['imu_roll', true],
+        ['imu_pitch', true],
+      ]);
+      // the values before are the mower's sizes
+      const geometry = (await call(RPC.geometry)).result as {version: number; settings: Record<string, {value: number}>};
+      for (const v of result.values) expect(v.old, v.key).toBe(geometry.settings[v.key].value);
+      expect(result).toMatchObject({geometry_version: geometry.version, applied: null});
+
+      // taken by key, all or nothing: one not ok turns all down, then the ones asked for go in with the version after
+      expect((await call(RPC.calibrationApply, {keys: ['ticks_per_m', 'track']})).error).toMatchObject({code: -32602, data: {reason: 'NOT_OK', key: 'track'}});
+      const took = (await call(RPC.calibrationApply, {keys: ['ticks_per_m'], client: 'app'})).result as {applied: {keys: string[]; geometry_version: number}; geometry: {version: number; settings: Record<string, {value: number}>}};
+      expect(took.applied).toMatchObject({keys: ['ticks_per_m'], geometry_version: geometry.version + 1});
+      expect(took.geometry.settings.ticks_per_m.value).toBe(result.values[0].value);
+      expect((await call(RPC.calibrationResult)).result).toMatchObject({applied: {keys: ['ticks_per_m']}});
+      // changed elsewhere since: turned down until a new drive
+      await call(RPC.geometrySet, {version: took.geometry.version, settings: {antenna_y: 0.02}});
+      expect((await call(RPC.calibrationApply, {keys: []})).error).toMatchObject({code: -32600, data: {reason: 'OUTDATED'}});
+
+      // the emergency stop ends it
+      await call(RPC.calibrationStart);
+      pass(3);
+      w.emergency(['STOP']);
+      expect(events.some((e) => e.type === 'CALIBRATION_FAILED' && e.reason === 'EMERGENCY')).toBe(true);
+      expect(state()).toMatchObject({current_sub_state: '', emergency: 1});
+      expect((await call(RPC.calibrationCheck)).result).toMatchObject({ok: false, problems: [{reason: 'EMERGENCY'}]});
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("docks several times in a row as MowBite OS's docking test, a run that fails or is stopped ends it", () => {
+    vi.stubGlobal('window', {mowbiteDemoDockTest: true});
+    const away = () => {
+      const m = mower();
+      m.w.displace(-1.5, 0);
+      return {...m, test: (params: object) => m.w.published(TOPIC.rpcRequest, JSON.stringify({jsonrpc: '2.0', id: 't', method: RPC.dockingTest, params}))};
+    };
+    const runs = (m: ReturnType<typeof away>) => m.events.filter((e) => e.type === 'DOCKING_TEST_RUN').map(({run, of, ok, reason}) => ({run, of, ok, reason}));
+    try {
+      const three = away();
+      // not a number of runs it takes: nothing starts
+      three.test({runs: 11});
+      expect(three.state().current_state).toBe('IDLE');
+      three.test({runs: 3});
+      expect(three.events.slice(0, 2)).toMatchObject([{type: 'DOCKING', reason: 'TEST'}, {type: 'STATE', state: 'DOCKING'}]);
+      three.pass(120);
+      expect(runs(three)).toEqual([1, 2, 3].map((run) => ({run, of: 3, ok: true, reason: undefined})));
+      expect(three.types().filter((t) => t === 'DOCKED')).toHaveLength(3);
+      // idle only after the last one
+      expect(three.events.filter((e) => e.type === 'STATE').map((e) => e.state)).toEqual(['DOCKING', 'IDLE']);
+      expect(three.w.inspect().docked).toBe(true);
+
+      const failing = away();
+      failing.w.set({dockFails: {count: 1, at: 'dock'}});
+      failing.test({runs: 4});
+      failing.pass(120);
+      expect(runs(failing)).toEqual([{run: 1, of: 4, ok: false, reason: 'dock_failed'}]);
+      expect(failing.types()).toContain('DOCKING_FAILED');
+      expect(failing.types()).not.toContain('DOCKING_RETRY');
+      expect(failing.w.inspect()).toMatchObject({state: 'IDLE', away: true});
+
+      const stopped = away();
+      stopped.test({runs: 2});
+      stopped.pass(1);
+      stopped.act(ACTION.abortDocking);
+      expect(runs(stopped)).toEqual([{run: 1, of: 2, ok: false, reason: 'STOPPED'}]);
+      expect(stopped.state().current_state).toBe('IDLE');
+
+      // one run is the plain test: it tries again, no run events
+      const one = away();
+      one.w.set({dockFails: {count: 1, at: 'dock'}});
+      one.test({});
+      one.pass(120);
+      expect(one.types()).toContain('DOCKING_RETRY');
+      expect(one.types()).toContain('DOCKED');
+      expect(runs(one)).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('latches the stop when the blade does not spin up, and says so when it lets go', () => {

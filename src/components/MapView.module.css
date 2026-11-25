@@ -278,6 +278,15 @@
   pointer-events: none;
 }
 
+.dockFootprint {
+  pointer-events: none;
+  fill: color-mix(in srgb, var(--foreground) 6%, transparent);
+  stroke: color-mix(in srgb, var(--foreground) 45%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+}
+
 .mower {
   pointer-events: none;
 }
@@ -1087,12 +1096,49 @@
   stroke-width: 2;
 }
 
-.marker .markerPulse {
+.marker .markerPulse,
+.seenPulse {
   fill: rgba(255, 59, 59, 0.35);
   stroke: none;
   transform-box: fill-box;
   transform-origin: center;
   animation: marker-pulse 1.6s ease-out infinite;
+}
+
+/* what the obstacle sensors saw: its round on the ground, a sign of what it is on it */
+.seen {
+  pointer-events: none;
+}
+
+.seen.seenPick {
+  cursor: pointer;
+}
+
+.seenHit {
+  fill: transparent;
+}
+
+.seenPick .seenHit {
+  pointer-events: auto;
+}
+
+/* driven around: the circle it keeps out of stays unmowed */
+.keptOut {
+  fill: var(--c-unmowed);
+  fill-opacity: 0.25;
+  stroke: var(--c-unmowed);
+  stroke-width: 1.5;
+}
+
+.seenGround {
+  fill: color-mix(in srgb, var(--c-seen) 22%, transparent);
+  stroke: var(--c-seen);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.seenPulse {
+  fill: color-mix(in srgb, var(--c-seen) 40%, transparent);
 }
 
 @keyframes marker-pulse {

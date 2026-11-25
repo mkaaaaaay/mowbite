@@ -33,7 +33,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Merge',
-    text: 'Tap Merge and then the second area, then Apply merge under the map. The two have to touch or overlap. The new area keeps the name, type and settings of the one picked first.',
+    text: 'Tap Merge and then the second area, then Apply merge under the map. The two have to touch or overlap. The new area keeps the name, type and settings of the one picked first. Is the second one of another type, it says what that changes and asks once more: an obstacle merged into a mowing area gets mowed over.',
   },
   {
     title: 'Take out',
@@ -61,7 +61,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Simulate the drive',
-    text: "With the MowBite Planner on the mower, Simulate the drive under Mowing settings drives the area's plan the way your mower would: with OpenMower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
+    text: "With the MowBite Planner on the mower, Simulate the drive under Mowing settings drives the area's plan the way your mower would: with the mower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
   },
   {
     title: 'Map style',
@@ -73,7 +73,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Save and backups',
-    text: 'Save map sends the map to the mower. With MowBite running as a container on the mower, the old map is backed up first: under the map at Backups (no area picked) Preview shows it and Restore brings it back.',
+    text: "Save map sends the map to the mower. With MowBite running as a container on the mower, the old map is backed up first: under the map at Backups (no area picked) Preview shows it and Restore brings it back. Backups and downloaded maps keep the mower's reference point (datum). One made with another reference point or without one is warned of before restoring: its areas would lie off.",
   },
 ].map((s, i) => ({...s, Art: EDITOR_ART[i]}));
 

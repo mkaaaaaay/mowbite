@@ -10,8 +10,12 @@
 D=/data/stats
 M=$D/maint
 arg() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([a-z0-9]*\)$/\1/p" | head -n1; }
+# put <file>: the lines on stdin as the file, the old one stays when the new one can't be written whole
+put() { cat > "$1.$$" && mv "$1.$$" "$1" || { rm -f "$1.$$"; return 1; }; }
 
 if [ "$REQUEST_METHOD" = POST ]; then
+  # one at a time with notify.awk marking a part told, held until the cgi ends
+  exec 9> /tmp/stats.lock && flock 9
   part=$(arg 'done')
   [ -n "$part" ] || part=$(arg due)
   if ! grep -q "^$part " "$M" 2>/dev/null; then
@@ -22,7 +26,7 @@ if [ "$REQUEST_METHOD" = POST ]; then
   fi
   if [ -n "$(arg 'done')" ]; then
     blade=$(cut -d' ' -f2 "$D/state" 2>/dev/null)
-    awk -v p="$part" -v b="${blade:-0}" -v t="$(date +%s)" '$1 == p { $3 = b; $4 = t } { print }' "$M" > "$M.$$" && mv "$M.$$" "$M"
+    awk -v p="$part" -v b="${blade:-0}" -v t="$(date +%s)" '$1 == p { $3 = b; $4 = t } { print }' "$M" | put "$M"
   else
     h=$(arg h)
     case "$h" in '' | *[!0-9]*) h=0 ;; esac
@@ -32,9 +36,9 @@ if [ "$REQUEST_METHOD" = POST ]; then
       printf 'Content-Type: text/plain\r\n\r\nhours out of range\n'
       exit 0
     fi
-    awk -v p="$part" -v h="$h" '$1 == p { $2 = h } { print }' "$M" > "$M.$$" && mv "$M.$$" "$M"
+    awk -v p="$part" -v h="$h" '$1 == p { $2 = h } { print }' "$M" | put "$M"
     # told again once due by the new hours (notify.awk)
-    [ -f "$D/reminded" ] && awk -v p="$part" '$1 != p' "$D/reminded" > "$D/reminded.$$" && mv "$D/reminded.$$" "$D/reminded"
+    [ -f "$D/reminded" ] && { awk -v p="$part" '$1 != p' "$D/reminded" | put "$D/reminded"; }
   fi
 fi
 

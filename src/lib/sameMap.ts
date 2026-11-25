@@ -1,6 +1,18 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {openRings} from './rings';
 
+// area settings only newer openmower versions keep, older ones drop them when saving (pin too, its square says it then)
+export const NEW_AREA_SETTINGS = ['mowable', 'angle_min', 'angle_max', 'mow_around', 'margin', 'planner', 'drawn'] as const;
+// what the app calls them where it says one got dropped (drawn has a text of its own)
+export const DROPPED_WORDS: Record<string, string> = {
+  mowable: "don't mow",
+  angle_min: 'angle range',
+  angle_max: 'angle range',
+  mow_around: 'mow around it',
+  margin: 'Own safety distance',
+  planner: "the area's own planner settings",
+};
+
 // same content. areas the editor didn't touch keep their object, so only changed ones get compared as text
 export function sameMap(a: MowerMap, b: MowerMap): boolean {
   if (a === b) return true;
@@ -46,10 +58,42 @@ const asKept = (m: MowerMap): MowerMap => ({
   docking_stations: m.docking_stations,
 });
 
-// the same map as one sent to the mower, after it came back from there (map.replace answering late)
-export function sameContent(a: MowerMap, b: MowerMap): boolean {
+type Area = MowerMap['areas'][number];
+// the newer settings the area sent has that the same area on the mower doesn't (an older openmower dropped them)
+export const droppedSettings = (sent: Area, mower: Area) =>
+  NEW_AREA_SETTINGS.filter((k) => sent.properties[k] !== undefined && mower.properties[k] === undefined);
+
+// sent without what the mower dropped
+const keptBy = (mower: MowerMap, sent: MowerMap): MowerMap => ({
+  ...sent,
+  areas: sent.areas.map((a) => {
+    const now = mower.areas.find((x) => x.id === a.id);
+    if (!now) return a;
+    const properties = {...a.properties};
+    for (const k of droppedSettings(a, now)) delete properties[k];
+    return {...a, properties};
+  }),
+});
+
+// the mower's map is the one sent there, after it came back (map.replace answering late)
+export function sameContent(mower: MowerMap, sent: MowerMap): boolean {
   const text = (m: MowerMap) => JSON.stringify(canonical(asKept(openRings(m))));
-  return a === b || text(a) === text(b);
+  return mower === sent || text(mower) === text(keptBy(mower, sent));
+}
+
+// what the planner plans from is the same: the mowing and navigation areas and the obstacles as the mower keeps them,
+// names and cutting heights aside (a height changes no plan)
+export function samePlanning(a: MowerMap, b: MowerMap): boolean {
+  const planned = (m: MowerMap) =>
+    JSON.stringify(
+      canonical(
+        asKept(openRings(m))
+          .areas.filter((x) => ['mow', 'nav', 'obstacle'].includes(x.properties.type ?? ''))
+          .map((x) => ({...x, properties: {...x.properties, name: undefined, mow_height_mm: undefined}}))
+          .sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)),
+      ),
+    );
+  return a === b || planned(a) === planned(b);
 }
 
 // a short key of what the mower keeps of a map, to the mm: the same when the same map comes again, another one when an

@@ -4,7 +4,8 @@ import type {Merged} from '@/lib/mergeAreas';
 import type {Laid} from '@/lib/snapAreas';
 import type {Subtracted} from '@/lib/subtractAreas';
 import {fmt, tr} from '@/lib/i18n';
-import type {Area} from './editing';
+import {useState} from 'react';
+import {mergeLoss, type Area} from './editing';
 import styles from './page.module.css';
 
 // the small panels for the steps that take over the editor for a moment
@@ -84,6 +85,10 @@ export function MergePanel({
   onApply: () => void;
   onCancel: () => void;
 }) {
+  // across types it's applied with a second tap, for the area it was armed for
+  const [sure, setSure] = useState<string | null>(null);
+  const loss = other && merged ? mergeLoss(area, other) : null;
+  const armed = !!other && sure === other.id;
   return (
     <div className={styles.splitBox}>
       <p className={styles.dim}>
@@ -95,14 +100,18 @@ export function MergePanel({
           <span className={styles.pieceA}>{fmt(polygonArea(merged.outline), 1)} m²</span>
           {merged.holesFilled > 0 && tr(', the gap enclosed between them gets filled in')}
           {merged.loopsJoined > 0 && tr(', where an outline crosses itself it gets tidied up')}
-          {other.properties.type !== area.properties.type &&
-            tr(', careful: {name} is a different type', {name: other.properties.name || tr('it')})}
         </p>
       )}
+      {loss && <p className={styles.error}>{loss}</p>}
       {other && !merged && <p className={styles.error}>{tr("These two don't touch, there'd be two separate pieces.")}</p>}
       <div className={styles.inlineRow}>
-        <button className={styles.pillButton} onClick={onApply} disabled={!merged}>
-          {tr('Apply merge')}
+        <button
+          className={loss ? [styles.pillButton, styles.danger].join(' ') : styles.pillButton}
+          onClick={() => (!loss || armed ? onApply() : setSure(other!.id))}
+          onBlur={() => setSure(null)}
+          disabled={!merged}
+        >
+          {loss && armed ? tr('Really merge?') : tr('Apply merge')}
         </button>
         <button className={styles.pillButton} onClick={onCancel}>
           {tr('Cancel')}
@@ -297,6 +306,7 @@ export function RestorePanel({
   restoring,
   confirm,
   error,
+  datumNote,
   onRestore,
   onDisarm,
   onClose,
@@ -313,6 +323,8 @@ export function RestorePanel({
   restoring: boolean;
   confirm: boolean;
   error: string | null;
+  // made with another datum than the mower's or without one (lib/backups datumWarning)
+  datumNote?: string | null;
   onRestore: () => void;
   onDisarm: () => void;
   onClose: () => void;
@@ -325,6 +337,7 @@ export function RestorePanel({
           ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')
           : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
       </p>
+      {datumNote && <p className={styles.error}>{datumNote}</p>}
       {!live ? (
         <p className={styles.error}>{tr("The mower can't be reached right now.")}</p>
       ) : (

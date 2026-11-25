@@ -1,6 +1,7 @@
 'use client';
 
-import {getMqttClient, messagesHeld, onTopic} from '@/lib/mqttClient';
+import {isObj} from '@/lib/mergeChanges';
+import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 import {lastSensorAt, useSensorValue} from './useMowerSensors';
@@ -50,6 +51,13 @@ export function logicSilent(connected: boolean, since: number, sensorsAt: number
   return connected && since > 0 && now - since > SILENT_MS && sensorsAt > 0 && now - sensorsAt < STALE_MS;
 }
 
+// robot_state/json with what every page reads (its state and pose), throws for one without, it's left out then
+export function stateFrom(text: string): MowerState {
+  const s = JSON.parse(text);
+  if (!isObj(s) || typeof s.current_state !== 'string' || !isObj(s.pose)) throw new Error('not a state');
+  return s as unknown as MowerState;
+}
+
 const NONE: MowerLink = {state: null, connected: false, stale: false, lastAt: 0, resuming: false, silent: false};
 const RESUME_MS = 8000;
 // one store for every page, so remounting doesn't flash "waiting" or "connection lost"
@@ -83,7 +91,7 @@ function start() {
       // back once a state comes over a connection made after the return, one still queued on the old one doesn't count
       const back = link.resuming && connectedAt >= resumedAt;
       update({
-        state: JSON.parse(payload.toString()),
+        state: stateFrom(payload.toString()),
         lastAt: Date.now(),
         stale: false,
         silent: false,
@@ -99,8 +107,6 @@ function start() {
     update({resuming: true});
   });
   setInterval(() => {
-    // while another page is drawn the states wait (lib/mqttClient), they aren't missing
-    if (messagesHeld()) return;
     update({
       stale: !!link.state && Date.now() - link.lastAt > STALE_MS,
       resuming: link.resuming && Date.now() - resumedAt < RESUME_MS,
@@ -151,3 +157,12 @@ export function useIdle(): boolean {
 
 // connected and the state is current: only then is what's shown real and a command goes out right away
 export const isLive = (l: MowerLink) => l.connected && !l.stale;
+// the same outside a page, for a command as it goes out: the age of the last state right now (the mark above is set
+// once a second, late after the background), never without a state come
+export function liveNow(): boolean {
+  start();
+  return link.connected && !!link.state && Date.now() - link.lastAt <= STALE_MS;
+}
+// the states in which the mower is out: paused counts too, it's standing somewhere on the lawn then. recording drives
+// with gps as well
+export const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);

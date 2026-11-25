@@ -1,6 +1,10 @@
 'use client';
 
 import {BrandMark} from '@/components/BrandMark';
+import {CalibrationStop} from '@/components/CalibrationStop';
+import {DockingTest} from '@/components/DockingTest';
+import {SetupCard} from '@/components/setup/SetupCard';
+import {DataRollbackCard} from '@/components/DataRollbackCard';
 import {DontPanic} from '@/components/DontPanic';
 import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LogicHint from '@/components/LogicHint';
@@ -12,14 +16,16 @@ import {CameraIcon, ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, Recor
 import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
-import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
+import {emergencySince} from '@/lib/roslog';
+import {useEmergencyReset, useJustReset, useJustStopped} from '@/hooks/useEmergencyReset';
 import {useTrackBefore} from '@/hooks/useLeftoversBefore';
-import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {lockedAfter, sendCall, setsOff, useCommandNote, useMowerActions, useTapLock} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {DRIVING, isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
@@ -33,17 +39,19 @@ import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
+import {useOsApi, usePlatform, useStopRelease} from '@/lib/mowerOs';
 import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
+import {useObstacles} from '@/hooks/useObstacles';
+import {ObstacleCard} from '@/components/ObstacleCard';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
 import {settingsStore, showDashCamera} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
+import {batteryColor, chargeOf, dockText, choosingPlatform, GPS_QUALITY_LABEL, gpsQuality, GOES_ON, inCalibration, inSetupStep, isDocked, onCharger, plainIdle, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
-import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -58,6 +66,7 @@ import {
   nextStart,
   daySun,
   inOtherZone,
+  tzUnreadable,
   osSun,
   readyText,
   scheduleLogLine,
@@ -71,21 +80,22 @@ import {useLeftoverRun} from '@/hooks/useLeftoverRun';
 import MowerSwitch from '@/components/MowerSwitch';
 import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
-import {ACTION, PARAM} from '@/lib/openmower';
+import {OsRestart, SetupWifiLost, SetupWifiOpen, TrialConfirm, UsbMode} from '@/components/HostOs';
+import {ACTION, PARAM, RPC} from '@/lib/openmower';
 
-// paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
-const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
-
-// skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
-// it back
+// skipping an area or a path drops what's left of it, so it goes out only after a few seconds; a second tap or leaving
+// the page takes it back
 const SKIP_DELAY = 4;
 // the left out start that was closed, by its time
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
 const ACTIONS = [
   {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', tone: 'go'},
+  // (a call, not an action: for a mower idle off its station)
+  {id: RPC.dockingStart, Icon: HomeIcon, label: 'Go home', tone: 'home'},
   {id: ACTION.pause, Icon: PauseIcon, label: 'Pause', tone: 'pause'},
   {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home', tone: 'home'},
   {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area', tone: 'skip'},
+  {id: ACTION.abortDocking, Icon: CloseIcon, label: 'Stop docking', tone: 'stop'},
 ];
 
 
@@ -148,8 +158,10 @@ function headline(state: MowerState, docked: boolean, charger: boolean, charge: 
       // carried into the dock say, it only counts once it's ended there
       return {title: charger ? tr('Paused, in the dock') : tr('Paused'), tone: 'warn'};
     case 'IDLE':
-      return {title: tr('Waiting on the lawn'), tone: 'warn'};
+      if (inCalibration(state)) return {title: tr('Calibration drive running'), tone: 'live'};
+      return inSetupStep(state) ? {title: tr('Setup step running'), tone: 'live'} : {title: tr('Waiting on the lawn'), tone: 'warn'};
     default:
+      if (choosingPlatform(state)) return {title: tr('Choose the mower'), tone: 'warn'};
       return {title: state.current_state.toLowerCase().replace(/_/g, ' '), tone: 'neutral'};
   }
 }
@@ -210,15 +222,16 @@ export default function Home() {
   // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
+  const methods = useRpcMethods();
   // an interrupted job still there after recording mode tried to drop it
   const jobStays = useRecordingJob().drop === 'left';
   const choice = useMowerChoice();
   const {infos, values} = useMowerSensors();
-  const why = useEmergencyReasons(!!state?.emergency);
-  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency);
   // the release with STOP at the mower, where it has one
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
+  const justStopped = useJustStopped(!!state?.emergency);
   // a refused reset shows under the emergency stop already
   const commandNote = useCommandNote(['EMERGENCY_RESET_REFUSED']);
   const position = useMowerPosition() ?? state?.pose;
@@ -228,7 +241,10 @@ export default function Home() {
   // the map page's map worked out while this one idles
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
-  const os = useMowbiteOs();
+  const why = useEmergencyReasons(!!state?.emergency, emergencySince(recent?.today));
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const api = useOsApi();
   // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
   const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
@@ -283,6 +299,7 @@ export default function Home() {
   const ready = useScheduleReady();
   const notReady = planned && ready && !ready.ok && !batteryWait ? ready : null;
   const [confirmReset, setConfirmReset] = useState(false);
+  const [askHome, setAskHome] = useState(false);
   // three more runs unfolded under the last three
   const [moreRuns, setMoreRuns] = useState(false);
   // the two mowers meet in the title row, the weather makes room for them
@@ -299,27 +316,16 @@ export default function Home() {
     }, 1000);
     return () => clearTimeout(t);
   }, [skip, publishAction]);
+  // it goes out only after its wait was seen to the end: the app put away (screen locked, another app) drops it
+  const skipWaiting = skip !== null;
+  useEffect(() => {
+    if (!skipWaiting) return;
+    const drop = () => document.visibilityState === 'hidden' && setSkip(null);
+    document.addEventListener('visibilitychange', drop);
+    return () => document.removeEventListener('visibilitychange', drop);
+  }, [skipWaiting]);
   const toggleSkip = (id: string) =>
     setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY, area: state?.current_area, path: state?.current_path});
-  // leaving the page doesn't take a waiting skip back: it goes out right away
-  const waiting = useRef({skip, publishAction});
-  useEffect(() => {
-    waiting.current = {skip, publishAction};
-  });
-  useEffect(
-    () => () => {
-      const {skip, publishAction} = waiting.current;
-      if (skip) publishAction(skip.id, skip);
-    },
-    [],
-  );
-  // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
-  const [tapped, setTapped] = useState<string | null>(null);
-  useEffect(() => {
-    if (!tapped) return;
-    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
-    return () => clearTimeout(t);
-  }, [tapped]);
 
   const current = state?.current_state ?? '';
   // asked every minute while it's out, from a container that has it
@@ -331,12 +337,21 @@ export default function Home() {
     const timer = setInterval(load, 60000);
     return () => clearInterval(timer);
   }, [out]);
-  const driving = DRIVING.has(current);
+  // MowBite OS's calibration drive: idle by its state, on its way all the same
+  const calibrationDrive = !!state && inCalibration(state);
+  const driving = DRIVING.has(current) || calibrationDrive;
+  // what the obstacle sensors saw, on the map; the one tapped with its photo over it
+  const seen = useObstacles().obstacles;
+  const [seenPicked, setSeenPicked] = useState<number | null>(null);
+  const picked = seen?.find((o) => o.id === seenPicked);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
   // so: one on the next mow leaves recording mode to the areas
   const calibrating = useCalibratingByHand(current === 'AREA_RECORDING');
   // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
-  const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
+  const charger = onCharger(state, values['om_v_charge']);
+  const pausedInDock = current === 'PAUSED' && !state?.emergency && charger;
+  // home for a mower idle off its station, where MowBite OS docks by itself (rpc.methods)
+  const homeFromIdle = !!methods?.has(RPC.dockingStart) && !!state && plainIdle(state) && !charger;
   // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
   // by the state, the mower also offers continue while mowing until it was paused once. leaving the dock home can't be
   // asked for, stopping can. the emergency stop locks all of them (it still offers start), its reset comes first
@@ -348,23 +363,27 @@ export default function Home() {
         : a.id === ACTION.goHome && current === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
         ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
         : a,
-  ).filter((a) => hasAction(a.id) && !state?.emergency);
-  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
-  // went. paused it still goes out, OpenMower skips once it goes on
+  ).filter((a) => (a.id === RPC.dockingStart ? homeFromIdle : hasAction(a.id)) && !state?.emergency);
+  // the command button tapped last, for a moment and again once the buttons change: a second tap doesn't send it again or
+  // set the mower off (lockedAfter)
+  const [tapped, setTapped] = useTapLock(actionsNow.map((a) => a.id).join());
+  // a skip button is there while mowing or paused, connected and without an emergency stop
+  const canSkip = (id: string) => live && (current === 'MOWING' || current === 'PAUSED') && hasAction(id) && !state?.emergency;
+  // a waiting skip is dropped once its button is gone or the mower is on another area or path. paused it still goes out,
+  // OpenMower skips once it goes on
   if (
     skip !== null &&
-    (!live ||
-      (current !== 'MOWING' && current !== 'PAUSED') ||
-      !hasAction(skip.id) ||
+    (!canSkip(skip.id) ||
       state?.current_area !== skip.area ||
       (skip.id === ACTION.skipPath && state?.current_path !== skip.path))
   )
     setSkip(null);
   // the question about dropping the interrupted job goes once there's none to drop (started meanwhile) or no connection
   if (confirmReset && (!live || !hasAction(ACTION.resetJob))) setConfirmReset(false);
+  // the question before it's sent home goes once it isn't idle off the station any more, or with the connection
+  if (askHome && (!live || !homeFromIdle || !!state?.emergency)) setAskHome(false);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
-  const charger = onCharger(state, values['om_v_charge']);
   const confirmed = useChargeConfirmed(api, state ? charger : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
@@ -394,7 +413,7 @@ export default function Home() {
   const costume = useMemo(() => ({towel, umbrella}), [towel, umbrella]);
 
   const acc = state?.pose.pos_accuracy;
-  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy, os));
   const hidden = settings.dashboard?.hidden;
   const temps = state ? temperatures(infos, values).filter((t) => shown(hidden, t.key, t.warn)) : [];
   // key: as in DASH_FACTS, wide: gets a whole row, its value is longer
@@ -467,26 +486,19 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
-          {cameras && (
-            <button
-              className={styles.cameraSwitch}
-              aria-pressed={!!settings.dashboard?.camera}
-              aria-label={tr('Camera picture')}
-              title={tr('Camera picture')}
-              onClick={() => showDashCamera(!settings.dashboard?.camera)}
-            >
-              <CameraIcon size={20} />
-            </button>
-          )}
           <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
+        <OsRestart banner />
+        <UsbMode banner />
+        <TrialConfirm banner />
+        <SetupWifiOpen banner />
 
         {!state &&
           (link.silent ? (
             <div className={styles.dim}>
               <p className={styles.offline}>
-                {os ? tr("The mower answers, but its state doesn't come.") : tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}
+                {om ? tr("The rest of OpenMower answers, but mower_logic doesn't send its state.") : tr("The mower answers, but its state doesn't come.")}
               </p>
               <LogicHint className={styles.logicHint} />
             </div>
@@ -504,12 +516,24 @@ export default function Home() {
               )}
             </p>
           ))}
+        {!state && !connected && unreachable && <SetupWifiLost />}
 
         {state && head && (
           <section className={[styles.status, live ? styles[`tone-${head.tone}`] : styles.stale].join(' ')}>
             <div className={styles.statusTop}>
               <BatteryRing percent={battery} />
               <div className={styles.headline}>
+                {cameras && (
+                  <button
+                    className={styles.cameraSwitch}
+                    aria-pressed={!!settings.dashboard?.camera}
+                    aria-label={tr('Camera picture')}
+                    title={tr('Camera picture')}
+                    onClick={() => showDashCamera(!settings.dashboard?.camera)}
+                  >
+                    <CameraIcon size={18} />
+                  </button>
+                )}
                 {/* which mower this is, with more than one to pick from */}
                 {choice.many && <span className={styles.mowerName}>{choice.name}</span>}
                 <h2>{head.title}</h2>
@@ -522,17 +546,20 @@ export default function Home() {
                       ? [refused ? explain(refused) : tr('Release the mower, then reset the emergency to drive again.'), stopRelease && stopReleaseText(stopRelease)]
                           .filter(Boolean)
                           .join(' ')
-                      : pausedInDock && hasAction(ACTION.goHome)
-                        ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
-                        : [since && tr('since {time}', {time: clock(since)}), homeAt && runStopText(homeAt)]
-                            .filter(Boolean)
-                            .join(' · ')}
+                      : choosingPlatform(state)
+                        ? tr("MowBite OS doesn't know yet which mower this is, so it talks to no board. Choose it in the setup.")
+                        : pausedInDock && hasAction(ACTION.goHome)
+                          ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
+                          : [since && tr('since {time}', {time: clock(since)}), homeAt && runStopText(homeAt)]
+                              .filter(Boolean)
+                              .join(' · ')}
                   </span>
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>
                 ) : (
                   <span className={styles.offline}>{staleText(link, os)}</span>
                 )}
+                {!live && !link.resuming && (current === 'DOCKING' || calibrationDrive) && <span className={styles.offline}>{tr(GOES_ON)}</span>}
               </div>
             </div>
             {connected && link.silent && <LogicHint className={[styles.dim, styles.logicHint].join(' ')} />}
@@ -565,9 +592,16 @@ export default function Home() {
 
             <div className={styles.controls}>
               {commandNote && <p className={[styles.commandNote, commandNote.warn ? styles.warn : ''].join(' ')}>{commandNote.text}</p>}
+              {/* MowBite OS's calibration drive: its stop here too, its page has the rest */}
+              {calibrationDrive && (
+                <div className={styles.calibrationDrive}>
+                  <CalibrationStop running />
+                  <Link href="/calibration">{tr('To the calibration')}</Link>
+                </div>
+              )}
               {/* first, the buttons below are locked until it's reset */}
               {!!state.emergency && (
-                <button className={styles.reset} disabled={!live} onClick={reset}>
+                <button className={styles.reset} disabled={!live || justStopped} onClick={reset}>
                   <WarningIcon size={20} />
                   {tr('Reset emergency')}
                 </button>
@@ -584,6 +618,7 @@ export default function Home() {
                       disabled={!live || (justReset && setsOff(a.id)) || (!!tapped && lockedAfter(tapped, a.id))}
                       onClick={() => {
                         if (a.id === ACTION.skipArea) return toggleSkip(a.id);
+                        if (a.id === RPC.dockingStart) return setAskHome(true);
                         setTapped(a.id);
                         publishAction(a.id);
                       }}
@@ -592,6 +627,23 @@ export default function Home() {
                       {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}
                     </button>
                   ))}
+                </div>
+              )}
+              {askHome && (
+                <div className={styles.resetJob}>
+                  <span>{tr('The mower drives to the docking station by itself, the blade stays off. Is the way clear and nobody close to it?')}</span>
+                  <button
+                    className={styles.reset}
+                    disabled={justReset || (!!tapped && lockedAfter(tapped, RPC.dockingStart))}
+                    onClick={() => {
+                      setAskHome(false);
+                      setTapped(RPC.dockingStart);
+                      sendCall(RPC.dockingStart);
+                    }}
+                  >
+                    {tr('Drive home')}
+                  </button>
+                  <button onClick={() => setAskHome(false)}>{tr('Cancel')}</button>
                 </div>
               )}
               {/* recording mode on without its page (the back button, another phone): back to it, and out of it while
@@ -613,7 +665,7 @@ export default function Home() {
                     )}
                 </div>
               )}
-              {live && (current === 'MOWING' || current === 'PAUSED') && hasAction(ACTION.skipPath) && !state.emergency && (
+              {canSkip(ACTION.skipPath) && (
                 <button
                   className={styles.skipPathButton}
                   title={tr('The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.')}
@@ -648,13 +700,19 @@ export default function Home() {
                     {tr('Drop the interrupted job')}
                   </button>
                 ))}
+              {/* MowBite OS started on an older backup: its map confirmed here, no start is offered before */}
+              <DataRollbackCard />
+              {/* MowBite OS's setup program until it's complete */}
+              <SetupCard />
+              {/* idle in front of the station, where the mower offers it. both held a moment after the emergency's reset */}
+              <DockingTest styles={styles} live={live && !justReset} idle={plainIdle(state) && !state.emergency && !charger} state={current} />
               {/* idle in the dock: what the last mow left, and mowing just that */}
               {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
                 <LeftoversCard
                   key={leftoverJob ?? ''}
                   jobId={leftoverJob}
                   map={map}
-                  live={live}
+                  live={live && !justReset}
                   interrupted={hasAction(ACTION.resetJob)}
                   onStart={() => publishAction(ACTION.startMowing)}
                   styles={styles}
@@ -684,11 +742,15 @@ export default function Home() {
               follow={driving}
               zoomable
               datum={datum}
+              obstacles={seen}
+              obstaclePicked={seenPicked}
+              onObstaclePick={setSeenPicked}
             />
+            {picked && <ObstacleCard obstacle={picked} onClose={() => setSeenPicked(null)} />}
           </section>
         )}
 
-        {/* a camera's picture, switched on at the top or in the settings */}
+        {/* a camera's picture, switched on in the status card or in the settings */}
         {settings.dashboard?.camera && cameras && (
           <section className={styles.cameraCard}>
             <CameraView onHide={() => showDashCamera(false)} />
@@ -763,7 +825,7 @@ export default function Home() {
             )}
             {planned && (
               <Link href="/schedule" className={styles.nextRun}>
-                {tr(otherZone ? "Next start: {when}, the schedule's time" : 'Next start: {when}', {
+                {tr(tzUnreadable(scheduleTz) ? "Next start: {when} by this phone's time, the schedule's zone can't be read" : otherZone ? "Next start: {when}, the schedule's time" : 'Next start: {when}', {
                   when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`,
                 })}
               </Link>

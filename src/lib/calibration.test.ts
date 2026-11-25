@@ -13,11 +13,11 @@ vi.mock('./mqttClient', () => ({
     return {subscribe: (l: () => void) => (heard.add(l), () => heard.delete(l)), get: () => value, initial: () => initial};
   },
 }));
-vi.mock('./rpc', () => ({callRpc: async () => ({})}));
+vi.mock('./rpc', () => ({callRpc: async () => ({}), callCommand: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
 vi.stubEnv('APP_CALIBRATION', '1');
-const {answerTo, calibByHand, calibLeftOver, calibLines, calibMissing, calibProgress, calibStart, calibText, canCalibrate, changeOf, lackDone, lacks, noneRecorded, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+const {calibByHand, calibLeftOver, calibLines, calibMissing, calibProgress, calibStart, calibText, canCalibrate, changeOf, lackDone, lacks, noneRecorded, preselected, readLast, readPaths, readProgress, readResult} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -73,6 +73,9 @@ describe('a calibration', () => {
     const {lines, byHand} = calibLines(r.values, new Set(['ticks_per_m', 'wheel_distance_m', 'antenna_offset_y']), paths);
     expect(lines).toBe('ll/services/diff_drive/ticks_per_m 2031.5\nll/services/diff_drive/wheel_distance_m 0.3612\n');
     expect(byHand).toEqual([]);
+    // never with an exponent, the updater takes plain numbers
+    const tiny = calibLines([{...r.values.find((v) => v.name === 'antenna_offset_y')!, name: 'antenna_offset_x', value: 5e-7, ok: true}], new Set(['antenna_offset_x']), paths);
+    expect(tiny.lines).toMatch(/ 0\.000001\n$/);
     // without the updater's list (an older one, no file found): all by hand
     const none = calibLines(r.values, new Set(['ticks_per_m']), readPaths(undefined));
     expect(none.lines).toBe('');
@@ -81,16 +84,7 @@ describe('a calibration', () => {
     expect(calibLines([{...r.values[0], value: 12000}], new Set(['ticks_per_m']), paths).byHand).toHaveLength(1);
   });
 
-  it("reads the updater's state and what it wrote last", () => {
-    expect(readState('waiting 1793700000')).toEqual({what: 'waiting', at: 1793700000, why: null});
-    expect(readState('refused 1793700000 anchors_ll/x')).toEqual({what: 'refused', at: 1793700000, why: 'anchors_ll/x'});
-    expect(readState('done 1')).toBeNull();
-    // an answer is a change after the request, whatever its time says
-    expect(answerTo('written 1793700000', 'written 1793700000')).toBeNull();
-    expect(answerTo('waiting 1693700000', 'written 1793700000')).toEqual({what: 'waiting', at: 1693700000, why: null});
-    expect(answerTo('written 1793700000', '')).toEqual({what: 'written', at: 1793700000, why: null});
-    expect(answerTo(undefined, '')).toBeNull();
-    expect(answerTo('back 1793700000', null)).toEqual({what: 'back', at: 1793700000, why: null});
+  it('reads what the updater wrote last', () => {
     expect(readLast('1793700000 ll/services/diff_drive/wheel_distance_m 0.3556 0.3612 xbot_positioning/antenna_offset_x -0.10 -0.12')).toEqual({
       at: 1793700000,
       values: [

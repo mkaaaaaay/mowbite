@@ -1,0 +1,27 @@
+# the settings of the mower the container keeps for the app: name, int|double|bool, lowest, highest. the fields of
+# src/lib/mowerParams.ts (its test checks them against each other)
+outline_count int 0 20
+outline_overlap_count int 0 20
+outline_offset double -1 1
+tool_width double 0.1 2
+mow_angle_offset double -180 180
+mow_angle_offset_is_absolute bool
+mow_angle_increment double 0 180
+rain_mode int 0 3
+rain_delay_minutes int 30 1440
+rain_check_seconds int 20 300
+dock_at_sunset bool
+automatic_mode int 0 2
+gps_timeout double 0 60
+max_position_accuracy double 0.01 1
+gps_wait_time double 0 60
+docking_approach_distance double 0 5
+docking_distance double 0 100
+docking_retry_count int 0 50
+undock_distance double 0 100
+motor_hot_temperature double 20 150
+motor_cold_temperature double 20 150
+mow_height_mm int 0 150
+journal_enabled bool
+obstacle_mode int 0 3
+obstacle_photos bool

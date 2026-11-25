@@ -3,7 +3,7 @@ import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import {isPin} from '@/lib/mowerBody';
 import Link from 'next/link';
-import {AREA_TYPES, type Area} from './editing';
+import {typeLabel, type Area} from './editing';
 import styles from './page.module.css';
 
 // a new area, drawn on the map or driven round with the mower: first under the map, with none yet the way to start
@@ -134,7 +134,7 @@ export default function OrderBox({
                   <span className={styles.areaText}>
                     <strong>{name(a)}</strong>
                     <small>
-                      {tr(AREA_TYPES.find((t) => t.value === (a.properties.type ?? 'draft'))?.label ?? '')} · {size(a)}
+                      {typeLabel(a.properties.type)} · {size(a)}
                       {a.properties.active === false && ` · ${tr('inactive')}`}
                     </small>
                   </span>

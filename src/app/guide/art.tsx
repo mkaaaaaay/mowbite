@@ -2,6 +2,7 @@
 
 import {drawDock, type dockIcon} from '@/components/mapIcons';
 import {fmt, tr} from '@/lib/i18n';
+import {DOCK_TEST_REACH} from '@/lib/openmower';
 import {useEffect, useId, useRef} from 'react';
 
 // the drawings of the guide: a garden from above and the map growing on it, in the colors of the map. each one
@@ -25,7 +26,8 @@ const TREE_AROUND = 'M117 128 A25 25 0 1 1 67 128 A25 25 0 1 1 117 128 Z';
 const POND = {x: 236, y: 132};
 const POND_AROUND = 'M271 132 A35 26 0 1 1 201 132 A35 26 0 1 1 271 132 Z';
 
-export function Scene({children, still, label}: {children: React.ReactNode; still: number; label: string}) {
+// with reduced motion it stands still at that second, the end of a screen's loop unless given
+export function Scene({children, still = SCREEN_STILL, label}: {children: React.ReactNode; still?: number; label: string}) {
   const ref = useRef<SVGSVGElement>(null);
   useEffect(() => {
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -45,7 +47,11 @@ export const anim = (attr: string, dur: number, times: number[], values: (number
 );
 // the drawings of the app's screens: one loop in seconds, a part faded in at that fraction of it, the app's own colors
 export const SCREEN_LOOP = 6;
+// the picture shown without motion: the end of the loop, before it starts over
+export const SCREEN_STILL = SCREEN_LOOP * 0.95;
 export const appear = (at: number) => anim('opacity', SCREEN_LOOP, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
+// a button tapped at that fraction of the loop
+export const tap = (at: number) => anim('opacity', SCREEN_LOOP, [0, at, at + 0.04, at + 0.08, 1], [1, 1, 0.5, 1, 1]);
 export const PAINT = {
   card: {fill: 'var(--card)', stroke: 'var(--card-border)'},
   field: {fill: 'var(--background)', stroke: 'var(--card-border)'},
@@ -53,6 +59,7 @@ export const PAINT = {
   text: {fill: 'var(--foreground)'},
   dim: {fill: 'var(--text-secondary)'},
   accent: {fill: 'var(--accent)'},
+  tile: {fill: 'var(--tile)'},
   onAccent: {fill: 'var(--accent-foreground)'},
 };
 
@@ -319,6 +326,17 @@ function Remote() {
   );
 }
 
+// charging on the contacts, shown while its animation says so
+function DockedCheck({y, children}: {y: number; children: React.ReactNode}) {
+  return (
+    <g opacity={0}>
+      {children}
+      <circle cx={160} cy={y} r={12} fill="#4caf50" />
+      <path d={`M155 ${y} l4 4 l7 -8`} stroke="#fff" strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
+
 // 3: backed out of the station a meter, then straight in until it sits on the contacts
 function Docking({dock}: ArtProps) {
   const dur = 7;
@@ -352,11 +370,32 @@ function Docking({dock}: ArtProps) {
         {anim('opacity', dur, [0, 0.22, 0.23, 0.32, 1], [0, 0, 0.9, 0, 0])}
       </circle>
       {/* on the contacts: charging */}
-      <g opacity={0}>
-        {anim('opacity', dur, [0, 0.62, 0.65, 0.92, 0.95, 1], [0, 0, 1, 1, 0, 0])}
-        <circle cx={160} cy={docked - 30} r={12} fill="#4caf50" />
-        <path d={`M155 ${docked - 30} l4 4 l7 -8`} stroke="#fff" strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <DockedCheck y={docked - 30}>{anim('opacity', dur, [0, 0.62, 0.65, 0.92, 0.95, 1], [0, 0, 1, 1, 0, 0])}</DockedCheck>
+    </Scene>
+  );
+}
+
+// the docking test: set down a little beside the line out of the station and a little skewed, it drives itself in
+export function DockTestArt({dock}: ArtProps) {
+  const dur = 6;
+  const [front, docked] = [146, 88];
+  return (
+    <Scene still={dur * 0.85} label="">
+      <Lawn d="M0 0 H320 V200 H0 Z" />
+      <Hedge />
+      <Station dock={dock} x={160} y={66} size={30} />
+      <path d={`M160 ${docked + 12} V${front + 30}`} stroke="#fff" strokeWidth={1.4} strokeDasharray="3 3" opacity={0.8} />
+      <g opacity={0} color="#fff">
+        {anim('opacity', dur, [0, 0.05, 0.08, 0.3, 0.33, 1], [0, 0, 1, 1, 0, 0])}
+        <text x={186} y={front + 4} fontSize={14} fontWeight={700} fill="currentColor">
+          ≤ {DOCK_TEST_REACH.cm} cm · &lt; {DOCK_TEST_REACH.deg}°
+        </text>
       </g>
+      <g>
+        <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.33;0.8;1" keyPoints="0;0;1;1" path={`M170 ${front} Q160 ${front - 30} 160 ${docked}`} />
+        <MowerAt size={15} />
+      </g>
+      <DockedCheck y={docked - 30}>{anim('opacity', dur, [0, 0.8, 0.83, 0.95, 0.98, 1], [0, 0, 1, 1, 0, 0])}</DockedCheck>
     </Scene>
   );
 }

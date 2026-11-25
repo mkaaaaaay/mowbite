@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {readKeptPlanner} from './diagnosis';
-import {emergencyReasons, readKeptLog, readRpcLog} from './roslog';
+import {emergencyReasons, emergencySince, readKeptLog, readRpcLog} from './roslog';
 
 describe('readRpcLog', () => {
   it('keeps the window around the moment, node in front of the text', () => {
@@ -117,6 +117,17 @@ describe('emergencyReasons', () => {
     ];
     expect(emergencyReasons(lines)).toEqual(['COLLISION_MULTIPLE', 'LIFT_MULTIPLE']);
     expect(emergencyReasons(lines.slice(0, 3))).toEqual(['COLLISION']);
+  });
+
+  it("leaves out an earlier emergency stop's reasons when the one now began later", () => {
+    const earlier = [change(100, '', 'LATCH, COLLISION'), change(100.2, 'LATCH, COLLISION', 'LATCH')];
+    // the line of the one now isn't kept yet
+    expect(emergencyReasons(earlier, 500)).toBeNull();
+    expect(emergencyReasons([...earlier, change(498, '', 'LATCH, LIFT')], 500)).toEqual(['LIFT']);
+    const ev = (t: number, emergency: boolean) => ({id: String(t), t, type: 'EMERGENCY', emergency});
+    expect(emergencySince([ev(100, true), ev(200, false), ev(500, true), {id: 'x', t: 510, type: 'STATE'}])).toBe(500);
+    expect(emergencySince([ev(100, true), ev(200, false)])).toBeUndefined();
+    expect(emergencySince(undefined)).toBeUndefined();
   });
 
   it('says nothing without the lines or with only LATCH left', () => {

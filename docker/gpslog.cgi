@@ -70,6 +70,8 @@ cells=$(num cells)
 # (10 to 999 cm: smaller cells only cost the mower memory, 0 would divide by it)
 case $cells in "") ;; ? | 0*) cells=10 ;; ????*) cells=999 ;; esac
 if [ -n "$cells" ]; then
+  # one at a time: each takes the mower's time, also asked for in a row
+  exec 8> /tmp/gpslog.cells.lock && flock 8
   # a finished day is summed up once and kept in cells/ as long as its log (a day takes the mower seconds), only the
   # newest one each time
   C=$D/cells
@@ -79,7 +81,7 @@ if [ -n "$cells" ]; then
     [ "$f" = "$newest" ] && continue
     c="$C/$(basename "$f" .log)-$cells"
     [ -s "$c" ] && [ ! "$f" -nt "$c" ] && continue
-    cellsum "$cells" < "$f" > "$c.$$" && mv "$c.$$" "$c"
+    cellsum "$cells" < "$f" | cat > "$c.$$" && mv "$c.$$" "$c" || rm -f "$c.$$"
   done
   for c in "$C"/*; do
     [ -f "$c" ] || continue

@@ -1,6 +1,8 @@
-import {dec} from './i18n';
+import {dec, tr} from './i18n';
+import type {BladeHeight} from './mowerOs';
 import {mowerFetch, apiBase} from './mowers';
-import {PARAM, RPC} from './openmower';
+import {HEIGHT_AT_ONCE_API, PARAM, RPC} from './openmower';
+import {FIRST_PASS} from './plannerFields';
 import {callRpc} from './rpc';
 import {containerFetch} from './updates';
 
@@ -8,7 +10,8 @@ import {containerFetch} from './updates';
 // their ranges and defaults are from MowerLogic.cfg, OpenMower doesn't tell. The ones that could hurt (the
 // emergency inputs, ignoring gps errors, the mow motor switch) are left out on purpose.
 
-export type ParamGroup = 'mowing' | 'auto' | 'gps' | 'docking' | 'motor';
+// obstacles: shown in a group of its own, only where the mower has an obstacle sensor
+export type ParamGroup = 'mowing' | 'auto' | 'gps' | 'docking' | 'motor' | 'journal' | 'obstacles';
 
 export interface ParamField {
   key: string; // under /mower_logic/
@@ -18,6 +21,8 @@ export interface ParamField {
   // the label and help on MowBite OS where they differ
   osLabel?: string;
   osHelp?: string;
+  // the help on MowBite OS from that api on
+  osHelpFrom?: {api: number; help: string};
   type: 'int' | 'double' | 'bool' | 'choice';
   // in the mower's unit
   min?: number;
@@ -27,6 +32,8 @@ export interface ParamField {
   osMin?: number;
   osMax?: number;
   osDef?: number;
+  // no effect on MowBite OS, left out there
+  osHidden?: boolean;
   // shown in: the mower's value times scale, e.g. meters as cm
   unit?: string;
   scale?: number;
@@ -37,7 +44,14 @@ export interface ParamField {
   reported?: boolean;
   // switched off only after this question
   confirmOff?: string;
+  // a choice changed only after a question, the first whose when(from, to) says so
+  confirmChoice?: {text: string; when: (from: number, to: number) => boolean}[];
+  // only where system.info has blade_height, in its range (ParamRow)
+  bladeHeight?: boolean;
 }
+
+// the question a choice asks before it changes from one value to another, null when it changes right away
+export const choiceQuestion = (f: ParamField, from: number, to: number) => f.confirmChoice?.find((c) => c.when(from, to))?.text ?? null;
 
 export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
   {key: 'mowing', title: 'Lanes and outline passes'},
@@ -45,18 +59,19 @@ export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
   {key: 'gps', title: 'GPS'},
   {key: 'docking', title: 'Docking'},
   {key: 'motor', title: 'Mow motor'},
+  {key: 'journal', title: 'Journal'},
 ];
 
 export const PARAM_FIELDS: ParamField[] = [
   {key: 'outline_count', group: 'mowing', label: 'Outline passes', help: 'Rounds along the edge of an area and around its obstacles before the lanes. An area can have its own number.', type: 'int', min: 0, max: 20, def: 3},
   {key: 'outline_overlap_count', group: 'mowing', label: 'Overlapping passes', help: 'How many of the outline passes the lanes reach into, so nothing is left standing between the lanes and the rounds along the edge.', type: 'int', min: 0, max: 20, def: 0},
-  {key: 'outline_offset', group: 'mowing', label: 'Outline offset', help: 'How far the outer pass stays inside the outline. Negative mows beyond it.', type: 'double', min: -1, max: 1, def: 0, unit: 'cm', scale: 100, step: 1},
+  {key: 'outline_offset', group: 'mowing', label: FIRST_PASS, help: 'How far the middle of the mower stays inside the line on the first outline pass. 0: the middle on the line, negative mows beyond it.', type: 'double', min: -1, max: 1, def: 0, unit: 'cm', scale: 100, step: 1},
   {key: 'tool_width', group: 'mowing', label: 'Lane spacing', help: "OpenMower's tool_width: how far the lanes are apart. Narrower than the blade, so they overlap.", type: 'double', min: 0.1, max: 2, def: 0.14, unit: 'cm', scale: 100, step: 1},
   {key: 'mow_angle_offset', group: 'mowing', label: 'Mowing direction turned by', help: "Added to every area's direction. The schedule can set it for each start time.", type: 'double', min: -180, max: 180, def: 0, unit: '°', step: 5},
   {key: 'mow_angle_offset_is_absolute', group: 'mowing', label: 'That is the direction itself, for every area', help: "Off: it's added to the direction each area has or the mower picks for it. On: all areas are mowed in that direction, counted from east.", type: 'bool', def: false},
   {key: 'mow_angle_increment', group: 'mowing', label: 'Turn further after every whole mowing run', help: 'Added each time all areas are done, so the lanes run another way next time. 0 keeps the direction.', type: 'double', min: 0, max: 180, def: 0, unit: '°', step: 5},
 
-  {key: 'rain_mode', group: 'auto', label: 'When the rain sensor is wet', type: 'choice', def: 0, choices: ['Keep mowing', 'Go home', 'Go home and wait until dry', 'Pause automatic mode']},
+  {key: 'rain_mode', group: 'auto', label: 'When the rain sensor is wet', type: 'choice', def: 0, osDef: 1, choices: ['Keep mowing', 'Go home', 'Go home and wait until dry', 'Pause automatic mode']},
   {key: 'rain_delay_minutes', group: 'auto', label: 'Wait after the rain', help: 'With "wait until dry": how long it has to be dry before it mows on.', type: 'int', min: 30, max: 1440, def: 30, unit: 'min', step: 10},
   {key: 'rain_check_seconds', group: 'auto', label: 'Rain counts after', help: 'The sensor has to be wet for this long without a break.', type: 'int', min: 20, max: 300, def: 20, unit: 's', step: 10},
   // off: it mows on after sunset, DOCKING DARK never comes (masterplan 3.1a, O11)
@@ -70,10 +85,10 @@ export const PARAM_FIELDS: ParamField[] = [
     reported: true,
     confirmOff: 'Switch it off? It then mows on into the night, when hedgehogs and other animals are out.',
   },
-  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
+  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHidden: true, type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can'], confirmChoice: [{text: 'Change it? The mower then sets off again by itself, also when nobody is around.', when: (from, to) => to > 0 && to !== from}]},
 
   {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, osMin: 1, unit: 's', step: 1},
-  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, osMax: 0.3, osDef: 0.1, unit: 'cm', scale: 100, step: 1},
+  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", osHelp: 'A position less accurate than this counts as no fix. An RTK fix is at a few cm.', type: 'double', min: 0.01, max: 1, def: 0.2, osMax: 0.3, osDef: 0.1, unit: 'cm', scale: 100, step: 1},
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
   {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, osMin: 0.5, osMax: 2, unit: 'm', step: 0.1},
@@ -83,13 +98,59 @@ export const PARAM_FIELDS: ParamField[] = [
 
   {key: 'motor_hot_temperature', group: 'motor', label: 'Too hot to mow from', help: 'The mow motor pauses and the mower goes home.', type: 'double', min: 20, max: 150, def: 70, unit: '°C', step: 1},
   {key: 'motor_cold_temperature', group: 'motor', label: 'Cool enough again at', type: 'double', min: 20, max: 150, def: 40, unit: '°C', step: 1},
+  {key: 'mow_height_mm', group: 'motor', label: 'Cutting height', help: "Counts from the next start of the blade. 0 is the mower's own height.", osHelpFrom: {api: HEIGHT_AT_ONCE_API, help: "Counts at once, also while the blade runs. 0 is the mower's own height."}, type: 'int', min: 0, max: 150, def: 0, unit: 'mm', step: 1, bladeHeight: true},
+  // MowBite OS only, for its incidents
+  {
+    key: 'journal_enabled',
+    group: 'journal',
+    label: 'Keep a journal',
+    help: 'MowBite OS keeps a journal of its processes on the mower, so an incident (an emergency stop, a failed docking, a crash) can be looked into later. A change counts from the next start.',
+    type: 'bool',
+    def: true,
+    reported: true,
+  },
+  // MowBite OS only, where the platform has an obstacle sensor; a choice offers the values up to the OS's max
+  {
+    key: 'obstacle_mode',
+    group: 'obstacles',
+    label: 'Obstacles the sensors see',
+    help: 'Show: on the map with what the mower did, it mows on as before. Stop: it stands with the blade off while one is in the way and goes on once the place is free. Drive around: as stop, but an object that stands still is driven around with the blade on, the circle round it stays unmowed; people and animals never. Only what this mower can do is offered.',
+    type: 'choice',
+    def: 0,
+    choices: ['Off', 'Show on the map', 'Stop for them', 'Drive around them'],
+    // what stops it for people and animals taken away, and driving around with the blade on instead of standing
+    confirmChoice: [
+      {text: 'Change it? The mower then no longer stops for what the camera sees, it mows on.', when: (from, to) => from >= 2 && to < 2},
+      {
+        text: 'Change it? The mower then drives around objects that stand still with the blade on, instead of waiting with it off.',
+        when: (from, to) => from === 2 && to === 3,
+      },
+    ],
+    reported: true,
+  },
+  {
+    key: 'obstacle_photos',
+    group: 'obstacles',
+    label: 'Keep a photo of each',
+    help: 'With each new entry a photo of the whole camera picture, kept on the mower only. It can show people.',
+    type: 'bool',
+    def: true,
+    reported: true,
+  },
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
-// the field with MowBite OS's range and default on it
-export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f);
+// the field with MowBite OS's range, default and help (of its api) on it
+export const onOs = (f: ParamField, os: boolean, api = 0): ParamField =>
+  os ? {...f, label: f.osLabel ?? f.label, help: osHelp(f, api) ?? f.help, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f;
+const osHelp = (f: ParamField, api: number) => (f.osHelpFrom && api >= f.osHelpFrom.api ? f.osHelpFrom.help : f.osHelp);
 // the ones this mower has, none of the reported ones before its params came
 export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
+// the fields of a group this mower has
+export const groupFields = (group: ParamGroup, params: Record<string, unknown>, os: boolean) =>
+  PARAM_FIELDS.filter((f) => f.group === group && paramShown(f, params) && !(os && f.osHidden));
+// a cutting height inside what the mower sets, 0 stays its own
+export const fitHeight = (mm: number, b: BladeHeight) => (mm === 0 ? 0 : Math.min(b.max_mm, Math.max(b.min_mm, mm)));
 export const paramName = (key: string) => PARAM.mowerLogic(key);
 // going home at sunset: whether the mower has the setting, whether it's switched off on purpose there
 export const hasSunsetSwitch = (params: Record<string, unknown>) => paramShown(paramField('dock_at_sunset')!, params);
@@ -120,6 +181,20 @@ export function parseParam(f: ParamField, text: string): number | null {
   const v = n / (f.scale ?? 1);
   const fit = Math.min(f.max ?? Infinity, Math.max(f.min ?? -Infinity, v));
   return f.type === 'int' ? Math.round(fit) : Math.round(fit * 1e6) / 1e6;
+}
+
+// why a value typed in is turned down, null when it's taken: not a number, or outside what the field allows
+export function paramError(f: ParamField, text: string): string | null {
+  const n = Number(text.trim().replace(',', '.'));
+  if (text.trim() === '' || !Number.isFinite(n)) return tr('Not a number, it stays as it was.');
+  const v = n / (f.scale ?? 1);
+  if ((f.min === undefined || v >= f.min) && (f.max === undefined || v <= f.max)) return null;
+  const unit = f.unit ? ` ${f.unit}` : '';
+  return f.min !== undefined && f.max !== undefined
+    ? tr('Only {min} to {max}{unit}, it stays as it was.', {min: showParam(f, f.min), max: showParam(f, f.max), unit})
+    : f.min !== undefined
+      ? tr('At least {min}{unit}, it stays as it was.', {min: showParam(f, f.min), unit})
+      : tr('At most {max}{unit}, it stays as it was.', {max: showParam(f, f.max!), unit});
 }
 
 export function showParam(f: ParamField, value: number): string {
@@ -157,7 +232,7 @@ export function parseKept(text: string): KeptParams {
 }
 
 // a number with at most 6 decimals, the container takes no more (and no exponent)
-const keptValue = (v: number | boolean) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
+export const keptValue = (v: number | boolean) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
 
 export const serializeKept = (k: KeptParams) =>
   [`enabled ${k.enabled ? 1 : 0}`, ...Object.entries(k.values).map(([key, v]) => `${paramName(key)} ${keptValue(v)}`), ''].join('\n');
