@@ -7,6 +7,7 @@ import {loadPlatforms, platformImage, platformWords, rereadOnVersion, setPlatfor
 import {useEffect, useState} from 'react';
 import {PlatformPicture} from './PlatformPicture';
 import {RestartWait} from './RestartWait';
+import {TakenBack} from './SetupReset';
 import {Sheet} from './Sheet';
 import {StepSymbol} from './StepSymbol';
 import sheet from './Sheet.module.css';
@@ -109,9 +110,7 @@ export function StepPlatform({setup, lang}: {setup: Setup; lang: string}) {
       )}
       {asking && chosen && (
         <Sheet title={tr('Choose another mower?')} onClose={() => setAsking(false)}>
-          <p className={sheet.warn}>
-            {tr('Everything checked in the setup so far is taken back. The mower drives only while you watch until its safety is measured again.')}
-          </p>
+          <TakenBack setup={setup} />
           <p className={sheet.limit}>{tr('MowBite OS starts again as {mower}.', {mower: platformWords(chosen, lang).name})}</p>
           <div className={sheet.buttons}>
             <button type="button" className={sheet.button} onClick={() => setAsking(false)}>

@@ -99,6 +99,10 @@ export const RPC = {
   // the mowers the image runs as and the choice of one, MowBite OS starts again as it (api 57)
   setupPlatforms: 'setup.platforms',
   setupPlatformSet: 'setup.platform.set',
+  // the serial ports and who holds each, and what comes at a free one, listened to only on the owner's tap (api 71)
+  setupPorts: 'setup.ports',
+  setupPortsListen: 'setup.ports.listen',
+  setupFirmwareExport: 'setup.firmware.export',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
   // MowBite OS's own updates, answered by its host (lib/osUpdate)
@@ -233,6 +237,10 @@ export const SETUP_WIFI_MINUTES = 30;
 // root's password that host.ssh takes, in characters, without control characters
 export const SSH_PASSWORD = {min: 8, max: 128};
 
+// how long setup.ports.listen listens to a port (s), and how much longer the app waits for its answer
+export const PORT_LISTEN_S = 10;
+export const PORT_LISTEN_MARGIN_S = 5;
+
 // a Tron as system.info names its platform (its driver's name): the one whose loader has a USB mode and whose buttons
 // open its setup WLAN. how long the host may take to answer the restart into the USB mode
 export const TRON_PLATFORM = 'airseekers_tron';
@@ -252,8 +260,9 @@ export const DOCKED_VOLTAGE = 5;
 export const UNDO_METERS = 1;
 
 // MowBite OS takes each action also as a call that answers, accepted or why not (masterplan, App ↔ OS). the app calls
-// it where rpc.methods names it, otherwise it sends the action. params besides client, the same for every one
-export const COMMAND: Record<string, {method: string; params?: Record<string, unknown>}> = {
+// it where rpc.methods names it, otherwise it sends the action. params besides client, the same for every one. Its
+// own id of the action (api 70 on) is the method, with the variant where one method has two actions
+export const COMMAND: Record<string, {method: string; params?: Record<string, unknown>; variant?: string}> = {
   [ACTION.resetEmergency]: {method: 'emergency.reset'},
   [ACTION.startMowing]: {method: 'mowing.start'},
   [ACTION.resetJob]: {method: 'mowing.reset_job'},
@@ -268,15 +277,27 @@ export const COMMAND: Record<string, {method: string; params?: Record<string, un
   [ACTION.recording('exit_recording_mode')]: {method: 'recording.exit'},
   [ACTION.recording('start_recording')]: {method: 'recording.ring_start'},
   [ACTION.recording('stop_recording')]: {method: 'recording.ring_stop'},
-  [ACTION.recording('finish_mowing_area')]: {method: 'recording.save', params: {type: 'mow'}},
-  [ACTION.recording('finish_navigation_area')]: {method: 'recording.save', params: {type: 'nav'}},
+  [ACTION.recording('finish_mowing_area')]: {method: 'recording.save', params: {type: 'mow'}, variant: 'mow'},
+  [ACTION.recording('finish_navigation_area')]: {method: 'recording.save', params: {type: 'nav'}, variant: 'nav'},
   [ACTION.recording('finish_discard')]: {method: 'recording.discard'},
   [ACTION.recording('record_dock')]: {method: 'recording.dock'},
-  [ACTION.recording('auto_point_collecting_enable')]: {method: 'recording.auto_points', params: {enabled: true}},
-  [ACTION.recording('auto_point_collecting_disable')]: {method: 'recording.auto_points', params: {enabled: false}},
+  [ACTION.recording('auto_point_collecting_enable')]: {method: 'recording.auto_points', params: {enabled: true}, variant: 'on'},
+  [ACTION.recording('auto_point_collecting_disable')]: {method: 'recording.auto_points', params: {enabled: false}, variant: 'off'},
   [ACTION.recording('collect_point')]: {method: 'recording.point'},
   [ACTION.recording('undo_points')]: {method: RPC.recordingUndo, params: {meters: UNDO_METERS}},
 };
+
+// MowBite OS names its actions and mower_logic's settings its own way from this api on (/logic/<name>); its bridge
+// still speaks OpenMower's names unless turned off (openmower_names). The app keeps OpenMower's inside
+export const OWN_NAMES_API = 70;
+export const OWN_LOGIC = '/logic/';
+const ownIds = Object.entries(COMMAND).map(([id, c]): [string, string] => [id, c.variant ? `${c.method}:${c.variant}` : c.method]);
+const OWN_ID = new Map(ownIds);
+const OM_ID = new Map(ownIds.map(([id, own]) => [own, id]));
+// an action by MowBite OS's own id, one it has none for as it is
+export const ownActionId = (id: string) => OWN_ID.get(id) ?? id;
+// an action of actions/json by OpenMower's id, whichever names the bridge speaks
+export const omActionId = (id: string) => OM_ID.get(id) ?? id;
 
 // ros parameters, as they come in params/json
 export const PARAM = {

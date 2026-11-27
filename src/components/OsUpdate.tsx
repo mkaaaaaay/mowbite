@@ -5,7 +5,7 @@ import {useSetup} from '@/hooks/useSetup';
 import {safetyFailed} from '@/lib/setup';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
-import {useHostOnline} from '@/lib/hostOs';
+import {trialWay, useHost, useHostOnline, useHostTrial} from '@/lib/hostOs';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -126,10 +126,11 @@ function GateNote({reason, at}: {reason: string; at?: number | null}) {
 }
 
 // the mark of a part: held back and how, something new, just updated or up to date
-function tagOf(a: Available | null, fresh: boolean): {text: string; look: string} {
+function tagOf(a: Available | null, fresh: boolean, installed: boolean): {text: string; look: string} {
   const b = a?.blocked;
   if (b) return {text: b.result === 'rolled_back' ? tr('Taken back') : b.result === 'failed' ? tr('Failed') : tr('Held back'), look: shared.badgeBad};
   if (a) return {text: tr('Update available'), look: shared.badgeNew};
+  if (!installed) return {text: tr('Not installed'), look: ''};
   return fresh ? {text: tr('Just updated'), look: shared.badgeNew} : {text: tr('Up to date'), look: ''};
 }
 
@@ -262,7 +263,7 @@ function Part({
   // the mower runs another version of the app than this page shows
   const reload = c.id === 'app' && pageFromMower() && !!running?.version && running.version !== APP_VERSION;
 
-  const tag = tagOf(a, fresh);
+  const tag = tagOf(a, fresh, !!running);
   const text = PART_TEXT[c.id];
   const hint = HINTS[c.id];
   const answer = (go?: () => void) => () => {
@@ -443,6 +444,8 @@ function Net({origin, canPick, locked, onPick}: {origin: Origin; canPick: boolea
 export function OsUpdate() {
   const seen = useUpdateStatus();
   const online = useHostOnline() !== false;
+  const host = useHost();
+  const trial = useHostTrial();
   const methods = useRpcMethods();
   const setup = useSetup();
   const [busy, setBusy] = useState(false);
@@ -496,11 +499,18 @@ export function OsUpdate() {
           onSkipJob={() => run(() => withoutJobWait(s))}
         />
       ) : (
-        <Summary count={count} held={held} checked={checked === null ? null : clock(checked)} locked={locked} onCheck={() => run(() => checkUpdates().then(() => setChecked(Date.now() / 1000)))} />
+        <Summary
+          count={count}
+          held={held}
+          doing={!count && !held && s.components.some((c) => c.id === 'os' && !c.running) ? tr("MowBite OS isn't installed on this mower.") : null}
+          checked={checked === null ? null : clock(checked)}
+          locked={locked}
+          onCheck={() => run(() => checkUpdates().then(() => setChecked(Date.now() / 1000)))}
+        />
       )}
       {!online && <span className={shared.dim}>{tr("The mower's updater doesn't answer right now, shown is what it said at {t}.", {t: clock(at)})}</span>}
       {error && <span className={shared.warn}>{error}</span>}
-      {!now && last && <Result last={last} name={lastName!} />}
+      {!now && last && !(trial && trialWay(host, last) === 'failed') && <Result last={last} name={lastName!} />}
 
       <div className={styles.parts}>
         {s.components

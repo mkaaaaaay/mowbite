@@ -2,16 +2,21 @@
 
 import {fmt, tr} from '@/lib/i18n';
 import {dayText} from '@/lib/dates';
-import {held, isSummary, moves, nameOf, releasesBlade, summaryPreview, words, type SetupStep, type SetupValue} from '@/lib/setup';
+import {held, isRelease, isSummary, moves, nameOf, releasesBlade, summaryPreview, words, type SetupStep, type SetupValue} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
 import {StepSymbol} from './StepSymbol';
 import {StepValues} from './StepValues';
 
+// the release of the firmware measurement: whether it writes (the last run needed for firmware the driver doesn't
+// know), whether the firmware is known already (forced, nothing to write), the firmware seen and the runs needed in a row
+export type Release = {writes: boolean; known: boolean; firmware: string; needed: number};
+
 // what moves in a step, as its start button says it; a blade still locked is released first
-function startLabel(step: SetupStep): string {
+function startLabel(step: SetupStep, release?: Release): string {
   const {motion} = step;
+  if (isRelease(step)) return release?.writes ? tr('Release the firmware') : release?.known ? tr('Finish the check') : tr('Finish the run');
   if (motion?.blade) return releasesBlade(step) ? tr('Release the blade') : tr('Let the blade turn');
   if (motion?.wheels) return motion.raised ? tr('Let the wheels turn') : tr('Let the mower drive');
   if (isSummary(step)) return tr('Release the mower');
@@ -40,10 +45,11 @@ export function ConfirmSheet(props: {
   lang: string;
   busy: boolean;
   risky: boolean;
+  release?: Release;
   onStart: (confirm: string[]) => void;
   onClose: () => void;
 }) {
-  const {step, lang, busy, risky, onStart, onClose} = props;
+  const {step, lang, busy, risky, release, onStart, onClose} = props;
   const written = isSummary(step) ? writtenValues(step, props.steps) : null;
   const [ticked, setTicked] = useState<string[]>([]);
   const all = step.confirm.every((c) => ticked.includes(c.id));
@@ -89,6 +95,27 @@ export function ConfirmSheet(props: {
           <p className={styles.limit}>{tr('MowBite OS restarts once, the lock opens when it is back.')}</p>
         </div>
       )}
+      {release && (
+        <div className={styles.list} data-release={release.writes || undefined}>
+          {release.writes ? (
+            <>
+              <p className={styles.limit}>
+                {release.firmware
+                  ? tr('Releases exactly this firmware ({firmware}) on exactly this mower.', {firmware: release.firmware})
+                  : tr('Releases exactly this firmware on exactly this mower.')}
+              </p>
+              <p className={styles.limit}>
+                {tr('Then the mower drives with it like with a known firmware. It drives and mows by itself only after the safety measurement.')}
+              </p>
+              <p className={styles.limit}>{tr('MowBite OS restarts once for it.')}</p>
+            </>
+          ) : release.known ? (
+            <p className={styles.limit}>{tr('Checks the whole run. This firmware is known already, nothing is released.')}</p>
+          ) : (
+            <p className={styles.limit}>{tr('Checks the whole run. After a run that failed {n} have to pass in a row: this one counts, the release comes with the last one.', {n: release.needed})}</p>
+          )}
+        </div>
+      )}
       {risky && (
         <p className={styles.warn} data-risky>
           {tr("If it doesn't pass this time, the mower stays locked until it passes again.")}
@@ -113,7 +140,7 @@ export function ConfirmSheet(props: {
           {tr('Cancel')}
         </button>
         <button type="button" className={styles.button} data-primary disabled={busy || !all || held(step)} onClick={() => onStart(ticked)}>
-          {startLabel(step)}
+          {startLabel(step, release)}
         </button>
       </div>
     </Sheet>

@@ -1,5 +1,5 @@
 import type {Page} from '@playwright/test';
-import {demoWith, expect, SIM, test} from './app';
+import {demoDocked, demoFlag, demoFlagNow, demoWith, expect, SIM, tab, test} from './app';
 
 // the demo's emergency stop, as a press of a button on the mower
 const press = (page: Page, reason: string) => page.evaluate((r) => (window as unknown as {mowbiteDemo: {emergency: (r: string[]) => void}}).mowbiteDemo.emergency([r]), reason);
@@ -7,12 +7,18 @@ const step = (page: Page, id: string) => page.locator(`[data-step="${id}"]`);
 // within the app: a new load starts the demo over. the phone shows the overview on its own, the desktop beside the step
 const overview = async (page: Page) => {
   const back = page.getByRole('link', {name: 'Overview'});
-  if (await back.isVisible()) await back.click();
+  if (!(await back.isVisible())) return;
+  await back.click();
+  // the stages open by the chosen step until the overview is there
+  await expect(page.locator('main[data-view]')).toHaveAttribute('data-view', 'overview');
 };
-const to = async (page: Page, stage: string, name: string) => {
+const openStage = async (page: Page, stage: string) => {
   await overview(page);
   const head = page.locator('button[aria-expanded]', {hasText: stage});
   if ((await head.getAttribute('aria-expanded')) === 'false') await head.click();
+};
+const to = async (page: Page, stage: string, name: string) => {
+  await openStage(page, stage);
   await page.locator('button:not([aria-expanded])', {hasText: new RegExp(`^${name}`)}).click();
 };
 // the input steps passed, as the steps that turn wheels need them, then at the wheels without the emergency stop
@@ -101,7 +107,7 @@ test.describe('setup', () => {
     await demoWith(page, 'Setup', 'Geometry');
     await page.goto('/');
     const card = page.locator('[data-card="setup"]');
-    await expect(card).toContainText('2 of 13 steps done');
+    await expect(card).toContainText('3 of 14 steps done');
     await card.getByRole('link', {name: 'Go on with the setup'}).click();
     await expect(page).toHaveURL(/\/setup\/?\?step=board/);
 
@@ -207,6 +213,27 @@ test.describe('setup', () => {
     await sheet.getByRole('button', {name: 'Start over'}).click();
     await to(page, 'Inputs', 'STOP button');
     await expect(step(page, 'stop')).toHaveAttribute('data-state', 'open');
+  });
+
+  test('serial ports: one listened to after the note on DTR, none at a held one, a refusal in words', async ({page}) => {
+    await demoWith(page, 'Setup');
+    await page.goto('/setup/');
+    const card = page.locator('[data-ports]');
+    await card.getByRole('button', {name: /Serial ports/}).click();
+    const usb = card.locator('[data-port="/dev/ttyUSB0"]');
+    const held = card.locator('[data-port="/dev/ttyS3"]');
+    await expect(held).toContainText('used by gnss');
+    await expect(held.getByRole('button')).toHaveCount(0);
+    await expect(usb).toContainText('QinHeng Electronics USB Serial');
+    await usb.getByRole('button', {name: 'Listen in'}).click();
+    await expect(usb).toContainText('can still switch its DTR line');
+    await usb.getByRole('button', {name: 'Listen in'}).click();
+    await expect(usb.locator('[data-listening]')).toBeVisible();
+    await expect(usb.locator('[data-heard]')).toHaveText('GPS (NMEA), 115200 baud, 5 GGA/s, RTK fix');
+    await demoFlagNow(page, 'mowbiteDemoPortsRefuse', 'LISTENING');
+    await usb.getByRole('button', {name: 'Listen in'}).click();
+    await usb.getByRole('button', {name: 'Listen in'}).click();
+    await expect(usb.locator('[data-heard]')).toHaveText('Port not listened to: another port is being listened to, wait for its result');
   });
 
   test('turns the wheels jacked up while the page follows, asks which wheel, a wrong one closes the lock', async ({page}) => {
@@ -413,5 +440,194 @@ test.describe('setup', () => {
     await expect(open).toContainText('Track of the drive wheels 39.5 cm');
     await open.getByRole('button', {name: 'These sizes are right'}).click();
     await expect(open).toHaveCount(0);
+  });
+});
+
+// MowBite OS's step that switches the drivers on, and the owner's measurement of firmware the driver doesn't list
+test.describe('setup: hardware and firmware', () => {
+  test.skip(SIM, 'the demo mower only');
+
+  // the steps of the measurement by their place in its stage: two of them share a name
+  const MEASURE = ['fw_link', 'fw_stop', 'fw_lift', 'fw_bumper', 'fw_latch', 'fw_wheels', 'fw_stop_moving', 'fw_no_command', 'fw_silence', 'fw_setpoint', 'fw_driver_end', 'fw_blade'];
+  const toMeasure = async (page: Page, id: string) => {
+    await openStage(page, 'Measure firmware');
+    await page.locator('li:has(> button[aria-expanded="true"]) ol button').nth([...MEASURE, 'fw_release'].indexOf(id)).click();
+    await expect(step(page, id)).toBeVisible();
+  };
+  // the emergency of the step before reset, every point ticked, then the start; a step without points starts at once
+  const start = async (page: Page, id: string, label?: string) => {
+    const reset = step(page, id).getByRole('button', {name: 'Reset emergency'});
+    if (await reset.isVisible()) await reset.click();
+    await step(page, id).getByRole('button', {name: /^(Start|Repeat)$/}).click();
+    if (!label) return;
+    const sheet = page.getByRole('dialog');
+    for (const box of await sheet.getByRole('checkbox').all()) await box.check();
+    await sheet.getByRole('button', {name: label}).click();
+  };
+  // plays the owner through a running step: the input its waiting part asks for, the emergency reset after it, the
+  // right wheel named. The holding of the inputs runs by itself
+  const through = async (page: Page, id: string) => {
+    const s = step(page, id);
+    const waiting = s.locator('li[data-state="waiting"]');
+    const reset = s.getByRole('button', {name: 'Reset emergency'});
+    const right = s.getByRole('button', {name: 'Right wheel'});
+    await expect(s).toHaveAttribute('data-state', 'running');
+    while ((await s.getAttribute('data-state')) === 'running') {
+      if (await reset.isVisible()) await reset.click();
+      else if (await right.isVisible()) await right.click();
+      else if (id !== 'fw_latch' && (await waiting.count())) {
+        const text = await waiting.first().innerText();
+        const reason = /STOP/.test(text) ? 'STOP' : /Lift/.test(text) ? 'LIFT' : /Bumper/.test(text) ? 'COLLISION' : null;
+        if (reason) await press(page, reason);
+      }
+      await page.waitForTimeout(250);
+    }
+    await expect(s).toHaveAttribute('data-state', 'ok');
+  };
+  // a whole run in order, the blade of the measurement allowed already
+  const measureRun = async (page: Page) => {
+    for (const id of MEASURE) {
+      await toMeasure(page, id);
+      const label = id === 'fw_link' ? 'Start' : id === 'fw_blade' ? 'Let the blade turn' : MEASURE.indexOf(id) > MEASURE.indexOf('fw_latch') ? 'Let the wheels turn' : undefined;
+      await start(page, id, label);
+      await through(page, id);
+    }
+  };
+  // the first start allows the blade of the measurement and restarts MowBite OS, the next one begins the run
+  const allowBlade = async (page: Page) => {
+    const link = step(page, 'fw_link');
+    await expect(link.locator('[data-releases]')).toContainText('At the first start the blade is released');
+    await start(page, 'fw_link', 'Start');
+    await expect(link.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(link.getByText('MowBite OS is starting again')).toHaveCount(0);
+    await expect(link.locator('[data-releases]')).toHaveCount(0);
+  };
+
+  test('switches the hardware on with a restart, the hint on the dashboard leads there', async ({page}) => {
+    await demoWith(page, 'Setup', 'Host');
+    await demoFlag(page, 'mowbiteDemoHardwareOff', true);
+    await page.goto('/');
+    // the step only in IDLE: the demo mower mows when it starts
+    await demoDocked(page);
+    const off = page.locator('[data-hardware-off]');
+    await expect(off).toContainText("The hardware is still off: after the installation MowBite OS doesn't talk to the board yet.");
+    // before any emergency the mower reports without its drivers
+    await expect(page.getByRole('heading', {level: 2, name: 'Hardware off'})).toBeVisible();
+    await expect(page.getByText('Switch the hardware on in the setup first.')).toBeVisible();
+    await off.getByRole('link', {name: 'Switch it on in the setup'}).click();
+    await expect(page).toHaveURL(/\?step=hardware/);
+    const h = step(page, 'hardware');
+    await expect(h.locator('[data-restarts]')).toContainText('MowBite OS restarts for it.');
+    await h.getByRole('button', {name: 'Start'}).click();
+    await expect(h.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(h.getByRole('button', {name: 'Cancel'})).toHaveCount(0);
+    await expect(h).toHaveAttribute('data-state', 'ok');
+    await expect(h.locator('[data-restarts]')).toHaveCount(0);
+    await tab(page, '/').click();
+    await expect(page.locator('[data-card="setup"]')).toBeVisible();
+    await expect(off).toHaveCount(0);
+    await expect(page.getByRole('heading', {level: 2, name: 'Hardware off'})).toHaveCount(0);
+  });
+
+  test('the measurement only while the driver does not let the firmware drive, older firmware to the vendor first', async ({page}) => {
+    await demoWith(page, 'Setup');
+    await page.goto('/setup/');
+    await expect(page.locator('button[aria-expanded]', {hasText: 'Device'})).toBeVisible();
+    await expect(page.locator('button[aria-expanded]', {hasText: 'Measure firmware'})).toHaveCount(0);
+
+    await demoFlag(page, 'mowbiteDemoFirmware', 'older');
+    await page.goto('/setup/?step=fw_link');
+    const link = step(page, 'fw_link');
+    await expect(link.locator('[data-firmware="older"]')).toContainText('The firmware is older than every known one. Update it with the vendor first.');
+    await expect(link.locator('[data-blocked="FIRMWARE_OLDER"]')).toBeVisible();
+    await expect(link.getByRole('button', {name: 'Start'})).toBeDisabled();
+  });
+
+  test('a run that fails, the result shared as a file and a report without the device, then one more run in a row', async ({page}) => {
+    test.setTimeout(240_000);
+    await demoWith(page, 'Setup');
+    await demoFlag(page, 'mowbiteDemoFirmware', 'none');
+    await demoFlag(page, 'mowbiteDemoFirmwareFail', 'fw_link');
+    await page.goto('/setup/?step=fw_link');
+    const link = step(page, 'fw_link');
+    await expect(link.locator('[data-firmware-intro]')).toContainText('A run is every step of this stage in order.');
+    await expect(link.locator('[data-firmware="none"]')).toContainText("MowBite OS doesn't know this firmware yet.");
+    await expect(link.locator('[data-firmware="none"]')).toContainText('0 of 1 runs in a row passed');
+    // the steps after it wait for it
+    await toMeasure(page, 'fw_stop');
+    await expect(step(page, 'fw_stop')).toContainText('Not passed yet: Link to the board');
+    await toMeasure(page, 'fw_link');
+    await allowBlade(page);
+
+    // the link fails for real: the run ends, the next has to pass twice in a row
+    await start(page, 'fw_link', 'Start');
+    await expect(link.locator('[data-result="failed"]')).toBeVisible();
+    await toMeasure(page, 'fw_release');
+    const release = step(page, 'fw_release');
+    await expect(release.locator('[data-firmware="none"]')).toContainText('0 of 2 runs in a row passed · 1 run failed');
+
+    // the file as it is, the report names counts and firmware, never the device's checksum
+    await release.locator('[data-share-result]').click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.locator('[data-share]')).toContainText('No places, no names, no passwords.');
+    const report = (await sheet.locator('[data-report]').getAttribute('href'))!;
+    expect(report).toMatch(/^https:\/\/github\.com\/mkaaaaaay\/mowbite-os\/issues\/new\?/);
+    const words = new URL(report).searchParams.get('body')!;
+    expect(words).toContain('Runs passed in a row: 0 of 2, failed: 1');
+    expect(words).not.toMatch(/[0-9a-f]{32}/);
+    const saved = page.waitForEvent('download');
+    await sheet.getByRole('button', {name: 'Save the file'}).click();
+    const file = await saved;
+    expect(file.suggestedFilename()).toMatch(/^mowbite-firmware-[a-z0-9-]+-\d{4}-\d{2}-\d{2}\.json$/);
+    const measured = JSON.parse(await (await file.createReadStream()).toArray().then((c) => Buffer.concat(c).toString()));
+    expect(measured).toMatchObject({firmware_source: 'none', passed: 0, needed: 2, failed: 1, written: null});
+    expect(measured.device_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(words).not.toContain(measured.device_hash);
+    await sheet.getByRole('button', {name: 'Close'}).click();
+
+    // a whole run passes: one more is needed, the way back to its first step
+    await measureRun(page);
+    await toMeasure(page, 'fw_release');
+    // this release counts the run, it doesn't write yet: no restart
+    await expect(release.locator('[data-restarts]')).toHaveCount(0);
+    await release.getByRole('button', {name: 'Start'}).click();
+    await expect(sheet.locator('[data-release]')).toHaveCount(0);
+    await expect(sheet).toContainText('this one counts, the release comes with the last one');
+    await sheet.getByRole('button', {name: 'Finish the run'}).click();
+    await expect(release.locator('[data-result="again"]')).toContainText('1 of 2 runs in a row passed · 1 run failed');
+    await release.locator('[data-again]').click();
+    await expect(page).toHaveURL(/\?step=fw_link/);
+  });
+
+  test('a whole run releases the firmware after its own sheet and a restart, a start over takes it back', async ({page}) => {
+    test.setTimeout(240_000);
+    await demoWith(page, 'Setup');
+    await demoFlag(page, 'mowbiteDemoFirmware', 'none');
+    await page.goto('/setup/?step=fw_link');
+    await allowBlade(page);
+    await measureRun(page);
+
+    await toMeasure(page, 'fw_release');
+    const release = step(page, 'fw_release');
+    await expect(release.locator('[data-restarts]')).toBeVisible();
+    await release.getByRole('button', {name: 'Start'}).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.locator('[data-release]')).toContainText('Releases exactly this firmware (cutter 0.6.36, chassis 0.6.34) on exactly this mower.');
+    await expect(sheet.locator('[data-release]')).toContainText('It drives and mows by itself only after the safety measurement.');
+    await sheet.getByRole('button', {name: 'Release the firmware'}).click();
+    await expect(release.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(release.getByRole('button', {name: 'Cancel'})).toHaveCount(0);
+    // released: the stage is gone, the overview keeps the result to share
+    const released = page.locator('[data-own="firmware"]');
+    await expect(released).toContainText('Firmware released');
+    await expect(released).toContainText('This firmware is measured and released on this mower.');
+    await expect(page.locator('button[aria-expanded]', {hasText: 'Measure firmware'})).toHaveCount(0);
+    await released.locator('[data-share-result]').click();
+    const report = new URL((await page.getByRole('dialog').locator('[data-report]').getAttribute('href'))!);
+    expect(report.searchParams.get('body')).toContain('- Result: released on this mower');
+    await page.getByRole('dialog').getByRole('button', {name: 'Close'}).click();
+
+    await page.getByRole('button', {name: 'Start the setup over'}).click();
+    await expect(page.getByRole('dialog').locator('[data-drops-release]')).toBeVisible();
   });
 });

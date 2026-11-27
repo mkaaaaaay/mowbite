@@ -9,6 +9,8 @@ import {
   setupWifiText,
   sshLogin,
   sshPasswordProblem,
+  trialFailText,
+  trialWay,
   usbLeftState,
   usbLeftUntil,
   usbModeError,
@@ -19,6 +21,7 @@ import {
   type HostStatus,
 } from './hostOs';
 import {RPC} from './openmower';
+import type {Last} from './osUpdate';
 import {RpcError} from './rpc';
 
 const os = (more: Partial<HostOs> = {}): HostOs => ({state: 'running', reason: null, since: 100, restarts: 0, last_crash: null, revision: 'abc', ...more});
@@ -33,6 +36,11 @@ describe('the host status', () => {
     expect(h.methods).toEqual(['update.status']);
     expect(h.os?.state).toBe('down');
     expect(parseHost('{"schema":1,"online":true}')).toEqual(EMPTY);
+  });
+
+  it('is read with whether the drivers run, only as a boolean and only online', () => {
+    const hardware = (v: unknown, online = true) => parseHost(JSON.stringify({schema: 1, online, hardware: v})).hardware;
+    expect([hardware(false), hardware(true), hardware('false'), hardware(false, false)]).toEqual([false, true, undefined, undefined]);
   });
 
   it('is read with the trial period and the last change of the WLAN', () => {
@@ -69,6 +77,34 @@ describe('MowBite OS off', () => {
     expect(offText(os({state: 'halted', reason: 'DATA_DIR_LOCKED'}))).toBe("MowBite OS isn't running: another MowBite OS holds the mower's data.");
     expect(offText(os({state: 'halted'}))).toBe("MowBite OS isn't running.");
   });
+
+  it('is not installed without a revision', () => {
+    expect(offText(os({state: 'stopped', revision: null}))).toBe("MowBite OS isn't installed on this mower.");
+  });
+});
+
+describe('a system on trial', () => {
+  const last = (more: Partial<Last> = {}): Last => ({result: 'failed', reason: 'UNHEALTHY', message: 'halted: DATA_ERROR', revision: 'r1', component: 'os', t: 1, ...more});
+
+  it('is confirmed only while MowBite OS runs', () => {
+    expect(trialWay(host(), null)).toBe('confirm');
+    for (const state of ['starting', 'stopped', 'halted'] as const) expect(trialWay(host({state}), null)).toBe('wait');
+    expect(trialWay(undefined, undefined)).toBe('wait');
+  });
+
+  it('failed when the installing update failed or was turned down', () => {
+    expect(trialWay(host({state: 'stopped', revision: null}), last())).toBe('failed');
+    expect(trialWay(host({state: 'stopped'}), last({result: 'refused'}))).toBe('failed');
+    expect(trialWay(host({state: 'stopped'}), last({result: 'installed'}))).toBe('wait');
+    expect(trialWay(host(), last())).toBe('confirm');
+  });
+
+  it('says why in words: the reason in the message, else the update', () => {
+    expect(trialFailText(last())).toBe("It can't read or prepare its data.");
+    expect(trialFailText(last({message: 'health check failed'}))).toBe("It didn't run properly after its first start.");
+    expect(trialFailText(last({reason: 'BAD_SIGNATURE', message: ''}))).toBe("The update isn't signed with a known key.");
+    expect(trialFailText(last({reason: null, message: 'disk full'}))).toBe('disk full');
+  });
 });
 
 describe('the restart', () => {
@@ -98,6 +134,10 @@ describe('the restart', () => {
     expect(restartWay(host({state: 'down'}), undefined, IDLE, false)).toBe('off');
     expect(restartWay(host({state: 'down'}, []), null, IDLE, false)).toBeNull();
     expect(restartWay(undefined, LISTED, IDLE, false)).toBeNull();
+  });
+
+  it('is not offered without an installed MowBite OS', () => {
+    expect(restartWay(host({state: 'stopped', revision: null}), LISTED, IDLE, false)).toBeNull();
     expect(restartWay({...EMPTY, online: false}, LISTED, IDLE, false)).toBeNull();
   });
 
@@ -151,6 +191,11 @@ describe("a Tron's USB mode", () => {
     expect(usbModeOffered(host(), 'airseekers_tron')).toBe(false);
     expect(usbModeOffered({...listed, online: false}, 'airseekers_tron')).toBe(false);
     expect(usbModeOffered(undefined, 'airseekers_tron')).toBe(false);
+  });
+
+  it('is offered on trial while MowBite OS is off and names no platform', () => {
+    expect(usbModeOffered({...listed, trial: true}, null)).toBe(true);
+    expect(usbModeOffered({...host(), trial: true}, null)).toBe(false);
   });
 
   it('says why the host turned it down, in words for this restart', () => {

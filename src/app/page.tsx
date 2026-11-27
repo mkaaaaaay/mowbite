@@ -80,7 +80,8 @@ import {useLeftoverRun} from '@/hooks/useLeftoverRun';
 import MowerSwitch from '@/components/MowerSwitch';
 import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
-import {OsRestart, SetupWifiLost, SetupWifiOpen, TrialConfirm, UsbMode} from '@/components/HostOs';
+import {HardwareOff, OsRestart, SetupWifiLost, SetupWifiOpen, TrialConfirm, UsbMode} from '@/components/HostOs';
+import {useHardwareOff} from '@/lib/hostOs';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 
 // skipping an area or a path drops what's left of it, so it goes out only after a few seconds; a second tap or leaving
@@ -242,6 +243,8 @@ export default function Home() {
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
   const why = useEmergencyReasons(!!state?.emergency, emergencySince(recent?.today));
+  // the drivers off after the installation: that, not the emergency it reports without them
+  const hardwareOff = useHardwareOff();
   const platform = usePlatform();
   const os = platform === 'os';
   const om = platform === 'om';
@@ -401,7 +404,7 @@ export default function Home() {
   // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
   const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
   const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
-  const head = state ? headline(state, docked, charger, charge, area, confirmed) : null;
+  const head = !state ? null : hardwareOff ? {title: tr('Hardware off'), tone: 'warn'} : headline(state, docked, charger, charge, area, confirmed);
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();
@@ -493,6 +496,7 @@ export default function Home() {
         <UsbMode banner />
         <TrialConfirm banner />
         <SetupWifiOpen banner />
+        <HardwareOff banner />
 
         {!state &&
           (link.silent ? (
@@ -537,22 +541,24 @@ export default function Home() {
                 {/* which mower this is, with more than one to pick from */}
                 {choice.many && <span className={styles.mowerName}>{choice.name}</span>}
                 <h2>{head.title}</h2>
-                {!!state.emergency && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
+                {!!state.emergency && !hardwareOff && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
                 {/* MowBite OS didn't let go when it was reset, why and what to do instead of the usual words */}
-                {!!state.emergency && refused && <strong className={styles.refused}>{resetRefusedText(refused)}</strong>}
+                {!!state.emergency && !hardwareOff && refused && <strong className={styles.refused}>{resetRefusedText(refused)}</strong>}
                 {live ? (
                   <span className={styles.dim}>
-                    {state.emergency
-                      ? [refused ? explain(refused) : tr('Release the mower, then reset the emergency to drive again.'), stopRelease && stopReleaseText(stopRelease)]
-                          .filter(Boolean)
-                          .join(' ')
-                      : choosingPlatform(state)
-                        ? tr("MowBite OS doesn't know yet which mower this is, so it talks to no board. Choose it in the setup.")
-                        : pausedInDock && hasAction(ACTION.goHome)
-                          ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
-                          : [since && tr('since {time}', {time: clock(since)}), homeAt && runStopText(homeAt)]
-                              .filter(Boolean)
-                              .join(' · ')}
+                    {hardwareOff
+                      ? tr('Switch the hardware on in the setup first.')
+                      : state.emergency
+                        ? [refused ? explain(refused) : tr('Release the mower, then reset the emergency to drive again.'), stopRelease && stopReleaseText(stopRelease)]
+                            .filter(Boolean)
+                            .join(' ')
+                        : choosingPlatform(state)
+                          ? tr("MowBite OS doesn't know yet which mower this is, so it talks to no board. Choose it in the setup.")
+                          : pausedInDock && hasAction(ACTION.goHome)
+                            ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
+                            : [since && tr('since {time}', {time: clock(since)}), homeAt && runStopText(homeAt)]
+                                .filter(Boolean)
+                                .join(' · ')}
                   </span>
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>
@@ -600,7 +606,7 @@ export default function Home() {
                 </div>
               )}
               {/* first, the buttons below are locked until it's reset */}
-              {!!state.emergency && (
+              {!!state.emergency && !hardwareOff && (
                 <button className={styles.reset} disabled={!live || justStopped} onClick={reset}>
                   <WarningIcon size={20} />
                   {tr('Reset emergency')}
@@ -675,7 +681,7 @@ export default function Home() {
                   {skip?.id === ACTION.skipPath ? tr('Undo ({n} s)', {n: skip.left}) : tr('Skip this path')}
                 </button>
               )}
-              {live && hasAction(ACTION.resetJob) && !state.emergency && jobStays && (
+              {live && hasAction(ACTION.resetJob) && !state.emergency && !hardwareOff && jobStays && (
                 <p className={[styles.commandNote, styles.warn].join(' ')}>{tr('The interrupted job still follows the old map. Drop it before the next start.')}</p>
               )}
               {live &&
@@ -707,7 +713,7 @@ export default function Home() {
               {/* idle in front of the station, where the mower offers it. both held a moment after the emergency's reset */}
               <DockingTest styles={styles} live={live && !justReset} idle={plainIdle(state) && !state.emergency && !charger} state={current} />
               {/* idle in the dock: what the last mow left, and mowing just that */}
-              {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
+              {live && hasAction(ACTION.startMowing) && !state.emergency && !hardwareOff && !wasLeftovers && (
                 <LeftoversCard
                   key={leftoverJob ?? ''}
                   jobId={leftoverJob}

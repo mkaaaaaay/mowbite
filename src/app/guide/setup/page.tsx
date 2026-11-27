@@ -4,7 +4,7 @@ import {type MarkState, SIGNS, stateWord} from '@/components/setup/StateMark';
 import {StepSymbol} from '@/components/setup/StepSymbol';
 import {line, LockIcon} from '@/components/icons';
 import {tr} from '@/lib/i18n';
-import {SETUP_WIFI_MINUTES, SETUP_WIFI_PRESSES} from '@/lib/openmower';
+import {PORT_LISTEN_S, SETUP_WIFI_MINUTES, SETUP_WIFI_PRESSES} from '@/lib/openmower';
 import {useId} from 'react';
 import {anim, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
@@ -445,6 +445,8 @@ function PartsArt({label, parts}: {label: string; parts: string[]}) {
 const GroundArt = () => <PartsArt label={tr('Driving on the ground')} parts={[tr('Straight on'), tr('Turn'), tr('Press STOP'), tr('Bumper')]} />;
 // the blade: switched off and off without control by itself, then STOP and lifting while it turns
 const BladeArt = () => <PartsArt label={tr('The blade')} parts={[tr('On and off'), tr('Off without control'), tr('Press STOP'), tr('Lift')]} />;
+// the measurement of firmware: the link, the inputs held, wheels and stops, then the release
+const FirmwareArt = () => <PartsArt label={tr('Measure firmware')} parts={[tr('Link to the board'), tr('Holding of the inputs'), tr('Wheels and stops'), tr('Release the firmware')]} />;
 
 // the lock on top of the setup, closed or open
 function LockBar({open}: {open: boolean}) {
@@ -567,6 +569,56 @@ function ReleaseArt() {
   );
 }
 
+function PortsArt() {
+  // Listen on the free port, the note on DTR confirmed, then what came; the port the driver uses has no Listen
+  return (
+    <Scene label={tr('Serial ports')}>
+      <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      <text x={34} y={30} fontSize={13} fontWeight={600} style={text}>
+        {tr('Serial ports')}
+      </text>
+      <rect x={30} y={40} width={260} height={96} rx={10} style={tile} />
+      <text x={42} y={60} fontSize={12} fontWeight={600} style={text}>
+        /dev/ttyUSB0
+      </text>
+      <text x={278} y={60} fontSize={11} textAnchor="end" style={{fill: 'var(--soft-good)'}}>
+        {tr('free')}
+      </text>
+      <text x={42} y={76} fontSize={10} style={dim}>
+        USB Serial
+      </text>
+      <Shown to={0.2}>
+        <Button x={42} y={88} w={80} h={26} label={tr('Listen in')} at={0.12} />
+      </Shown>
+      <Shown from={0.2} to={0.4}>
+        <rect x={42} y={84} width={236} height={20} rx={6} fill="var(--tint-warn)" />
+        <text x={50} y={98} fontSize={10} style={{fill: 'var(--soft-warn)'}}>
+          {tr('Can restart a device on the port')}
+        </text>
+        <Button x={42} y={108} w={80} h={22} size={11} label={tr('Cancel')} />
+        <Button x={130} y={108} w={80} h={22} size={11} label={tr('Listen in')} main at={0.34} />
+      </Shown>
+      <Shown from={0.4} to={0.62}>
+        <text x={42} y={104} fontSize={11} style={dim}>
+          {tr('Listening, up to {s} s…', {s: PORT_LISTEN_S})}
+        </text>
+      </Shown>
+      <Shown from={0.62}>
+        <text x={42} y={104} fontSize={11} fontWeight={600} style={text}>
+          {[tr('GPS (NMEA)'), tr('{baud} baud', {baud: 115200}), tr('RTK fix')].join(', ')}
+        </text>
+      </Shown>
+      <rect x={30} y={144} width={260} height={40} rx={10} style={tile} />
+      <text x={42} y={168} fontSize={12} fontWeight={600} style={text}>
+        /dev/ttyS3
+      </text>
+      <text x={278} y={168} fontSize={11} textAnchor="end" style={dim}>
+        {tr('used by {holder}', {holder: 'gnss'})}
+      </text>
+    </Scene>
+  );
+}
+
 function SwitchArt() {
   // from OpenMower: the updater's steps one after the other, then MowBite OS drives only while you watch
   const rows = [tr('Ready'), tr('Downloaded'), tr('OpenMower stopped'), tr('MowBite OS started')];
@@ -599,7 +651,7 @@ function SwitchArt() {
 const STEPS: GuideStep[] = [
   {
     title: 'The setup',
-    text: "Settings › Mower › Setup checks the mower step by step: its parts, its sensors and how it drives. The steps come in stages, a stage opens once the steps it needs are done. Go on takes you to the next step to do, the bar on top shows how far it got. The first step names the mower. A mower that doesn't know yet which one it is shows only this step: choose it from the list, then it starts again as that mower. Start the setup over, under the stages, takes every result back and closes the lock of the safety again. On a newly installed mower confirm its start first, on the dashboard: else it goes back to the installer's USB mode. Settings › Mower › WLAN changes the network it is in. Settings › Mower › SSH access lets root log in from a computer in your home network, with a new password entered twice, the app doesn't keep it; the setup asks once, Skip leaves it off. After the trial a Tron opens its setup WLAN for {minutes} minutes when On/OK is pressed {presses} times quickly at the mower, the dashboard says until when. When the app can't reach the mower, the dashboard shows how.",
+    text: "Settings › Mower › Setup checks the mower step by step: its parts, its sensors and how it drives. The steps come in stages, a stage opens once the steps it needs are done. Go on takes you to the next step to do, the bar on top shows how far it got. The first step names the mower. A mower that doesn't know yet which one it is shows only this step: choose it from the list, then it starts again as that mower. After an installation the mower doesn't talk to its board yet: the next step switches the hardware on and restarts, nothing moves. Start the setup over, under the stages, takes every result back and closes the lock of the safety again. On a newly installed mower confirm its start first, on the dashboard: else it goes back to the installer's USB mode. Settings › Mower › WLAN changes the network it is in. Settings › Mower › SSH access lets root log in from a computer in your home network, with a new password entered twice, the app doesn't keep it; the setup asks once, Skip leaves it off. After the trial a Tron opens its setup WLAN for {minutes} minutes when On/OK is pressed {presses} times quickly at the mower, the dashboard says until when. When the app can't reach the mower, the dashboard shows how.",
     vars: {presses: SETUP_WIFI_PRESSES, minutes: SETUP_WIFI_MINUTES},
     Art: OverviewArt,
   },
@@ -642,6 +694,16 @@ const STEPS: GuideStep[] = [
     title: 'Releasing the safety',
     text: "The last safety step releases the mower. It needs every safety check passed, a skipped one doesn't count: the step names the ones missing, tap one to go there; Start stays off until then. Before the release it shows what the mower records, the date and how long it stops without control. Tick that you saw every check yourself and tap Release the mower: MowBite OS restarts once, then the lock opens. If a safety step fails later, release again once it passed.",
     Art: ReleaseArt,
+  },
+  {
+    title: 'Measuring new firmware',
+    text: "A Tron whose boards run firmware MowBite OS doesn't know yet doesn't drive. The stage Measure firmware checks it on your mower: jacked up, wheels free, blade disc off and a hand at STOP. A run is every step of the stage in order: the link to the board, STOP, lifting and bumper, how the board holds them, the wheels, the stops and the blade. The first start releases the blade and restarts MowBite OS, then tap Start again. A slip in handling doesn't count against the firmware; if a run fails for real, two have to pass in a row. The last step releases exactly this firmware on exactly this mower and restarts MowBite OS, it drives by itself only after the safety measurement. Then the stage goes away and the overview of the setup shows the firmware as released. Firmware older than every known one is not measured: update it with the vendor first. Share the result (at the last step, after the release in the overview) saves the measurement as a file to send to the project, for example on Discord or GitHub; the app uploads nothing. Starting the setup over or choosing another mower takes the release back.",
+    Art: FirmwareArt,
+  },
+  {
+    title: 'Serial ports',
+    text: 'Serial ports, under the stages, lists the ports of the mower: what is plugged in, and which driver or program uses a port. Listen in on a free port tells what comes there, for example a GPS with its rate and fix, an IMU or corrections. It only reads and never sends, but opening a port can switch its DTR line and restart a device on it, so the app asks first. It works while the mower stands idle and no step runs.',
+    Art: PortsArt,
   },
   {
     title: 'From OpenMower',

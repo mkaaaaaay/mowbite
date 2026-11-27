@@ -55,6 +55,25 @@ test.describe("the mower's WLAN and its trial", () => {
     await expect(box).toHaveCount(0);
   });
 
+  test('a new system on trial whose first start failed: why, the way back, no confirmation or restart', async ({page}) => {
+    await demoWith(page, 'Host', 'Updates');
+    await demoFlag(page, 'mowbiteDemoTrial', 'failed');
+    await page.goto('/settings/#update');
+    const box = page.locator('[data-trial]');
+    await expect(box).toHaveAttribute('data-trial', 'failed');
+    await expect(box).toContainText("MowBite OS did not start on this mower. It can't read or prepare its data.");
+    await expect(box).toContainText('restart into USB mode with the button below');
+    await expect(page.getByRole('button', {name: 'Confirm the start'})).toHaveCount(0);
+    await expect(page.locator('[data-os]')).toHaveCount(0);
+    await expect(page.locator('#update')).not.toContainText('update failed');
+    await expect(page.locator('#update [data-part="os"]')).toContainText('nothing yet');
+    await expect(page.locator('#update [data-part="os"]')).toContainText('Not installed');
+    await expect(page.locator('#update')).not.toContainText('Everything is up to date');
+    await expect(page.locator('#update')).toContainText("MowBite OS isn't installed on this mower.");
+    await expect(page.getByRole('button', {name: 'Restart MowBite OS'})).toHaveCount(0);
+    await expect(page.getByRole('button', {name: 'Restart into USB mode'})).toBeVisible();
+  });
+
   test('the setup WLAN opened at a Tron: until when, its WLAN chosen, closed once that connects', async ({page}) => {
     await demoWith(page, 'Host', 'Os');
     await demoFlag(page, 'mowbiteDemoSetupWifi', true);

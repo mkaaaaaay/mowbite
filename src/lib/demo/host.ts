@@ -3,9 +3,10 @@ import {RPC, SETUP_WIFI_MINUTES, SSH_PASSWORD, TOPIC, TRON_PLATFORM} from '../op
 import {demoFlags} from './flags';
 
 // MowBite OS's host for the click tests, on with window.mowbiteDemoHost; window.mowbiteDemoHostOs starts it off,
-// window.mowbiteDemoTrial starts it on trial. The WLAN "Shed" fails, any other connects. As a Tron
+// window.mowbiteDemoTrial starts it on trial ('failed': its first start failed, nothing installed). The WLAN "Shed" fails, any other connects. As a Tron
 // (window.mowbiteDemoPlatform) it restarts into its USB mode and is gone, window.mowbiteDemoUsbFails keeps it there.
-// SSH starts off without a password; window.mowbiteDemoSshNoPassword has root without one whatever the status says
+// SSH starts off without a password; window.mowbiteDemoSshNoPassword has root without one whatever the status says.
+// window.mowbiteDemoHardwareOff: the drivers off as after an installation, until the setup's step hardware
 
 const START_MS = 300;
 const WIFI_MS = 400;
@@ -39,6 +40,7 @@ export function demoHost(deliver: (topic: string, text: string) => void, mower: 
     ...off,
   };
   let trial = !!demoFlags().mowbiteDemoTrial;
+  if (demoFlags().mowbiteDemoTrial === 'failed') os = {...os, state: 'stopped', revision: null};
   // mowbiteDemoSetupWifi: its setup WLAN open, closed once a WLAN connects
   let setupWifi = demoFlags().mowbiteDemoSetupWifi ? {until: now() + SETUP_WIFI_MINUTES * 60} : null;
   const change = (state: WifiChange['state'], ssid: string, reason: string | null = null, message: string | null = null): WifiChange => ({
@@ -53,6 +55,8 @@ export function demoHost(deliver: (topic: string, text: string) => void, mower: 
   let online = true;
   let networks = NETWORKS;
   let ssh: SshState = {enabled: false, password: false};
+  // MOWBITE_HARDWARE: the drivers of the platform run
+  let hardware = !demoFlags().mowbiteDemoHardwareOff;
   // a MowBite OS that runs has to idle without an emergency stop, in the words of what asks for it
   const atRest = (emergency: string) => {
     if (os.state !== 'running') return;
@@ -121,11 +125,17 @@ export function demoHost(deliver: (topic: string, text: string) => void, mower: 
   const status = () =>
     !online
       ? JSON.stringify({schema: 1, online: false})
-      : JSON.stringify({schema: 1, online: true, t: now(), methods: [...others, ...Object.keys(methods)], os: {...os, stalled: null}, trial, wifi, setup_wifi: setupWifi, ssh});
+      : JSON.stringify({schema: 1, online: true, t: now(), methods: [...others, ...Object.keys(methods)], os: {...os, stalled: null}, trial, wifi, setup_wifi: setupWifi, ssh, hardware});
   const said = () => deliver(TOPIC.hostStatus, status());
   return {
     methods,
     // what it keeps on its topic, null for another one
     retained: (topic: string): [string, string][] | null => (topic === TOPIC.hostStatus ? [[topic, status()]] : null),
+    // whether the drivers run, and switching them as host.hardware does for the setup program (the app doesn't call it)
+    hardware: () => hardware,
+    switchHardware: (on: boolean) => {
+      hardware = on;
+      said();
+    },
   };
 }

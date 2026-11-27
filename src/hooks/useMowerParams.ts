@@ -4,7 +4,7 @@ import {isObj} from '@/lib/mergeChanges';
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {paramName, PARAM_FIELDS} from '@/lib/mowerParams';
-import {PARAM, PARAM_DEFAULTS, TOPIC} from '@/lib/openmower';
+import {OWN_LOGIC, PARAM, PARAM_DEFAULTS, TOPIC} from '@/lib/openmower';
 
 export type MowerParams = Record<string, unknown>;
 
@@ -26,10 +26,12 @@ function start() {
   });
 }
 
-// params/json as an object of params, one that isn't keeps the ones before
+// params/json as an object of params, one that isn't keeps the ones before. MowBite OS's own names of mower_logic's
+// settings by OpenMower's
 export function paramsFrom(text: string, before: MowerParams): MowerParams {
   const p = JSON.parse(text);
-  return isObj(p) ? p : before;
+  if (!isObj(p)) return before;
+  return Object.fromEntries(Object.entries(p).map(([k, v]) => [k.startsWith(OWN_LOGIC) ? PARAM.mowerLogic(k.slice(OWN_LOGIC.length)) : k, v]));
 }
 
 function subscribe(listener: () => void) {

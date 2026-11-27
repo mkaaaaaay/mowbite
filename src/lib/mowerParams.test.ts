@@ -1,6 +1,17 @@
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import {MOWBITE_OS} from './openmower';
+const sent = vi.hoisted(() => ({info: undefined as {name: string; api?: number} | undefined, params: [] as object[]}));
+vi.mock('./mowerOs', async (orig) => ({...(await orig<typeof import('./mowerOs')>()), knownSystemInfo: () => sent.info}));
+vi.mock('./rpc', async (orig) => ({
+  ...(await orig<typeof import('./rpc')>()),
+  callRpc: (_m: string, p: {params: Record<string, unknown>}) => {
+    sent.params.push(p.params);
+    return Promise.resolve(Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k.replace('/logic/', '/mower_logic/'), v])));
+  },
+}));
+import {setParams} from './mowerParams';
 import {choiceQuestion, fitHeight, groupFields, mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramError, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
 import {OM_WORDS, OS_WORDS} from './platformWords';
 
@@ -199,5 +210,22 @@ describe('a value typed in that is turned down', () => {
     expect(paramError(f, '150')).toBe('Only 1 to 100 cm, it stays as it was.');
     expect(paramError(onOs(f, true), '50')).toBe('Only 1 to 30 cm, it stays as it was.');
     expect(paramError(paramField('docking_retry_count')!, '-1')).toBe('Only 0 to 50, it stays as it was.');
+  });
+});
+
+describe('a setting set on the mower', () => {
+  it("goes by MowBite OS's own name from api 70 on, by OpenMower's before and on OpenMower", async () => {
+    sent.params = [];
+    sent.info = {name: MOWBITE_OS, api: 69};
+    await setParams({tool_width: 0.2}, true);
+    sent.info = {name: MOWBITE_OS, api: 70};
+    expect(await setParams({tool_width: 0.2, mow_angle_offset_is_absolute: true}, true)).toEqual({tool_width: 0.2, mow_angle_offset_is_absolute: 1});
+    sent.info = undefined;
+    await setParams({tool_width: 0.2});
+    expect(sent.params).toEqual([
+      {'/mower_logic/tool_width': 0.2},
+      {'/logic/tool_width': 0.2, '/logic/mow_angle_offset_is_absolute': 1},
+      {'/mower_logic/tool_width': 0.2},
+    ]);
   });
 });

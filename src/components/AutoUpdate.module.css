@@ -118,6 +118,14 @@
   box-shadow: var(--btn-3d);
 }
 
+/* a way to another screen, as a button */
+a.control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 button.control {
   cursor: pointer;
   /* two quick taps are two taps, not a zoom */

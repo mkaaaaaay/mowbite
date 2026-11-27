@@ -3,7 +3,8 @@
 import type {Area} from '@/app/map/editing';
 import {dayLabel, parseDay} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
-import {localDay, scheduleNow, type Schedule} from '@/lib/schedule';
+import {localDay} from '@/lib/dates';
+import {scheduleNow, type Schedule} from '@/lib/schedule';
 import {useState} from 'react';
 import styles from './page.module.css';
 

@@ -45,6 +45,9 @@ const STATE_NAMES: [string, string][] = [
   ['AREA_RECORDING', 'Recording an area'],
 ];
 
+// why setup.ports.listen turned a port down, besides BUSY
+export const PORT_REFUSALS = ['PORT_UNKNOWN', 'PORT_IN_USE', 'PORT_NOT_OPENED', 'LISTENING'];
+
 // a step of recording an area the mower turned down (RECORDING_REFUSED, MowBite OS only), the recording stays open
 export const REFUSED_STEPS: Record<string, string> = {
   start_area_recording: "Recording mode didn't start",
@@ -384,10 +387,24 @@ export const EVENTS: Record<string, EventText> = {
       alone({when: {what: 'safety_opened'}, en: 'Safety measured, the mower drives by itself again'}),
       // setup.platform.set chose another mower, MowBite OS starts again as it (api 57)
       alone({when: {what: 'platform'}, en: 'Mower chosen: {platform}'}),
+      // the first start of a step blade wrote allow_blade, MowBite OS restarts for it
+      alone({when: {what: 'blade_allowed'}, en: 'Blade allowed by the setup, MowBite OS restarts'}),
+      // the owner's measurement released its firmware on this mower, or a failed run took it back (api 73)
+      alone({when: {what: 'firmware_measured'}, en: 'Firmware released for this mower'}),
+      alone({when: {what: 'firmware_revoked'}, en: 'Firmware release taken back, a run failed', severity: 'warning'}),
       alone({en: 'Setup stage done'}),
     ],
   },
-  SETUP_REFUSED: one('Setup step refused'),
+  SETUP_REFUSED: {
+    severity: 'info',
+    variants: [
+      // setup.ports.listen turned down (api 71)
+      ...PORT_REFUSALS.map((reason) => ({when: {reason}, en: 'Port not listened to'})),
+      // BUSY carries no port, listenPort adds it
+      {when: {reason: 'BUSY', port: {present: true}}, en: 'Port not listened to'},
+      {en: 'Setup step refused'},
+    ],
+  },
   SETUP_BLOCKED: one('Setup step waiting'),
   // robot.geometry.set changed the sizes, the areas recorded on this mower couldn't take them
   RECORDED_BODY_KEPT: one('Sizes not saved with the areas', 'warning'),
@@ -797,7 +814,12 @@ export const REASONS: Record<string, Variant[]> = {
   STOPPED_EARLY: [r('a short trigger brought the emergency stop already')],
   WRONG_SIGN: [r('the motion sensor reported the move the other way round')],
   LIMIT: [r('a value is out of its bounds')],
-  NO_DATA: [r('no data from the inputs of the board', {when: {source: 'hw/inputs'}}), r('no data from board, motion sensor or GPS')],
+  NO_DATA: [
+    r('no data from the inputs of the board', {when: {source: 'hw/inputs'}}),
+    r('no link counts from the driver of the board', {when: {source: 'hw/link_stats'}}),
+    r("the mower didn't report its firmware after the restart", {when: {source: 'hw/capabilities'}}),
+    r('no data from board, motion sensor or GPS'),
+  ],
   INPUT_ACTIVE: [r('the input is still switched, let go of it first')],
   // the step that assigns the lines of the inputs (inputs_assign) and the lines of a step input
   LINE_SILENT: [r('line {lines} did not switch with any action', {when: {lines: {present: true}}}), r('a line of this input did not switch')],
@@ -807,6 +829,8 @@ export const REASONS: Record<string, Variant[]> = {
   // the table of inputs_assign or the date and stand time of summary, after the restart
   NOT_APPLIED: [
     r('the mower does not use what the step wrote, {key} is set by hand in the device file', {when: {key: {present: true}}}),
+    r('the drivers are still off after the restart', {when: {check: 'hardware'}}),
+    r("the mower doesn't use the release after the restart", {when: {check: 'firmware'}}),
     r('the mower does not use what the step wrote after the restart'),
   ],
   RESTART_FAILED: [r('MowBite OS was not back within {limit:0} s', {when: {limit: {present: true}}}), r('MowBite OS was not back in time')],
@@ -819,6 +843,12 @@ export const REASONS: Record<string, Variant[]> = {
   PLATFORM_FIXED: [r('the installation sets which mower this is')],
   UNKNOWN_PLATFORM: [r("this version of MowBite OS doesn't know the mower")],
   VERSION: [r('the setup changed in the meantime, try again')],
+  // setup.ports.listen turned down (api 71): by the node of the platform or another program that holds the port, the
+  // error of opening it
+  PORT_UNKNOWN: [r('the mower has no such port, reload the list')],
+  PORT_IN_USE: [r('{node} uses the port', {when: {node: {present: true}}}), r('{by} uses the port', {when: {by: {present: true}}}), r('a driver or another program uses the port')],
+  PORT_NOT_OPENED: [r("the port couldn't be opened ({error})", {when: {error: {present: true}}}), r("the port couldn't be opened")],
+  LISTENING: [r('another port is being listened to, wait for its result')],
   WRONG_METHOD: [r('this step is done another way')],
   // the steps that turn the wheels (kind drive) and the lock of the safety
   NOT_OFFERED: [r("the board of this mower doesn't offer this check")],
@@ -840,6 +870,12 @@ export const REASONS: Record<string, Variant[]> = {
   STARTED_AGAIN: [r('a wheel or the blade turned while it had to stand')],
   WRONG_DIRECTION: [r('a wheel turned the other way round than asked')],
   WRONG_WHEEL: [r('another wheel than the right one turned, the motors are swapped')],
+  // the owner's measurement of firmware the driver doesn't list (api 73)
+  NOT_OPENED: [r("the driver didn't let the measurement run or ended it")],
+  RUN_AGAIN: [r('the run passed, {passed} of {needed} in a row so far', {when: {needed: {present: true}}}), r('the run passed, another one in a row has to pass')],
+  FIRMWARE_CHANGED: [r("the firmware changed during the run, it doesn't count")],
+  FIRMWARE_OLDER: [r("a board's firmware is older than every known one, update it with the vendor first")],
+  NO_DEVICE_ID: [r("the mower can't tell itself apart, the measurement isn't possible on it")],
 };
 
 // what led it in on a try that failed (guide at DOCKING_RETRY and DOCKING_FAILED), put before the rest

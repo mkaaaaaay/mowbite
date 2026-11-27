@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>The app talks to the mower over MQTT, the container on the mower serves it and works in the background</title>
+  <rect width="960" height="300" rx="16" fill="#101114"/>
+
+  <g fill="none" stroke="#3a3d47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M130 96 V58 Q130 46 142 46 H818 Q830 46 830 58 V96"/>
+    <path d="M824 90 l6 6 l6 -6"/>
+    <path d="M244 190 H362"/>
+    <path d="M356 184 l6 6 l-6 6"/>
+    <path d="M598 190 H716"/>
+    <path d="M710 184 l6 6 l-6 6"/>
+  </g>
+  <rect x="300" y="36" width="360" height="20" fill="#101114"/>
+  <text x="480" y="51" font-size="13" fill="#9a9ba0" text-anchor="middle">MQTT over websocket, port 9001: live state, commands</text>
+  <text x="303" y="180" font-size="12" fill="#9a9ba0" text-anchor="middle">port 8082</text>
+  <text x="657" y="180" font-size="12" fill="#9a9ba0" text-anchor="middle">MQTT</text>
+
+  <g>
+    <rect x="20" y="96" width="224" height="184" rx="12" fill="#181a20" stroke="#2a2d35" stroke-width="1.5"/>
+    <text x="38" y="130" font-size="18" font-weight="600" fill="#f1f1f1">MowBite app</text>
+    <g font-size="13" fill="#9a9ba0">
+      <text x="38" y="158">In the browser or the</text>
+      <text x="38" y="177">Android app. Shows the</text>
+      <text x="38" y="196">mower live, edits the</text>
+      <text x="38" y="215">map, sends commands.</text>
+    </g>
+    <text x="38" y="262" font-size="12" font-weight="600" fill="#5b9df0" letter-spacing="0.6">PHONE OR PC</text>
+  </g>
+
+  <g>
+    <rect x="362" y="96" width="236" height="184" rx="12" fill="#13241a" stroke="#4cbf72" stroke-width="1.5"/>
+    <text x="380" y="130" font-size="18" font-weight="600" fill="#f1f1f1">MowBite container</text>
+    <g font-size="13" fill="#a3b8a9">
+      <text x="380" y="158">Serves the app and runs</text>
+      <text x="380" y="177">the schedule, push</text>
+      <text x="380" y="196">messages, map backups</text>
+      <text x="380" y="215">and the sensor history.</text>
+    </g>
+    <text x="380" y="262" font-size="12" font-weight="600" fill="#4cbf72" letter-spacing="0.6">THIS REPO, ON THE MOWER</text>
+  </g>
+
+  <g>
+    <rect x="716" y="96" width="224" height="184" rx="12" fill="#181a20" stroke="#2a2d35" stroke-width="1.5"/>
+    <text x="734" y="130" font-size="18" font-weight="600" fill="#f1f1f1">OpenMower</text>
+    <g font-size="13" fill="#9a9ba0">
+      <text x="734" y="158">Drives, mows, docks</text>
+      <text x="734" y="177">and keeps the map.</text>
+      <text x="734" y="196">Its MQTT and JSON-RPC</text>
+      <text x="734" y="215">are all the app needs.</text>
+    </g>
+    <text x="734" y="262" font-size="12" font-weight="600" fill="#5b9df0" letter-spacing="0.6">ON THE MOWER</text>
+  </g>
+</svg>

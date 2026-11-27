@@ -2,12 +2,28 @@
 
 import {tr} from '@/lib/i18n';
 import {answerError} from '@/lib/rpcText';
-import {rereadOnVersion, resetSetup, type Setup} from '@/lib/setup';
+import {dropsRelease, rereadOnVersion, resetSetup, type Setup} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import sheet from './Sheet.module.css';
 import step from './SetupStep.module.css';
 import styles from './SetupOverview.module.css';
+
+// what starting over or another mower takes back
+export function TakenBack({setup}: {setup: Setup}) {
+  return (
+    <>
+      <p className={sheet.warn}>
+        {tr('Everything checked in the setup so far is taken back. The mower drives only while you watch until its safety is measured again.')}
+      </p>
+      {dropsRelease(setup) && (
+        <p className={sheet.warn} data-drops-release>
+          {tr("The firmware release from the measurement is taken back too. Until it is measured again the mower doesn't drive with this firmware.")}
+        </p>
+      )}
+    </>
+  );
+}
 
 // the whole setup from the start: every result goes back and the lock of the safety closes, asked before
 export function SetupReset({setup}: {setup: Setup}) {
@@ -38,9 +54,7 @@ export function SetupReset({setup}: {setup: Setup}) {
       )}
       {asking && (
         <Sheet title={tr('Start the setup over?')} onClose={() => setAsking(false)}>
-          <p className={sheet.warn}>
-            {tr('Everything checked in the setup so far is taken back. The mower drives only while you watch until its safety is measured again.')}
-          </p>
+          <TakenBack setup={setup} />
           <p className={sheet.limit}>{tr('All steps are open again.')}</p>
           <div className={sheet.buttons}>
             <button type="button" className={sheet.button} onClick={() => setAsking(false)}>

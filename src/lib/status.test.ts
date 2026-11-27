@@ -97,11 +97,12 @@ describe('chargeStateText', () => {
     expect(chargeStateText('Something new')).toBe('Something new');
   });
 
-  it("has MowBite OS's Fast Charge in german", () => {
+  it("has MowBite OS's Fast Charge without a stage, it comes while pre-charging too", () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
     try {
-      expect(chargeStateText('Fast Charge')).toBe('Schnellladen');
+      expect(chargeStateText('Fast Charge')).toBe('Lädt');
+      expect(chargeStateText('Fast Charge (CC)')).toBe('Schnellladen (CC)');
     } finally {
       setLangChoice('en');
       vi.unstubAllGlobals();

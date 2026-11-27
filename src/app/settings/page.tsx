@@ -15,7 +15,7 @@ import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerNote, ParamGroupRows, summary, useCanSetParams} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
-import {OsRestart, TrialConfirm, UsbMode} from '@/components/HostOs';
+import {HardwareOff, OsRestart, TrialConfirm, UsbMode} from '@/components/HostOs';
 import {HostSsh} from '@/components/HostSsh';
 import {HostWifi} from '@/components/HostWifi';
 import {useHostOffers, useHostSsh, useHostWifiSsid} from '@/lib/hostOs';
@@ -547,6 +547,7 @@ export default function SettingsPage() {
                 <section className={styles.card}>
                   <h2>{tr('On the mower')}</h2>
                   <TrialConfirm />
+                  <HardwareOff />
                   <OsRestart />
                   <UsbMode />
                   {osUpdates ? (

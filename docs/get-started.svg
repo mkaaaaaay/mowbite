@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 236" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>From the installation to the first mow</title>
+  <rect width="960" height="236" rx="16" fill="#101114"/>
+
+  <g fill="none" stroke="#3a3d47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M192 112 l6 6 l-6 6"/>
+    <path d="M380 112 l6 6 l-6 6"/>
+    <path d="M568 112 l6 6 l-6 6"/>
+    <path d="M756 112 l6 6 l-6 6"/>
+  </g>
+
+  <g>
+    <rect x="20" y="20" width="168" height="196" rx="12" fill="#181a20" stroke="#2a2d35" stroke-width="1.5"/>
+    <circle cx="50" cy="52" r="15" fill="#5b9df0"/>
+    <text x="50" y="57.5" font-size="15" font-weight="700" fill="#101114" text-anchor="middle">1</text>
+    <text x="36" y="100" font-size="18" font-weight="600" fill="#f1f1f1">Install</text>
+    <g font-size="13" fill="#9a9ba0">
+      <text x="36" y="126">Paste compose.yaml</text>
+      <text x="36" y="145">into Dockge on the</text>
+      <text x="36" y="164">mower and deploy.</text>
+    </g>
+    <text x="36" y="197" font-size="12" font-weight="600" fill="#5b9df0" letter-spacing="0.6">ON THE MOWER</text>
+  </g>
+
+  <g>
+    <rect x="208" y="20" width="168" height="196" rx="12" fill="#181a20" stroke="#2a2d35" stroke-width="1.5"/>
+    <circle cx="238" cy="52" r="15" fill="#5b9df0"/>
+    <text x="238" y="57.5" font-size="15" font-weight="700" fill="#101114" text-anchor="middle">2</text>
+    <text x="224" y="100" font-size="18" font-weight="600" fill="#f1f1f1">Open</text>
+    <g font-size="13" fill="#9a9ba0">
+      <text x="224" y="126">Port 8082 in a</text>
+      <text x="224" y="145">browser, or the</text>
+      <text x="224" y="164">Android app.</text>
+    </g>
+    <text x="224" y="197" font-size="12" font-weight="600" fill="#5b9df0" letter-spacing="0.6">PHONE OR PC</text>
+  </g>
+
+  <g>
+    <rect x="396" y="20" width="168" height="196" rx="12" fill="#241f12" stroke="#d4ac4a" stroke-width="1.5"/>
+    <circle cx="426" cy="52" r="15" fill="#d4ac4a"/>
+    <text x="426" y="57.5" font-size="15" font-weight="700" fill="#101114" text-anchor="middle">3</text>
+    <text x="412" y="100" font-size="18" font-weight="600" fill="#f1f1f1">Record</text>
+    <g font-size="13" fill="#c9bf9f">
+      <text x="412" y="126">Drive along the edges</text>
+      <text x="412" y="145">with the stick, the</text>
+      <text x="412" y="164">mower in sight.</text>
+    </g>
+    <text x="412" y="197" font-size="12" font-weight="600" fill="#d4ac4a" letter-spacing="0.6">STAY CLOSE</text>
+  </g>
+
+  <g>
+    <rect x="584" y="20" width="168" height="196" rx="12" fill="#181a20" stroke="#2a2d35" stroke-width="1.5"/>
+    <circle cx="614" cy="52" r="15" fill="#5b9df0"/>
+    <text x="614" y="57.5" font-size="15" font-weight="700" fill="#101114" text-anchor="middle">4</text>
+    <text x="600" y="100" font-size="18" font-weight="600" fill="#f1f1f1">Schedule</text>
+    <g font-size="13" fill="#9a9ba0">
+      <text x="600" y="126">Days, start times</text>
+      <text x="600" y="145">and areas, rain and</text>
+      <text x="600" y="164">cold skipped.</text>
+    </g>
+    <text x="600" y="197" font-size="12" font-weight="600" fill="#5b9df0" letter-spacing="0.6">IN THE APP</text>
+  </g>
+
+  <g>
+    <rect x="772" y="20" width="168" height="196" rx="12" fill="#13241a" stroke="#4cbf72" stroke-width="1.5"/>
+    <circle cx="802" cy="52" r="15" fill="#4cbf72"/>
+    <text x="802" y="57.5" font-size="15" font-weight="700" fill="#101114" text-anchor="middle">5</text>
+    <text x="788" y="100" font-size="18" font-weight="600" fill="#f1f1f1">Mow</text>
+    <g font-size="13" fill="#a3b8a9">
+      <text x="788" y="126">Follow it live, see</text>
+      <text x="788" y="145">the track and the</text>
+      <text x="788" y="164">result afterwards.</text>
+    </g>
+    <text x="788" y="197" font-size="12" font-weight="600" fill="#4cbf72" letter-spacing="0.6">ON THE LAWN</text>
+  </g>
+</svg>

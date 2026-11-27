@@ -1,6 +1,7 @@
 'use client';
 
 import {isLive, useMowerStateValue} from '@/hooks/useMowerState';
+import {useSetup} from '@/hooks/useSetup';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useSure} from '@/hooks/useSure';
 import {clock} from '@/lib/dates';
@@ -13,6 +14,8 @@ import {
   restartOs,
   restartWay,
   setupWifiText,
+  trialFailText,
+  trialWay,
   usbLeftState,
   usbLeftUntil,
   usbMode,
@@ -20,6 +23,7 @@ import {
   usbModeOffered,
   useHost,
   useHostOffers,
+  useHardwareOff,
   useHostTrial,
   useSetupWifiUntil,
   useUsbLeft,
@@ -28,6 +32,7 @@ import {tr} from '@/lib/i18n';
 import {useOsPlatform} from '@/lib/mowerOs';
 import {keptSetupWifi} from '@/lib/mowers';
 import {RPC} from '@/lib/openmower';
+import {stepHref} from '@/lib/setup';
 import {useUpdateStatus} from '@/lib/osUpdate';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
@@ -48,9 +53,12 @@ export function OsRestart({banner}: {banner?: boolean}) {
   const [started, setStarted] = useState(false);
   const {sure, confirm} = useSure();
 
+  const trialFailed = useHostTrial() && trialWay(host, update?.status.last) === 'failed';
+
   const off = osOff(host);
   const way = restartWay(host, methods, {live, state, emergency}, !!update && update.status.phase !== 'idle');
-  if (banner ? !off : !off && !way && !started && !error) return null;
+  // a failed first start says it in its own box (TrialConfirm)
+  if (trialFailed || (banner ? !off : !off && !way && !started && !error)) return null;
 
   const restart = () => {
     setBusy(true);
@@ -82,12 +90,33 @@ export function OsRestart({banner}: {banner?: boolean}) {
 }
 
 // a newly written system on trial: confirming its start ends the trial, else the mower goes back to the installer's USB
-// mode by itself. on the dashboard and with the updates, only while the host says trial
+// mode by itself. on the dashboard and with the updates, only while the host says trial. The confirmation only while
+// MowBite OS runs; a failed install with its reason and the way back to the installer
 export function TrialConfirm({banner}: {banner?: boolean}) {
   const trial = useHostTrial();
+  const host = useHost();
+  const last = useUpdateStatus()?.status.last;
+  const platform = useOsPlatform();
+  const usbBelow = !banner && usbModeOffered(host, platform);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!trial) return null;
+  const way = trialWay(host, last);
+  if (way === 'failed')
+    return (
+      <div className={[styles.box, shared.error, banner ? styles.banner : ''].join(' ')} data-trial="failed">
+        <span role="alert">
+          {tr('MowBite OS did not start on this mower.')} {trialFailText(last!)}
+        </span>
+        <span>
+          {usbBelow
+            ? tr('Back to the installer: restart into USB mode with the button below, or take the battery off and put it back on.')
+            : tr(
+                'Back to the installer: Settings › Updates › Restart into USB mode, or take the battery off and put it back on. Then on the PC go back to the vendor system or write MowBite OS again.',
+              )}
+        </span>
+      </div>
+    );
   const confirm = () => {
     setBusy(true);
     setError(null);
@@ -96,15 +125,19 @@ export function TrialConfirm({banner}: {banner?: boolean}) {
       .finally(() => setBusy(false));
   };
   return (
-    <div className={[styles.box, shared.warn, banner ? styles.banner : ''].join(' ')} data-trial="on">
+    <div className={[styles.box, shared.warn, banner ? styles.banner : ''].join(' ')} data-trial={way === 'confirm' ? 'on' : 'wait'}>
       <span>
         {tr(
           "MowBite OS is new on this mower. Confirm that it starts fine, else the mower goes back to the installer's USB mode by itself after a few minutes.",
         )}
       </span>
-      <button className={[shared.control, shared.primary].join(' ')} disabled={busy} onClick={confirm}>
-        {busy ? tr('Checking…') : tr('Confirm the start')}
-      </button>
+      {way === 'confirm' ? (
+        <button className={[shared.control, shared.primary].join(' ')} disabled={busy} onClick={confirm}>
+          {busy ? tr('Checking…') : tr('Confirm the start')}
+        </button>
+      ) : (
+        <span className={shared.dim}>{tr('The start can be confirmed once MowBite OS runs.')}</span>
+      )}
       {error && (
         <span className={shared.error} role="alert">
           {error}
@@ -128,6 +161,27 @@ export function SetupWifiOpen({banner}: {banner?: boolean}) {
         </Link>
       )}
     </div>
+  );
+}
+
+// the drivers still off after the installation, with the way to the setup's step that switches them on
+export function HardwareOff({banner}: {banner?: boolean}) {
+  if (!useHardwareOff()) return null;
+  return (
+    <div className={[styles.box, shared.warn, banner ? styles.banner : ''].join(' ')} data-hardware-off="">
+      <span>{tr("The hardware is still off: after the installation MowBite OS doesn't talk to the board yet.")}</span>
+      <HardwareStep />
+    </div>
+  );
+}
+// the setup's state read only while the hardware is off
+function HardwareStep() {
+  const step = useSetup()?.steps.find((s) => s.check === 'hardware');
+  if (!step) return null;
+  return (
+    <Link href={stepHref(step.id)} className={[shared.control, shared.primary].join(' ')}>
+      {tr('Switch it on in the setup')}
+    </Link>
   );
 }
 

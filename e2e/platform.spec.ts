@@ -27,7 +27,7 @@ test.describe('the choice of the mower', () => {
     await expect.poll(() => demoState(page)).not.toBe('SETUP');
     await tab(page, '/').click();
     await expect(page.getByRole('heading', {name: 'Choose the mower'})).toHaveCount(0);
-    await expect(page.locator('[data-card="setup"]')).toContainText('2 of 13 steps done');
+    await expect(page.locator('[data-card="setup"]')).toContainText('3 of 14 steps done');
   });
 
   test('another mower on one set up already asks first', async ({page}) => {

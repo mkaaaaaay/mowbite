@@ -6,9 +6,13 @@ import {tr} from '@/lib/i18n';
 import {
   asked,
   currentStep,
+  firmwareSourceText,
+  firstFirmwareStep,
   held,
   isDone,
+  isFirmwareStep,
   isPlatformStep,
+  isRelease,
   isSummary,
   keepStep,
   KEEP_MS,
@@ -16,8 +20,10 @@ import {
   releasesBlade,
   nameById,
   nameOf,
+  measuredFirmware,
   OPEN_SCREENS,
   ownInputs,
+  runsText,
   safetyDue,
   stepHref,
   unmet,
@@ -33,6 +39,7 @@ import {useRouter} from 'next/navigation';
 import {Fragment, useEffect, useState} from 'react';
 import {ConfirmSheet} from './ConfirmSheet';
 import {EmergencyBlock} from './EmergencyBlock';
+import {FirmwareShare} from './FirmwareShare';
 import {RestartWait} from './RestartWait';
 import {SkipSheet} from './SkipSheet';
 import {StateMark, useMoved} from './StateMark';
@@ -52,10 +59,10 @@ export interface StepActions {
   abort: (step: string) => void;
 }
 
-// what keeps the step from going on, the steps it names linked, those of them skipped apart
+// what keeps the step from going on, the steps it names linked (needs: those of the firmware run), those skipped apart
 function BlockedNote({b, steps, lang}: {b: Blocked; steps: Step[]; lang: string}) {
   const skipped = b.skipped ?? [];
-  const due = (b.steps ?? []).filter((id) => !skipped.includes(id));
+  const due = (b.steps ?? b.needs ?? []).filter((id) => !skipped.includes(id));
   const links = (label: string, ids: string[]) =>
     ids.length > 0 && (
       <span className={styles.links} data-list={label}>
@@ -97,19 +104,27 @@ export function SetupStep(props: {
   act: StepActions;
 }) {
   const {setup, step, lang, busy, act} = props;
-  const [sheet, setSheet] = useState<'confirm' | 'skip' | null>(null);
+  const [sheet, setSheet] = useState<'confirm' | 'skip' | 'share' | null>(null);
   const w = words(step.texts, lang);
   const own = setup.steps.filter((s) => s.stage === step.stage);
   const stage = setup.stages.find((s) => s.id === step.stage);
   const emergency = step.blocked.some((b) => b.reason === 'EMERGENCY');
   const others = step.blocked.filter((b) => b.reason !== 'EMERGENCY');
   const running = step.state === 'running';
-  const restarting = step.restart && setup.restart_pending;
   const done = isDone(step.state);
   const needs = step.state === 'locked' ? unmet(step.needs, setup.steps) : [];
   // repeating a passed safety step while the lock is open: failing it closes the lock again
   const risky = !!step.safety && step.state === 'ok' && setup.safety.open;
-  const start = () => (step.confirm.length || moves(step.motion) || risky ? setSheet('confirm') : act.start(step.id, []));
+  // the firmware measurement: its state, where its runs begin, and its last step, which releases the firmware
+  const fw = isFirmwareStep(step) ? setup.firmware : undefined;
+  const first = fw ? firstFirmwareStep(setup) : undefined;
+  const release = isRelease(step);
+  // the release restarts the OS only where it writes: firmware the driver doesn't know, on the last run needed
+  const writes = release && step.restart;
+  // the first start of the measurement allows the blade of its stage and restarts the OS, the run begins with the next start
+  const bladeFirst = first?.id === step.id && !release && !running && step.restart;
+  const restarting = step.restart && setup.restart_pending;
+  const start = () => (step.confirm.length || moves(step.motion) || risky || release ? setSheet('confirm') : act.start(step.id, []));
   const kept = running && moves(step.motion);
   useEffect(() => {
     if (!kept) return;
@@ -120,10 +135,12 @@ export function SetupStep(props: {
     return () => clearInterval(timer);
   }, [kept, step.id]);
   const r = step.result;
+  // the run passed, but after one that failed more have to pass in a row: the measurement begins again from its first step
+  const again = release && r?.reason === 'RUN_AGAIN' && step.state !== 'ok';
   const releases = releasesBlade(step);
   const released = isSummary(step) && step.state === 'ok' && setup.safety.open;
   const releaseMoved = useMoved(released);
-  const canStart = step.start && !running && step.state !== 'locked';
+  const canStart = step.start && !running && step.state !== 'locked' && !again;
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
   const advanced = step.inputs.filter((i) => i.advanced);
   const questions = asked(step);
@@ -186,6 +203,18 @@ export function SetupStep(props: {
             <h2 id={`step-${step.id}`}>{w.name || step.id}</h2>
             {safetyDue(step) ? <p data-due>{tr('Not all checks passed yet')}</p> : w.help && <p>{w.help}</p>}
           </div>
+          {first?.id === step.id && !done && (
+            <p className={styles.note} data-firmware-intro>
+              {tr(
+                "Measure with the mower jacked up, its wheels free, the blade disc taken off and a hand at STOP. A run is every step of this stage in order. A slip in handling doesn't count against the firmware; after the third one at the same part the run starts anew.",
+              )}
+            </p>
+          )}
+          {fw && (first?.id === step.id || release) && (
+            <p className={styles.note} data-firmware={setup.safety.firmware_source || undefined}>
+              {[firmwareSourceText(setup.safety.firmware_source), runsText(fw)].filter(Boolean).join(' ')}
+            </p>
+          )}
           {released && (
             <div className={styles.released} data-released data-moved={releaseMoved || undefined}>
               <span className={styles.seal} aria-hidden="true">
@@ -211,7 +240,21 @@ export function SetupStep(props: {
               </div>
             </div>
           )}
-          {r && !r.ok && r.reason && (
+          {again && (
+            <div className={styles.result} data-result="again">
+              <div className={styles.verdict}>
+                <StateMark state="open" size="big" />
+                <p>
+                  <b>{tr('One more run')}</b>
+                  {fw && <span>{runsText(fw)}</span>}
+                </p>
+              </div>
+              <p className={styles.reason}>
+                {tr('This run passed. Because an earlier one failed, another one has to pass in a row: start the measurement again from its first step.')}
+              </p>
+            </div>
+          )}
+          {r && !r.ok && r.reason && !again && (
             <div className={styles.result} data-result="failed">
               <div className={styles.verdict}>
                 <StateMark state="failed" size="big" />
@@ -220,7 +263,7 @@ export function SetupStep(props: {
                   {r.attempt > 0 && <span>{tr('Attempt {n}', {n: r.attempt})}</span>}
                 </p>
               </div>
-              <p className={styles.reason}>{reasonSentence(r.reason, 'SETUP_STEP')}</p>
+              <p className={styles.reason}>{reasonSentence(r.reason, 'SETUP_STEP', {check: step.check, step: step.id})}</p>
               {w.fix && (
                 <div className={styles.fix}>
                   <h3>{tr('How to fix it')}</h3>
@@ -246,7 +289,12 @@ export function SetupStep(props: {
               {r.note && ` (${r.note})`}
             </p>
           )}
-          {releases && !setup.restart_pending && (
+          {!running && !done && (step.check === 'hardware' || writes) && (
+            <p className={styles.note} data-restarts>
+              {tr('MowBite OS restarts for it. The app connects again by itself.')}
+            </p>
+          )}
+          {(releases || bladeFirst) && !setup.restart_pending && (
             <p className={styles.note} data-releases>
               {tr('At the first start the blade is released and MowBite OS restarts; then tap Start again.')}
             </p>
@@ -271,6 +319,16 @@ export function SetupStep(props: {
           <Link href={stepHref(next.id)} className={styles.button} data-primary data-next>
             {tr('Go on: {step}', {step: nameOf(next, lang)})}
           </Link>
+        )}
+        {again && first && (
+          <Link href={stepHref(first.id)} className={styles.button} data-primary data-again>
+            {tr('Start the measurement again')}
+          </Link>
+        )}
+        {release && (fw?.runs ?? 0) > 0 && !running && (
+          <button type="button" className={styles.button} onClick={() => setSheet('share')} data-share-result>
+            {tr('Share the result')}
+          </button>
         )}
         {opens && (
           <Link href={opens.href} className={styles.button} data-primary={!canStart || undefined}>
@@ -300,6 +358,9 @@ export function SetupStep(props: {
           lang={lang}
           busy={busy}
           risky={risky}
+          release={
+            release ? {writes, known: setup.safety.firmware_source !== 'none', firmware: measuredFirmware(setup), needed: fw?.needed ?? 2} : undefined
+          }
           onClose={() => setSheet(null)}
           onStart={(confirm) => {
             setSheet(null);
@@ -307,6 +368,7 @@ export function SetupStep(props: {
           }}
         />
       )}
+      {sheet === 'share' && <FirmwareShare onClose={() => setSheet(null)} />}
       {sheet === 'skip' && (
         <SkipSheet
           step={step}

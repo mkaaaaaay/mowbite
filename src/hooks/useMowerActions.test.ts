@@ -25,9 +25,12 @@ vi.mock('@/lib/mqttClient', () => ({
 }));
 
 vi.mock('./useMowerState', () => ({liveNow: () => mower.connected && !mower.stale}));
+const os = vi.hoisted(() => ({info: undefined as {name: string; api?: number} | undefined}));
+vi.mock('@/lib/mowerOs', async (orig) => ({...(await orig<typeof import('@/lib/mowerOs')>()), knownSystemInfo: () => os.info}));
 vi.mock('@/lib/osUpdate', () => ({runningMisfit: () => mower.misfit}));
 
 const {sendCall, sendCommand, commandNote, heldUntil, lockedAfter, setsOff} = await import('./useMowerActions');
+const {MOWBITE_OS, omActionId, ownActionId} = await import('@/lib/openmower');
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('a command to the mower', () => {
@@ -38,6 +41,30 @@ describe('a command to the mower', () => {
     mower.stale = false;
     mower.misfit = null;
     mower.answer = () => Promise.resolve({state: 'MOWING', sub_state: ''});
+    os.info = undefined;
+  });
+
+  it("goes out by MowBite OS's own id from api 70 on, one without an own id as it is", () => {
+    mower.methods = null;
+    os.info = {name: MOWBITE_OS, api: 69};
+    sendCommand('mower_logic:idle/start_mowing');
+    os.info = {name: MOWBITE_OS, api: 70};
+    sendCommand('mower_logic:idle/start_mowing');
+    sendCommand('mower_logic/reset_emergency');
+    sendCommand('mower_logic:area_recording/finish_navigation_area');
+    sendCommand('mower_logic:area_recording/auto_point_collecting_disable');
+    sendCommand('mower_logic:area_recording/start_manual_mowing');
+    os.info = {name: 'OpenMower', api: 70};
+    sendCommand('mower_logic:mowing/pause');
+    expect(mower.actions).toEqual([
+      'mower_logic:idle/start_mowing',
+      'mowing.start',
+      'emergency.reset',
+      'recording.save:nav',
+      'recording.auto_points:off',
+      'mower_logic:area_recording/start_manual_mowing',
+      'mower_logic:mowing/pause',
+    ]);
   });
 
   it('goes out as the action on OpenMower, before rpc.methods came, and for a call the mower does not name', () => {
@@ -236,5 +263,16 @@ describe('the lock after a tap', () => {
     expect(heldUntil(1000, 2200)).toBe(3200);
     // a change long after the tap didn't come of it
     expect(heldUntil(1000, 20000)).toBe(2000);
+  });
+});
+
+describe("MowBite OS's own ids of the actions", () => {
+  it('are read back as OpenMower\'s, whichever the bridge speaks', () => {
+    for (const id of ['mower_logic:idle/start_mowing', 'mower_logic/reset_emergency', 'mower_logic:area_recording/finish_mowing_area'])
+      expect(omActionId(ownActionId(id))).toBe(id);
+    expect(ownActionId('mower_logic:area_recording/finish_mowing_area')).toBe('recording.save:mow');
+    expect(omActionId('recording.auto_points:on')).toBe('mower_logic:area_recording/auto_point_collecting_enable');
+    expect(omActionId('mower_logic:mowing/pause')).toBe('mower_logic:mowing/pause');
+    expect(omActionId('something.new')).toBe('something.new');
   });
 });

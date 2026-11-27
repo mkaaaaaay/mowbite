@@ -4,6 +4,7 @@ import {GuideIcon} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {SetupOverview} from '@/components/setup/SetupOverview';
+import {SetupPorts} from '@/components/setup/SetupPorts';
 import {SetupReset} from '@/components/setup/SetupReset';
 import {SetupStep, type StepActions} from '@/components/setup/SetupStep';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -117,6 +118,7 @@ function SetupView() {
             <div className={styles.overview}>
               <SetupOverview setup={setup} lang={lang} selected={step?.id ?? null} onSelect={select} />
               <SetupReset setup={setup} />
+              <SetupPorts />
             </div>
             <div className={styles.step}>
               {step ? (

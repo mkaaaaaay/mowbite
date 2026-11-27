@@ -1,5 +1,5 @@
 import {OM_WORDS} from '@/lib/platformWords';
-import {demoWith, expect, SIM, test} from './app';
+import {demoFlag, demoHas, demoWith, expect, SIM, test} from './app';
 import {infoTips, pageText, PAGES} from './texts';
 
 // the demo mower as MowBite OS (system.info, window.mowbiteDemoOs) with the parts of it the demo has: nothing of
@@ -21,5 +21,15 @@ test.describe('on MowBite OS', () => {
       if (words.length) said[path] = words;
     }
     expect(said).toEqual({});
+  });
+
+  test("a setting of how it works set by MowBite OS's own name (api 70)", async ({page}) => {
+    await demoFlag(page, 'mowbiteDemoOsApi', 70);
+    await page.goto('/settings/#auto');
+    const field = page.getByRole('textbox', {name: 'Wait after the rain'});
+    await field.fill('45');
+    await field.blur();
+    await expect.poll(async () => (await demoHas<Record<string, unknown>>(page, 'params/json'))['/mower_logic/rain_delay_minutes']).toBe(45);
+    await expect(field).toHaveValue('45');
   });
 });

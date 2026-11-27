@@ -84,6 +84,11 @@
   flex: none;
 }
 
+.limit a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .limit {
   margin: 0;
   color: var(--text-secondary);

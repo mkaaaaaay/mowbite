@@ -1,0 +1,115 @@
+/* under the stages like the setup's other cards, folded until opened */
+.card {
+  composes: card from './SetupOverview.module.css';
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  font-size: var(--text-m);
+  text-align: left;
+}
+
+.head > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.head b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.head span span,
+.dim {
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.dim {
+  margin: 0;
+}
+
+.fold {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform var(--dur-fast, 0.15s) ease;
+}
+
+.head[aria-expanded='true'] > .fold {
+  transform: rotate(180deg);
+}
+
+.ports {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.port {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--tile);
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.line b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.line span {
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+  text-align: right;
+}
+
+.port[data-free='true'] .line span {
+  color: var(--soft-good);
+}
+
+/* the names under /dev/serial/by-id are long and unbroken */
+.ids {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.listen {
+  composes: button from './Sheet.module.css';
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 8px 16px;
+}
+
+/* quiet under the ports, like the setup's start over */
+.reload {
+  composes: reset from './SetupOverview.module.css';
+}

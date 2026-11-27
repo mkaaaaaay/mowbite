@@ -1,7 +1,7 @@
 import {dec, tr} from './i18n';
-import type {BladeHeight} from './mowerOs';
+import {isMowbiteOs, knownSystemInfo, type BladeHeight} from './mowerOs';
 import {mowerFetch, apiBase} from './mowers';
-import {HEIGHT_AT_ONCE_API, PARAM, RPC} from './openmower';
+import {HEIGHT_AT_ONCE_API, OWN_LOGIC, OWN_NAMES_API, PARAM, RPC} from './openmower';
 import {FIRST_PASS} from './plannerFields';
 import {callRpc} from './rpc';
 import {containerFetch} from './updates';
@@ -203,9 +203,11 @@ export function showParam(f: ParamField, value: number): string {
 }
 
 // the mower answers with what its node took, a value out of range comes back clamped. os: MowBite OS takes only numbers,
-// a switch as 0|1
+// a switch as 0|1, and its own names from that api on
 export async function setParams(values: Record<string, number | boolean>, os = false): Promise<Record<string, number | boolean>> {
-  const params = Object.fromEntries(Object.entries(values).map(([key, v]) => [paramName(key), os ? Number(v) : v]));
+  const i = os ? knownSystemInfo() : null;
+  const own = isMowbiteOs(i) && (i!.api ?? 0) >= OWN_NAMES_API;
+  const params = Object.fromEntries(Object.entries(values).map(([key, v]) => [own ? OWN_LOGIC + key : paramName(key), os ? Number(v) : v]));
   const applied = await callRpc<Record<string, number | boolean>>(RPC.setParams, {params}, 15000);
   return Object.fromEntries(Object.entries(applied ?? {}).map(([name, v]) => [name.slice(name.lastIndexOf('/') + 1), v]));
 }

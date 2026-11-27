@@ -19,6 +19,16 @@ describe("the demo's host", () => {
     expect(h.retained(TOPIC.updateStatus)).toBeNull();
   });
 
+  it('says whether the drivers run: off after an installation until the setup switches them on', () => {
+    expect(JSON.parse(host().h.retained(TOPIC.hostStatus)![0][1]).hardware).toBe(true);
+    vi.stubGlobal('window', {mowbiteDemoHardwareOff: true});
+    const {h, said} = host();
+    vi.unstubAllGlobals();
+    expect([JSON.parse(h.retained(TOPIC.hostStatus)![0][1]).hardware, h.hardware()]).toEqual([false, false]);
+    h.switchHardware(true);
+    expect([said.at(-1), h.hardware()]).toEqual([expect.objectContaining({hardware: true}), true]);
+  });
+
   it('starts MowBite OS again while the mower is idle', async () => {
     const {said, restart} = host();
     expect(restart().state).toBe('starting');

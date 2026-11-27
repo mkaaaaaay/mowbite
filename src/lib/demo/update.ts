@@ -8,7 +8,7 @@ import {demoFlags} from './flags';
 // window.mowbiteDemoUpdateGate to a reason to have the gate wait with it (JOB_OPEN lets an update with reset_jobs
 // through, SCHEDULED_START starts in 20 minutes), and window.mowbiteDemoUpdateFails to have the new version not come up,
 // the mower then goes back. Its release index on the net answers each look with window.mowbiteDemoUpdateNet (a result
-// word), ok without it
+// word), ok without it. With window.mowbiteDemoTrial 'failed' the install of MowBite OS failed last
 
 const DAY = 86400;
 const STEP_MS = 300;
@@ -39,11 +39,17 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
     auto: false,
     ...more,
   });
+  const failed = demoFlags().mowbiteDemoTrial === 'failed';
   const components = [
-    part('os', 'MowBite OS', v('3f9c2a17d0e4b865', null, 3), {
-      available: {...v('8b1d44e09a6c2f31', null, 0), min_app: null, blocked: null, from: 'net'},
-      previous: v('c07a91b2e3f5d448', null, 9),
-    }),
+    // a failed first install leaves nothing installed: no current revision, none to go back to
+    part(
+      'os',
+      'MowBite OS',
+      v('3f9c2a17d0e4b865', null, 3),
+      failed
+        ? {running: null, installed_at: null}
+        : {available: {...v('8b1d44e09a6c2f31', null, 0), min_app: null, blocked: null, from: 'net'}, previous: v('c07a91b2e3f5d448', null, 9)},
+    ),
     part('planner', 'MowBite Planner', v('e41b0d27a93c5f10', '1.4.0', 2), {previous: v('5a2e8c11f4b07d96', '1.3.2', 7), source: 'own', own_skipped: null}),
     // (the page is the demo's app)
     part('app', 'MowBite App', v('7c1e9aa4d2b35e08', process.env.APP_VERSION ?? '0.0.0', 3), {source: 'bundled', own_skipped: null}),
@@ -51,7 +57,9 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
   ];
   let run = IDLE;
   let auto: Auto = {enabled: false, from: '02:00', to: '05:00'};
-  let last: Last | null = null;
+  let last: Last | null = failed
+    ? {result: 'failed', reason: 'UNHEALTHY', message: 'halted: DATA_ERROR', revision: null, component: 'os', t: Math.floor(Date.now() / 1000)}
+    : null;
   let origin: Origin = {
     channel: 'stable',
     url: 'https://releases.mowbite.test/index.json',

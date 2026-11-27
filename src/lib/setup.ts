@@ -1,10 +1,11 @@
+import {localDay} from './dates';
 import {reasonSentence} from './events';
-import {tr} from './i18n';
+import {fmt, tr} from './i18n';
 import {num, outlineOf} from './mowerBody';
 import {askSystemInfoAgain} from './mowerOs';
 import {box, wheelBoxes} from './robotShape';
 import {topicStore} from './mqttClient';
-import {RPC, TOPIC} from './openmower';
+import {PORT_LISTEN_MARGIN_S, PORT_LISTEN_S, RPC, TOPIC} from './openmower';
 import {heldBack} from '@/hooks/useMowerActions';
 import {callCommand, callRpc, RpcError} from './rpc';
 import {rpcImage, type ImageRef} from './rpcImage';
@@ -110,6 +111,8 @@ export interface SetupStep {
   restart: boolean;
   lines: SetupLine[];
   ask: SetupAsk | null;
+  // a step of the owner's measurement of firmware (api 73): it never touches the lock, its runs count for the release
+  firmware?: boolean;
 }
 // what keeps a step from going on, with the fields of its reason: steps not passed yet and those of them skipped
 // (SAFETY_STEPS, SAFETY_INPUTS, SAFETY_AIR), clock_reason (CLOCK_UNSAFE), key (BLADE_NOT_ALLOWED)
@@ -118,6 +121,8 @@ export interface Blocked {
   message: string;
   steps?: string[];
   skipped?: string[];
+  // LOCKED of a step of the firmware measurement: the steps of the run still to pass before it
+  needs?: string[];
   [field: string]: unknown;
 }
 // what turns in a step: max_distance null while the mower stands raised, max_speed m/s, max_time s
@@ -143,6 +148,24 @@ export interface Safety {
   why: string | null;
   source?: 'hand' | 'program' | null;
   closed?: SafetyCause[];
+  // why the driver lets this firmware drive (api 73), null before the driver reported
+  firmware_source?: FirmwareSource | null;
+}
+// listed by the driver, measured on this mower by its owner, older than every listed one (update it first), none (not
+// known: it doesn't drive until measured), empty until every board reported
+export type FirmwareSource = '' | 'listed' | 'measured' | 'older' | 'none';
+// The owner's measurement of firmware the driver doesn't list (api 73): its steps are shown while offered, a run is all of
+// them in order, passed counts the runs passed in a row of needed (2 after one that failed), written is the release it
+// wrote (with the device's checksum, not to be shown), null for none
+export interface FirmwareMeasure {
+  offered: boolean;
+  force: boolean;
+  device: boolean;
+  passed: number;
+  needed: number;
+  failed: number;
+  runs: number;
+  written: string | null;
 }
 // why the lock is closed (safety.why) besides no measurement, and a cause of closed[] without a step
 export const SAFETY_WHY: Record<string, string> = {
@@ -171,6 +194,8 @@ export interface Setup {
   restart_pending: boolean;
   stages: (Named & {state: StepState})[];
   steps: SetupStep[];
+  // only from an OS with the measurement (api 73)
+  firmware?: FirmwareMeasure;
 }
 
 // a text in the language shown, in english when it is missing there
@@ -267,6 +292,71 @@ export const skipStep = (s: Setup, step: string, reason: string, note?: string) 
 export const abortStep = (step?: string) => command(RPC.setupAbort, step ? {step} : {});
 export const resetSetup = (s: Setup) => command(RPC.setupReset, {version: s.version});
 
+// a step of the firmware measurement, the step that ends its run and writes the release, and the first, where a run begins
+export const isFirmwareStep = (s: SetupStep) => s.firmware === true;
+export const isRelease = (s: SetupStep) => isFirmwareStep(s) && s.check === 'firmware';
+export const firstFirmwareStep = (s: Setup) => s.steps.find(isFirmwareStep);
+// a reset or another mower takes the release the measurement wrote back with every result
+export const dropsRelease = (s: Setup) => !!s.firmware?.written || s.safety.firmware_source === 'measured';
+// the firmware the boards reported when a step of the measurement last ended ("cutter 0.6.36, chassis 0.6.34"), empty for none
+export function measuredFirmware(s: Setup): string {
+  const ended = s.steps.filter(isFirmwareStep).flatMap((x) => (x.result?.firmware ? [x.result] : []));
+  return ended.sort((a, b) => b.t - a.t)[0]?.firmware ?? '';
+}
+const SOURCE_TEXTS: Record<string, string> = {
+  none: "MowBite OS doesn't know this firmware yet. Until it is measured the mower doesn't drive.",
+  older: 'The firmware is older than every known one. Update it with the vendor first.',
+  measured: 'This firmware is measured and released on this mower.',
+  listed: 'This firmware is known. The measurement only checks it, it releases nothing.',
+};
+// why the mower drives with its firmware or not, in words; empty while the driver hasn't said
+export const firmwareSourceText = (source: string | null | undefined) => (source && SOURCE_TEXTS[source] ? tr(SOURCE_TEXTS[source]) : '');
+// where the runs stand: passed in a row of needed, and the runs that failed
+export function runsText(f: FirmwareMeasure): string {
+  const parts = [tr('{passed} of {needed} runs in a row passed', {passed: f.passed, needed: f.needed})];
+  if (f.failed > 0) parts.push(f.failed === 1 ? tr('1 run failed') : tr('{n} runs failed', {n: f.failed}));
+  return parts.join(' · ');
+}
+
+// The measurement as a file to share: the mower, its firmware, the device's checksum, the counts and every run kept
+// with the values of each step, round and operator error
+export interface FirmwareExport {
+  platform: string;
+  api: number;
+  catalog: number;
+  firmware_source: string | null;
+  device_hash: string;
+  passed: number;
+  needed: number;
+  failed: number;
+  written: string | null;
+  runs: {firmware?: string; result?: string}[];
+}
+export const exportFirmware = () => callRpc<FirmwareExport>(RPC.setupFirmwareExport, {});
+export const firmwareFileName = (e: FirmwareExport, now = new Date()) =>
+  `mowbite-firmware-${e.platform.replace(/[^a-z0-9-]/gi, '') || 'mower'}-${localDay(now)}.json`;
+
+// where an owner reports a measurement: a new issue of MowBite OS, its words filled in, in english like the diagnosis.
+// it names firmware and counts only, never the device's checksum or the release written with it; the owner attaches
+// the file themselves, the app uploads nothing
+const FIRMWARE_REPORT = 'https://github.com/mkaaaaaay/mowbite-os/issues/new';
+export function firmwareReportUrl(e: FirmwareExport): string {
+  const firmware = e.runs[e.runs.length - 1]?.firmware ?? '';
+  const result = e.written ? 'released on this mower' : e.passed >= e.needed ? 'passed' : 'not passed yet';
+  const body = [
+    "Owner measurement of firmware the driver doesn't list.",
+    '',
+    `- Mower: ${e.platform}`,
+    `- Firmware: ${firmware || 'unknown'}`,
+    `- Result: ${result}`,
+    `- Runs passed in a row: ${e.passed} of ${e.needed}, failed: ${e.failed}, kept: ${e.runs.length}`,
+    `- MowBite OS api ${e.api}, step list ${e.catalog}`,
+    '',
+    'The file the app saved (mowbite-firmware-…json) is attached below.',
+  ].join('\n');
+  return `${FIRMWARE_REPORT}?${new URLSearchParams({title: `Firmware measurement: ${e.platform} ${firmware}`.trim(), body})}`;
+}
+
 // The choice of the mower (api 57): the mowers the image runs as, each with its name, what it is (text) and what its
 // driver expects at which port (board) by language. current: the one MowBite OS runs as, empty while none is chosen
 // (the step platform is the only one then); fixed: the installation set it, no other is taken. image: its drawing from
@@ -295,6 +385,99 @@ export function platformWords(p: Platform, lang: string): {name: string; text: s
 export const setPlatform = (s: Setup, platform: string) =>
   callCommand<{restart: boolean}>(RPC.setupPlatformSet, {platform, version: s.version}, 10000);
 
+// The serial ports of the mower (api 71): each with its USB device and who holds it, a driver of the platform (node)
+// or another program (held_by). Only a free one is listened to, one at a time and only while the mower rests
+export interface SerialPort {
+  path: string;
+  by_id: string[];
+  driver: string;
+  usb: {vendor_id: string; product_id: string; manufacturer: string; product: string} | null;
+  held_by: {pid: number; name: string}[];
+  node: string;
+  free: boolean;
+}
+export interface Ports {
+  ports: SerialPort[];
+  resting: boolean;
+  // a listen runs, at any port
+  listening: boolean;
+}
+export type PortKind = 'silent' | 'unknown' | 'nmea' | 'wit' | 'rtcm';
+// what came at the port: kind and baud as recognized, nmea with fix the quality of the last GGA (0 none, 1 GPS, 2 DGPS,
+// 4 RTK fixed, 5 RTK float); stopped: it ended early as the mower left rest
+export interface PortListen {
+  port: string;
+  baud: number | null;
+  kind: PortKind;
+  bytes_per_s: number;
+  stopped: boolean;
+  nmea: {lines: number; talkers: string[]; sentences: string[]; gga_hz: number; fix: number | string | null} | null;
+  wit: {frames: number; types: number[]} | null;
+  rtcm: {frames: number; types: number[]} | null;
+  tried: {baud: number; kind: string; bytes: number}[];
+}
+
+const list = <T>(v: unknown): T[] => (Array.isArray(v) ? v : []);
+const portOf = (p: Partial<SerialPort>): SerialPort => ({
+  path: String(p.path),
+  by_id: list<string>(p.by_id),
+  driver: p.driver ?? '',
+  usb: p.usb ?? null,
+  held_by: list<{pid: number; name: string}>(p.held_by),
+  node: p.node ?? '',
+  free: p.free === true,
+});
+// setup.ports' answer, its lists empty and the port free only where it says so
+export function portsOf(v: unknown): Ports {
+  const r = (v ?? {}) as {ports?: unknown; resting?: unknown; listening?: unknown};
+  return {
+    ports: list<Partial<SerialPort>>(r.ports).filter((p) => typeof p?.path === 'string').map(portOf),
+    resting: r.resting === true,
+    listening: r.listening === true,
+  };
+}
+export const loadPorts = () => callRpc<unknown>(RPC.setupPorts, {}).then(portsOf);
+// listens once, the answer comes when it ends; a refusal carries the port, so BUSY reads as one of the listen
+export const listenPort = (port: string) =>
+  callCommand<PortListen>(RPC.setupPortsListen, {port, seconds: PORT_LISTEN_S}, (PORT_LISTEN_S + PORT_LISTEN_MARGIN_S) * 1000).catch((e: unknown) => {
+    if (e instanceof RpcError && e.data && e.data.port === undefined) e.data = {...e.data, port};
+    throw e;
+  });
+
+// the USB device behind the port by its words, its ids without any; empty for a port on the board
+export function portDevice({usb}: SerialPort): string {
+  if (!usb) return '';
+  return [usb.manufacturer, usb.product].filter(Boolean).join(' ') || `USB ${usb.vendor_id}:${usb.product_id}`;
+}
+// the names of /dev/serial/by-id without the folder
+export const portIds = (p: SerialPort) => p.by_id.map((id) => id.split('/').pop()!);
+// who holds a port that isn't free: the driver's node or the programs, empty for none known
+export const portHolder = (p: SerialPort) => p.node || p.held_by.map((h) => h.name).join(', ');
+
+const FIX_NAMES: Record<string, string> = {0: 'no fix', 1: 'GPS fix', 2: 'DGPS fix', 4: 'RTK fix', 5: 'RTK float'};
+const PORT_KINDS: Record<PortKind, string> = {
+  nmea: 'GPS (NMEA)',
+  wit: 'IMU (WIT)',
+  rtcm: 'Corrections (RTCM)',
+  unknown: 'Data of unknown kind',
+  silent: 'Silent, nothing came',
+};
+// what came at a port in a short sentence: the kind, the rate and what tells most about it
+export function listenText(r: PortListen): string {
+  const parts = [tr(PORT_KINDS[r.kind] ?? PORT_KINDS.unknown)];
+  if (r.baud) parts.push(tr('{baud} baud', {baud: r.baud}));
+  if (r.kind === 'nmea' && r.nmea) {
+    if (r.nmea.gga_hz > 0) parts.push(tr('{n} GGA/s', {n: fmt(r.nmea.gga_hz, r.nmea.gga_hz < 1 ? 1 : 0)}));
+    const fix = r.nmea.fix === null ? undefined : FIX_NAMES[r.nmea.fix];
+    if (r.nmea.fix !== null) parts.push(fix ? tr(fix) : tr('fix {fix}', {fix: r.nmea.fix}));
+  }
+  if (r.kind === 'wit' && r.wit) parts.push(tr('{n} frames', {n: r.wit.frames}));
+  if (r.kind === 'rtcm' && r.rtcm) parts.push(tr('messages {types}', {types: r.rtcm.types.join(', ')}));
+  if (r.kind === 'unknown') parts.push(tr('{n} bytes/s', {n: fmt(r.bytes_per_s)}));
+  if (r.stopped) parts.push(tr('stopped early, the mower is no longer resting'));
+  return parts.join(', ');
+}
+
 // a step that turns wheels or the blade goes on only while the app follows it: setup.keep at least every second
 // (x-setup.limits.keep), else the step ends RELEASED. never sent again, the next tick follows
 export const KEEP_MS = 400;
@@ -308,10 +491,10 @@ export const isSummary = (s: SetupStep) => s.check === 'summary';
 // a summary the program holds back for safety steps not passed (SAFETY_STEPS)
 export const safetyDue = (s: SetupStep) => isSummary(s) && s.blocked.some((b) => b.reason === 'SAFETY_STEPS');
 // what a summary writes when it starts: today's date in UTC as the OS writes it, the longest stand time of the passed
-// step silence (null while unknown)
+// step silence, not one of the firmware measurement (null while unknown)
 export function summaryPreview(steps: SetupStep[], now = Date.now()): {date: string; failsafe: number | null} {
   const rounds = steps
-    .filter((s) => s.check === 'silence' && s.state === 'ok')
+    .filter((s) => s.check === 'silence' && s.state === 'ok' && !isFirmwareStep(s))
     .flatMap((s) => s.values)
     .filter((v) => v.id.startsWith('round_') && typeof v.value === 'number')
     .map((v) => v.value as number);

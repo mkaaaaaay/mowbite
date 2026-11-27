@@ -48,4 +48,13 @@ describe('params as they come from the mower', () => {
     expect(paramsFrom('{"/a/datum_lat": 52}', before)).toEqual({'/a/datum_lat': 52});
     for (const bad of ['null', '[]', '"x"', '3']) expect(paramsFrom(bad, before)).toBe(before);
   });
+
+  it("have MowBite OS's own names of mower_logic's settings by OpenMower's", async () => {
+    const {paramsFrom} = await import('./useMowerParams');
+    expect(paramsFrom('{"/logic/tool_width": 0.18, "/mower_logic/outline_count": 2, "/ll/x": 1}', {})).toEqual({
+      '/mower_logic/tool_width': 0.18,
+      '/mower_logic/outline_count': 2,
+      '/ll/x': 1,
+    });
+  });
 });

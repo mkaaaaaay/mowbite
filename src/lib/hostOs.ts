@@ -4,6 +4,7 @@ import {isReasonCode, reasonSentence, reasonText} from './events';
 import {mowerKey, readMower, readStored, writeMower, writeStored} from './mowers';
 import {tr} from './i18n';
 import {topicStore} from './mqttClient';
+import type {Last} from './osUpdate';
 import {RPC, SSH_PASSWORD, TOPIC, USB_MODE_MS, TRON_PLATFORM} from './openmower';
 import {callCommand, callRpc, RpcError} from './rpc';
 import {answerError, refusalEvent} from './rpcText';
@@ -52,6 +53,8 @@ export interface HostStatus {
   usb_mode_failed?: {t: number; error: string} | null;
   // only from a host that manages ssh, not on an older one or where it says null
   ssh?: SshState;
+  // the drivers of the platform run (api 72); an installation leaves them off until the setup's step hardware
+  hardware?: boolean;
 }
 
 export function parseHost(text: string): HostStatus {
@@ -66,6 +69,7 @@ export function parseHost(text: string): HostStatus {
     setup_wifi: online && Number.isFinite(s.setup_wifi?.until) ? {until: s.setup_wifi.until} : null,
     ...(online && Number.isFinite(s.usb_mode_failed?.t) && {usb_mode_failed: {t: s.usb_mode_failed.t, error: String(s.usb_mode_failed.error ?? '')}}),
     ...(online && typeof s.ssh?.enabled === 'boolean' && {ssh: {enabled: s.ssh.enabled, password: s.ssh.password === true}}),
+    ...(online && typeof s.hardware === 'boolean' && {hardware: s.hardware}),
   };
 }
 
@@ -80,6 +84,7 @@ export const osOff = (h: HostStatus | undefined): HostOs | null => (h?.os && OFF
 
 // that in words, with the reason the host gives
 export function offText(os: HostOs): string {
+  if (os.revision === null) return tr("MowBite OS isn't installed on this mower.");
   if (os.state === 'stopped') return tr('MowBite OS is stopped.');
   const why = os.reason && reasonText({id: '', t: 0, type: 'HOST_OS', reason: os.reason, ...(os.restarts > 0 && {restarts: os.restarts})});
   return why ? `${tr("MowBite OS isn't running")}: ${why}.` : `${tr("MowBite OS isn't running")}.`;
@@ -96,7 +101,8 @@ export interface Mower {
 // emergency stop, null not at all (anything else, during an update, or a host that doesn't list it). The method is in
 // the mower's list or, with MowBite OS off and its list with it, in the host's own
 export function restartWay(h: HostStatus | undefined, methods: Set<string> | null | undefined, mower: Mower, updating: boolean): 'off' | 'idle' | null {
-  if (!h?.os || updating) return null;
+  // without an installed MowBite OS its service starts nothing
+  if (!h?.os || updating || h.os.revision === null) return null;
   if (!methods?.has(RPC.hostRestartOs) && !hostOffers(h, RPC.hostRestartOs)) return null;
   if (osOff(h)) return 'off';
   return h.os.state === 'running' && mower.live && mower.state === 'IDLE' && !mower.emergency ? 'idle' : null;
@@ -114,6 +120,8 @@ export const useHostTrial = () =>
   useSyncExternalStore(host.subscribe, () => !!host.get()?.trial && hostOffers(host.get(), RPC.hostConfirmStart), () => false);
 export const useHostWifiSsid = () =>
   useSyncExternalStore(host.subscribe, () => (host.get()?.wifi?.state === 'connected' ? host.get()!.wifi!.ssid : null), () => null);
+// the drivers of the platform off (api 72): an installation leaves them off until the setup's step hardware
+export const useHardwareOff = () => useSyncExternalStore(host.subscribe, () => host.get()?.hardware === false, () => false);
 export const useSetupWifiUntil = () => useSyncExternalStore(host.subscribe, () => host.get()?.setup_wifi?.until ?? null, () => null);
 
 // the setup WLAN open, in words
@@ -129,6 +137,22 @@ export function wifiText(w: WifiChange): string {
 
 // confirms the start of a newly written system, its trial is over then
 export const confirmStart = () => callCommand<{trial: boolean}>(RPC.hostConfirmStart, {}, 20000);
+
+// a system on trial: its start confirmed only while MowBite OS runs (the host turns it down otherwise), 'failed' when
+// the installing update failed or was turned down, else waiting for MowBite OS
+export function trialWay(h: HostStatus | undefined, last: Last | null | undefined): 'confirm' | 'wait' | 'failed' {
+  if (h?.os?.state === 'running') return 'confirm';
+  return last?.result === 'failed' || last?.result === 'refused' ? 'failed' : 'wait';
+}
+
+// why it failed in words: the reason the message names ("halted: DATA_ERROR"), else the update's own, else the message
+export function trialFailText(last: Last): string {
+  const named = /([A-Z][A-Z_]+)\s*$/.exec(last.message ?? '')?.[1];
+  if (named && isReasonCode(named)) return reasonSentence(named, 'HOST_OS');
+  if (last.reason === 'UNHEALTHY') return tr("It didn't run properly after its first start.");
+  if (last.reason && isReasonCode(last.reason)) return reasonSentence(last.reason, 'UPDATE_REFUSED');
+  return last.message ?? '';
+}
 
 // the WLANs the mower sees, the one in use first, then by signal
 export interface WifiNetwork {
@@ -191,8 +215,10 @@ export function hostError(e: unknown): string {
 }
 
 // A Tron restarted into the USB mode of its loader (host.usb_mode): the installer on a PC takes over there, MowBite OS
-// and the app don't reach the mower any more. Only on that platform, the host lists the method on every mower
-export const usbModeOffered = (h: HostStatus | undefined, platform: string | null) => hostOffers(h, RPC.hostUsbMode) && platform === TRON_PLATFORM;
+// and the app don't reach the mower any more. Only on that platform, the host lists the method on every mower; a system
+// on trial came from that installer, also while MowBite OS doesn't run to name its platform
+export const usbModeOffered = (h: HostStatus | undefined, platform: string | null) =>
+  hostOffers(h, RPC.hostUsbMode) && (platform === TRON_PLATFORM || !!h?.trial);
 // answered before the restart; never sent again by itself
 export const usbMode = () => callCommand<{rebooting: boolean}>(RPC.hostUsbMode, {}, USB_MODE_MS);
 // the host's reasons that read as an update's in their own words, as they are for this restart

@@ -7,7 +7,7 @@
         "description": "An action of actions/json",
         "properties": {
           "action_id": {
-            "description": "<prefix>/<id>, what the app sends on action",
+            "description": "What the app sends on action: <prefix>/<id> with openmower_names, else the own id",
             "type": "string"
           },
           "action_name": {
@@ -6006,6 +6006,10 @@
           "description": "With safety_opened by a step summary: the date it wrote",
           "type": "string"
         },
+        "entry": {
+          "description": "With firmware_measured and firmware_revoked: the entry of measured_firmware",
+          "type": "string"
+        },
         "from": {
           "description": "With platform: the mower before, empty in the stage of the choice",
           "type": "string"
@@ -6036,7 +6040,7 @@
           "description": "What happened; a type this version does not know carries only the envelope for sure"
         },
         "what": {
-          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open (again); blade_allowed: the first start of a step blade allowed the blade, the OS restarts and the step waits for its next start; platform: setup.platform.set chose another mower, every result is taken back, the lock closes with a reset and the OS restarts as that mower",
+          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open (again); blade_allowed: the first start of a step blade allowed the blade, the OS restarts and the step waits for its next start; platform: setup.platform.set chose another mower, every result is taken back, the lock closes with a reset and the OS restarts as that mower; firmware_measured: a step firmware wrote measured_firmware and the driver drives with it; firmware_revoked: a run that failed took it out again (the OS restarts)",
           "enum": [
             "stage_done",
             "complete",
@@ -6044,7 +6048,9 @@
             "safety_closed",
             "safety_opened",
             "blade_allowed",
-            "platform"
+            "platform",
+            "firmware_measured",
+            "firmware_revoked"
           ],
           "type": "string"
         }
@@ -6106,6 +6112,10 @@
           "description": "current_state of the mower then",
           "type": "string"
         },
+        "needed": {
+          "description": "Runs needed in a row",
+          "type": "integer"
+        },
         "note": {
           "description": "With skipped: the text of setup.skip",
           "type": "string"
@@ -6113,6 +6123,10 @@
         "part": {
           "description": "The part of the step it happened in",
           "type": "string"
+        },
+        "passed": {
+          "description": "Runs passed in a row",
+          "type": "integer"
         },
         "reason": {
           "description": "Why: a fixed name in capitals, rated in x-reasons",
@@ -6143,6 +6157,9 @@
             "NO_STANDSTILL",
             "NO_DATA",
             "NO_RTK",
+            "NOT_OPENED",
+            "RUN_AGAIN",
+            "FIRMWARE_CHANGED",
             "STOPPED",
             "INTERRUPTED",
             "NOT_DONE",
@@ -7029,6 +7046,107 @@
       },
       "required": [
         "trial"
+      ],
+      "type": "object"
+    },
+    "host.hardware.params": {
+      "additionalProperties": false,
+      "description": "The params of host.hardware: On or off",
+      "properties": {
+        "on": {
+          "description": "true: the drivers run, false: they do not start",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "on"
+      ],
+      "type": "object"
+    },
+    "host.hardware.result": {
+      "additionalProperties": false,
+      "description": "The result of host.hardware: os of mowbite/host/status after the restart",
+      "properties": {
+        "last_crash": {
+          "description": "The last end of its container",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
+        },
+        "reason": {
+          "description": "Why: CRASH_LOOP when down, the reason of the halt when halted (HOST_OS in x-reasons); else null",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "restarts": {
+          "description": "Crashes since its last stable run of 10 min",
+          "type": "integer"
+        },
+        "revision": {
+          "description": "The revision that runs",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "since": {
+          "description": "Since when, unix s",
+          "type": "integer"
+        },
+        "stalled": {
+          "additionalProperties": false,
+          "description": "The node the watch ended it for at its last end, null without one",
+          "properties": {
+            "limit": {
+              "description": "Its limit",
+              "type": "number",
+              "x-unit": "s"
+            },
+            "node": {
+              "description": "The node",
+              "type": "string"
+            },
+            "seconds": {
+              "description": "How long it gave no sign",
+              "type": "number",
+              "x-unit": "s"
+            }
+          },
+          "required": [
+            "node",
+            "seconds",
+            "limit"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "state": {
+          "description": "How it is",
+          "enum": [
+            "starting",
+            "running",
+            "stopped",
+            "down",
+            "halted",
+            "updating"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "reason",
+        "since",
+        "restarts",
+        "last_crash",
+        "revision",
+        "stalled"
       ],
       "type": "object"
     },
@@ -9185,7 +9303,7 @@
       "description": "The params of params.set: The settings by full name",
       "properties": {
         "params": {
-          "description": "\"/mower_logic/<name>\": number, for names of x-settings",
+          "description": "\"/logic/<name>\": number, for names of x-settings; \"/mower_logic/<name>\" names the same setting",
           "type": "object"
         }
       },
@@ -10985,6 +11103,58 @@
             "null"
           ]
         },
+        "firmware": {
+          "additionalProperties": false,
+          "description": "The owner measurement of firmware (steps with firmware); setup.firmware.export gives all of it",
+          "properties": {
+            "device": {
+              "description": "hw/capabilities has a device_hash",
+              "type": "boolean"
+            },
+            "failed": {
+              "description": "Runs that failed for real since the last reset",
+              "type": "integer"
+            },
+            "force": {
+              "description": "firmware_measure_force of the setup program: it measures listed firmware too and writes nothing",
+              "type": "boolean"
+            },
+            "needed": {
+              "description": "Runs needed in a row: 1, 2 after a run that failed",
+              "type": "integer"
+            },
+            "offered": {
+              "description": "Its steps are shown: firmware_source none or older, or firmware_measure_force",
+              "type": "boolean"
+            },
+            "passed": {
+              "description": "Runs passed in a row",
+              "type": "integer"
+            },
+            "runs": {
+              "description": "Runs kept for the export",
+              "type": "integer"
+            },
+            "written": {
+              "description": "The entry of measured_firmware the program wrote, null for none",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "offered",
+            "force",
+            "device",
+            "passed",
+            "needed",
+            "failed",
+            "runs",
+            "written"
+          ],
+          "type": "object"
+        },
         "platform": {
           "description": "The platform of the step list, as its driver reports it (hw/capabilities)",
           "type": "string"
@@ -11052,6 +11222,21 @@
                 "null"
               ]
             },
+            "firmware_source": {
+              "description": "Why the driver lets this firmware drive, firmware_source of hw/capabilities: listed, measured (an owner's measurement on this device), older, none, empty until every board reported; null before hw/capabilities",
+              "enum": [
+                "",
+                "listed",
+                "measured",
+                "older",
+                "none",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "open": {
               "description": "The platform has a safety measurement and no safety step closed the lock",
               "type": "boolean"
@@ -11088,7 +11273,8 @@
             "firmware",
             "why",
             "source",
-            "closed"
+            "closed",
+            "firmware_source"
           ],
           "type": "object"
         },
@@ -11233,6 +11419,10 @@
                   "null"
                 ],
                 "x-unit": "unix s"
+              },
+              "firmware": {
+                "description": "A step of the owner measurement of firmware: it never touches the lock, its runs count in firmware of the state",
+                "type": "boolean"
               },
               "id": {
                 "description": "Name of the step in setup.*",
@@ -11786,6 +11976,7 @@
               "kind",
               "state",
               "safety",
+              "firmware",
               "attempt",
               "needs",
               "blocked",
@@ -11827,6 +12018,7 @@
         "current",
         "complete",
         "safety",
+        "firmware",
         "restart_pending",
         "stages",
         "steps"
@@ -11876,6 +12068,73 @@
     "setup.answer.result": {
       "$ref": "#/$defs/setup",
       "description": "The result of setup.answer: The state of the program after the call, as setup/json"
+    },
+    "setup.firmware.export.params": {
+      "description": "The params of setup.firmware.export: None",
+      "type": "object"
+    },
+    "setup.firmware.export.result": {
+      "description": "The result of setup.firmware.export: The measurement",
+      "properties": {
+        "api": {
+          "description": "The api of the OS that measured",
+          "type": "integer"
+        },
+        "catalog": {
+          "description": "Counter of the step list",
+          "type": "integer"
+        },
+        "device_hash": {
+          "description": "device_hash of hw/capabilities, empty without",
+          "type": "string"
+        },
+        "failed": {
+          "description": "Runs that failed for real",
+          "type": "integer"
+        },
+        "firmware_source": {
+          "description": "firmware_source of hw/capabilities now",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "needed": {
+          "description": "Runs needed in a row",
+          "type": "integer"
+        },
+        "passed": {
+          "description": "Runs passed in a row",
+          "type": "integer"
+        },
+        "platform": {
+          "description": "The platform",
+          "type": "string"
+        },
+        "runs": {
+          "description": "The runs, oldest first: n, t0, t1, firmware, result (running, passed, failed, aborted), reason, steps by id with state, reason, values and rounds, operator_errors, link"
+        },
+        "written": {
+          "description": "The entry of measured_firmware written, null for none",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "platform",
+        "api",
+        "catalog",
+        "firmware_source",
+        "device_hash",
+        "passed",
+        "needed",
+        "failed",
+        "written",
+        "runs"
+      ],
+      "type": "object"
     },
     "setup.get.params": {
       "description": "The params of setup.get: None",
@@ -12087,6 +12346,332 @@
         "platforms",
         "current",
         "fixed"
+      ],
+      "type": "object"
+    },
+    "setup.ports.listen.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.ports.listen: What to listen to",
+      "properties": {
+        "baud": {
+          "description": "Only this rate, one of 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600",
+          "type": "integer"
+        },
+        "port": {
+          "description": "path of setup.ports",
+          "type": "string"
+        },
+        "seconds": {
+          "description": "How long at most, 10 without",
+          "maximum": 30.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "s"
+        }
+      },
+      "required": [
+        "port"
+      ],
+      "type": "object"
+    },
+    "setup.ports.listen.result": {
+      "additionalProperties": false,
+      "description": "The result of setup.ports.listen: What came",
+      "properties": {
+        "baud": {
+          "description": "The rate it was recognized at, null for none",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "bytes_per_s": {
+          "description": "At that rate, else at the rate with the most bytes",
+          "type": "number",
+          "x-unit": "B/s"
+        },
+        "kind": {
+          "description": "What it sends",
+          "enum": [
+            "nmea",
+            "wit",
+            "rtcm",
+            "unknown",
+            "silent"
+          ],
+          "type": "string"
+        },
+        "nmea": {
+          "additionalProperties": false,
+          "description": "Lines of a GNSS receiver, null without",
+          "properties": {
+            "fix": {
+              "description": "Quality of the last GGA: 0 none, 1 GPS, 2 DGPS, 4 RTK fixed, 5 RTK float; null without GGA",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "gga_hz": {
+              "description": "GGA lines per second",
+              "type": "number",
+              "x-unit": "Hz"
+            },
+            "lines": {
+              "description": "Lines with a valid checksum",
+              "type": "integer"
+            },
+            "sentences": {
+              "description": "e.g. GGA, RMC",
+              "items": {
+                "description": "One item",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "talkers": {
+              "description": "e.g. GN, GP; P for proprietary",
+              "items": {
+                "description": "One item",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "lines",
+            "talkers",
+            "sentences",
+            "gga_hz",
+            "fix"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "port": {
+          "description": "The port",
+          "type": "string"
+        },
+        "rtcm": {
+          "additionalProperties": false,
+          "description": "RTCM 3 frames, null without",
+          "properties": {
+            "frames": {
+              "description": "Frames with a valid CRC",
+              "type": "integer"
+            },
+            "types": {
+              "description": "Message numbers",
+              "items": {
+                "description": "One item",
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "frames",
+            "types"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "stopped": {
+          "description": "It ended early because the mower left rest",
+          "type": "boolean"
+        },
+        "tried": {
+          "description": "Each rate tried, in order",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "baud": {
+                "description": "The rate",
+                "type": "integer"
+              },
+              "bytes": {
+                "description": "Bytes",
+                "type": "integer"
+              },
+              "kind": {
+                "description": "What came at it",
+                "type": "string"
+              }
+            },
+            "required": [
+              "baud",
+              "kind",
+              "bytes"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "wit": {
+          "additionalProperties": false,
+          "description": "Frames of a WIT IMU, null without",
+          "properties": {
+            "frames": {
+              "description": "Frames with a valid checksum",
+              "type": "integer"
+            },
+            "types": {
+              "description": "Frame types, 80 to 95",
+              "items": {
+                "description": "One item",
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "frames",
+            "types"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "port",
+        "baud",
+        "kind",
+        "bytes_per_s",
+        "stopped",
+        "nmea",
+        "wit",
+        "rtcm",
+        "tried"
+      ],
+      "type": "object"
+    },
+    "setup.ports.params": {
+      "description": "The params of setup.ports: None",
+      "type": "object"
+    },
+    "setup.ports.result": {
+      "additionalProperties": false,
+      "description": "The result of setup.ports: The ports",
+      "properties": {
+        "listening": {
+          "description": "A setup.ports.listen runs",
+          "type": "boolean"
+        },
+        "ports": {
+          "description": "Sorted by path",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "by_id": {
+                "description": "Links of /dev/serial/by-id to it",
+                "items": {
+                  "description": "One item",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "driver": {
+                "description": "Kernel driver of the device behind it, empty without one",
+                "type": "string"
+              },
+              "free": {
+                "description": "No node uses it and nobody holds it: setup.ports.listen takes it",
+                "type": "boolean"
+              },
+              "held_by": {
+                "description": "Other processes that have it open",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "name": {
+                      "description": "Its name",
+                      "type": "string"
+                    },
+                    "pid": {
+                      "description": "Process id",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "node": {
+                "description": "The node of the platform that uses it, empty for none",
+                "type": "string"
+              },
+              "path": {
+                "description": "Device, e.g. /dev/ttyUSB0",
+                "type": "string"
+              },
+              "usb": {
+                "additionalProperties": false,
+                "description": "The USB device, null for a port on the board",
+                "properties": {
+                  "manufacturer": {
+                    "description": "Text of the device, may be empty",
+                    "type": "string"
+                  },
+                  "product": {
+                    "description": "Text of the device, may be empty",
+                    "type": "string"
+                  },
+                  "product_id": {
+                    "description": "4 hex digits",
+                    "type": "string"
+                  },
+                  "vendor_id": {
+                    "description": "4 hex digits",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vendor_id",
+                  "product_id",
+                  "manufacturer",
+                  "product"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "by_id",
+              "driver",
+              "usb",
+              "held_by",
+              "node",
+              "free"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "resting": {
+          "description": "The mower rests (choice of the mower, or SETUP or IDLE without a running step): only then setup.ports.listen listens",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ports",
+        "resting",
+        "listening"
       ],
       "type": "object"
     },
@@ -13293,7 +13878,7 @@
         },
         "blade_height": {
           "additionalProperties": false,
-          "description": "Cutting heights the platform sets for /mower_logic/mow_height_mm; null or missing where it sets none, then the setting has no effect",
+          "description": "Cutting heights the platform sets for /logic/mow_height_mm; null or missing where it sets none, then the setting has no effect",
           "properties": {
             "default_mm": {
               "description": "Height of the platform for 0",
@@ -17537,11 +18122,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:69",
+  "$id": "urn:mowbite-os:api:73",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity, resume and class (cause: it explains the event, symptom: it only names the outcome) of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency with their class, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id and key (an id with openmower_names has the key of its own id), x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity, resume and class (cause: it explains the event, symptom: it only names the outcome) of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency with their class, x-commands the commands with params, result, the event of their refusal and the actions that do the same (id: the own id, in actions/json and on action without openmower_names; action: the id with openmower_names; action takes both in either mode), x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id and key (an id with openmower_names has the key of its own id), x-settings the settings of params.set with the ranges of the OS (in params/json and the answer of params.set under /mower_logic with openmower_names, else under /logic), x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 69,
+  "x-api": 73,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -17549,6 +18134,7 @@
       "actions": [
         {
           "action": "mower_logic:docking/abort_docking",
+          "id": "docking.abort",
           "params": {}
         }
       ],
@@ -17578,6 +18164,7 @@
       "actions": [
         {
           "action": "mower_logic/reset_emergency",
+          "id": "emergency.reset",
           "params": {}
         }
       ],
@@ -17591,6 +18178,7 @@
       "actions": [
         {
           "action": "mower_logic:mowing/abort_mowing",
+          "id": "mowing.abort",
           "params": {}
         }
       ],
@@ -17604,6 +18192,7 @@
       "actions": [
         {
           "action": "mower_logic:mowing/continue",
+          "id": "mowing.continue",
           "params": {}
         }
       ],
@@ -17617,6 +18206,7 @@
       "actions": [
         {
           "action": "mower_logic:mowing/pause",
+          "id": "mowing.pause",
           "params": {}
         }
       ],
@@ -17630,6 +18220,7 @@
       "actions": [
         {
           "action": "mower_logic:idle/reset_job",
+          "id": "mowing.reset_job",
           "params": {}
         }
       ],
@@ -17643,6 +18234,7 @@
       "actions": [
         {
           "action": "mower_logic:mowing/skip_area",
+          "id": "mowing.skip_area",
           "params": {}
         }
       ],
@@ -17656,6 +18248,7 @@
       "actions": [
         {
           "action": "mower_logic:mowing/skip_path",
+          "id": "mowing.skip_path",
           "params": {}
         }
       ],
@@ -17669,6 +18262,7 @@
       "actions": [
         {
           "action": "mower_logic:idle/start_mowing",
+          "id": "mowing.start",
           "params": {}
         }
       ],
@@ -17682,12 +18276,14 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/auto_point_collecting_enable",
+          "id": "recording.auto_points:on",
           "params": {
             "enabled": true
           }
         },
         {
           "action": "mower_logic:area_recording/auto_point_collecting_disable",
+          "id": "recording.auto_points:off",
           "params": {
             "enabled": false
           }
@@ -17703,6 +18299,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/finish_discard",
+          "id": "recording.discard",
           "params": {}
         }
       ],
@@ -17716,6 +18313,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/record_dock",
+          "id": "recording.dock",
           "params": {}
         }
       ],
@@ -17729,6 +18327,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/exit_recording_mode",
+          "id": "recording.exit",
           "params": {}
         }
       ],
@@ -17742,6 +18341,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/collect_point",
+          "id": "recording.point",
           "params": {}
         }
       ],
@@ -17755,6 +18355,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/start_recording",
+          "id": "recording.ring_start",
           "params": {}
         }
       ],
@@ -17768,6 +18369,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/stop_recording",
+          "id": "recording.ring_stop",
           "params": {}
         }
       ],
@@ -17781,12 +18383,14 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/finish_mowing_area",
+          "id": "recording.save:mow",
           "params": {
             "type": "mow"
           }
         },
         {
           "action": "mower_logic:area_recording/finish_navigation_area",
+          "id": "recording.save:nav",
           "params": {
             "type": "nav"
           }
@@ -17802,6 +18406,7 @@
       "actions": [
         {
           "action": "mower_logic:idle/start_area_recording",
+          "id": "recording.start",
           "params": {}
         }
       ],
@@ -17815,6 +18420,7 @@
       "actions": [
         {
           "action": "mower_logic:area_recording/undo_points",
+          "id": "recording.undo",
           "params": {}
         }
       ],
@@ -17844,6 +18450,7 @@
       "actions": [
         {
           "action": "mower_logic:undocking/abort_undocking",
+          "id": "undocking.abort",
           "params": {}
         }
       ],
@@ -18328,6 +18935,13 @@
       "params": "#/$defs/host.confirm_start.params",
       "result": "#/$defs/host.confirm_start.result"
     },
+    "host.hardware": {
+      "description": "Switches the drivers of the platform on or off (MOWBITE_HARDWARE in the settings of the OS) and restarts the OS with the rule of host.restart_os; hardware in mowbite/host/status shows the setting. The setup program asks for it with its step hardware",
+      "node": "mowbite_host",
+      "offered": "while mowbite/host/status says online",
+      "params": "#/$defs/host.hardware.params",
+      "result": "#/$defs/host.hardware.result"
+    },
     "host.restart_os": {
       "description": "Starts MowBite OS again, its restarts from 0: always when it is stopped, down or halted, else only in IDLE without an emergency or the restart hold; never during an update. The restart hold judges at the start as always",
       "node": "mowbite_host",
@@ -18441,7 +19055,7 @@
       "result": "#/$defs/logs.recent.result"
     },
     "map.area_properties": {
-      "description": "The properties an area of the map may have. mow_height_mm: the cutting height of a mowing area in mm instead of /mower_logic/mow_height_mm while the blade cuts in it, a change at once; map.replace takes it as params.set takes that setting, rounded and within its range; no effect where system.info.blade_height is null",
+      "description": "The properties an area of the map may have. mow_height_mm: the cutting height of a mowing area in mm instead of /logic/mow_height_mm while the blade cuts in it, a change at once; map.replace takes it as params.set takes that setting, rounded and within its range; no effect where system.info.blade_height is null",
       "node": "mowbite_map",
       "offered": "",
       "params": "#/$defs/map.area_properties.params",
@@ -18762,6 +19376,13 @@
       "params": "#/$defs/setup.answer.params",
       "result": "#/$defs/setup.answer.result"
     },
+    "setup.firmware.export": {
+      "description": "The owner measurement of firmware as a file to share: platform, firmware of the boards, device_hash, the counts and every run kept with the values of each step and round, the operator errors and the link counts",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.firmware.export.params",
+      "result": "#/$defs/setup.firmware.export.result"
+    },
     "setup.get": {
       "description": "The state of the setup program: the steps of the platform with their texts",
       "node": "mowbite_setup",
@@ -18797,8 +19418,22 @@
       "params": "#/$defs/setup.platforms.params",
       "result": "#/$defs/setup.platforms.result"
     },
+    "setup.ports": {
+      "description": "The serial ports of the mower, read from the system without opening one: for each its USB data, who holds it and whether a driver of the platform uses it",
+      "node": "mowbite_setup",
+      "offered": "",
+      "params": "#/$defs/setup.ports.params",
+      "result": "#/$defs/setup.ports.result"
+    },
+    "setup.ports.listen": {
+      "description": "Listens on a free port without sending a byte, at the usual rates one after the other, and tells what comes: NMEA of a GNSS receiver, frames of a WIT IMU, RTCM or none of these. Only while the mower rests and no other listen runs; it ends early when the mower leaves rest. Opening a port may switch its DTR line, which restarts some devices: the app says so before. The answer comes when it ends",
+      "node": "mowbite_setup",
+      "offered": "",
+      "params": "#/$defs/setup.ports.listen.params",
+      "result": "#/$defs/setup.ports.listen.result"
+    },
     "setup.reset": {
-      "description": "Takes every result back: all steps are open again, the record starts anew. It takes the date, the stand time and allow_blade out of the parameter file of the program; a lock the program opened (safety.source program) closes with a reset until a summary passes again, a date from the file kept by hand stays as it is. The causes of failed safety steps stay",
+      "description": "Takes every result back: all steps are open again, the record starts anew. It takes the date, the stand time and allow_blade out of the parameter file of the program; a lock the program opened (safety.source program) closes with a reset until a summary passes again, a date from the file kept by hand stays as it is. The causes of failed safety steps stay. It takes measured_firmware out as well, with every run of the measurement",
       "node": "mowbite_setup",
       "offered": "where the platform has a step list (setup/setup.yaml)",
       "params": "#/$defs/setup.reset.params",
@@ -21852,6 +22487,25 @@
           }
         }
       },
+      "FIRMWARE_OLDER": {
+        "class": "cause",
+        "description": "A board reports firmware older than every one the driver lists: update it with the vendor first, it is not measured",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Firmware über den Hersteller aktualisieren, dann erneut versuchen.",
+            "help": "Die Firmware einer Platine ist älter als jede bekannte. Ältere Firmware wird nicht gemessen.",
+            "name": "Erst Hersteller-Update"
+          },
+          "en": {
+            "fix": "Update the firmware through the vendor, then try again.",
+            "help": "The firmware of a board is older than every known one. Older firmware is not measured.",
+            "name": "Vendor update first"
+          }
+        }
+      },
       "INPUT_ACTIVE": {
         "class": "cause",
         "description": "The input of the part is still switched: before its action, or after it while its emergency waits for the input to be free",
@@ -21908,6 +22562,25 @@
             "fix": "Switch the mower on and check the cables.",
             "help": "Motion sensor or GPS send no data right now.",
             "name": "No data"
+          }
+        }
+      },
+      "NO_DEVICE_ID": {
+        "class": "cause",
+        "description": "hw/capabilities has no device_hash: a measurement could not be tied to this device",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Messung ist auf diesem Mäher nicht möglich; im Discord melden.",
+            "help": "Der Mäher kann sich selbst nicht eindeutig erkennen. Eine Messung gilt aber nur für genau dieses Gerät.",
+            "name": "Gerät nicht erkennbar"
+          },
+          "en": {
+            "fix": "The measurement is not possible on this mower; tell us on Discord.",
+            "help": "The mower can't tell itself apart from others, but a measurement holds only for this device.",
+            "name": "Device not recognisable"
           }
         }
       },
@@ -22180,6 +22853,25 @@
           }
         }
       },
+      "FIRMWARE_OLDER": {
+        "class": "cause",
+        "description": "A board reports firmware older than every one the driver lists: update it with the vendor first, it is not measured",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Firmware über den Hersteller aktualisieren, dann erneut versuchen.",
+            "help": "Die Firmware einer Platine ist älter als jede bekannte. Ältere Firmware wird nicht gemessen.",
+            "name": "Erst Hersteller-Update"
+          },
+          "en": {
+            "fix": "Update the firmware through the vendor, then try again.",
+            "help": "The firmware of a board is older than every known one. Older firmware is not measured.",
+            "name": "Vendor update first"
+          }
+        }
+      },
       "INVALID_VALUE": {
         "class": "cause",
         "description": "A value of setup.answer or the reason of setup.skip is not one the step takes",
@@ -22198,6 +22890,27 @@
             "fix": "Pick a value from the range shown.",
             "help": "The value entered doesn't fit this step.",
             "name": "Invalid value"
+          }
+        }
+      },
+      "LISTENING": {
+        "class": "cause",
+        "description": "Another setup.ports.listen runs",
+        "fields": {
+          "port": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis das Ergebnis da ist.",
+            "help": "Gerade wird schon an einem Anschluss mitgehört.",
+            "name": "Hört schon mit"
+          },
+          "en": {
+            "fix": "Wait for its result.",
+            "help": "Another port is being listened to right now.",
+            "name": "Already listening"
           }
         }
       },
@@ -22260,6 +22973,25 @@
           }
         }
       },
+      "NO_DEVICE_ID": {
+        "class": "cause",
+        "description": "hw/capabilities has no device_hash: a measurement could not be tied to this device",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Messung ist auf diesem Mäher nicht möglich; im Discord melden.",
+            "help": "Der Mäher kann sich selbst nicht eindeutig erkennen. Eine Messung gilt aber nur für genau dieses Gerät.",
+            "name": "Gerät nicht erkennbar"
+          },
+          "en": {
+            "fix": "The measurement is not possible on this mower; tell us on Discord.",
+            "help": "The mower can't tell itself apart from others, but a measurement holds only for this device.",
+            "name": "Device not recognisable"
+          }
+        }
+      },
       "NO_RTK": {
         "class": "cause",
         "description": "A step on the ground needs an RTK fix: it compares its way with the GNSS",
@@ -22314,6 +23046,72 @@
             "fix": "Install MowBite OS again for the other mower.",
             "help": "The installation sets which mower this is.",
             "name": "Mower set by the installation"
+          }
+        }
+      },
+      "PORT_IN_USE": {
+        "class": "cause",
+        "description": "A node of the platform uses the port or another process holds it",
+        "fields": {
+          "by": "",
+          "node": "",
+          "port": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Einen freien Anschluss wählen.",
+            "help": "Ein Treiber oder ein anderes Programm nutzt diesen Anschluss.",
+            "name": "Anschluss belegt"
+          },
+          "en": {
+            "fix": "Pick a free port.",
+            "help": "A driver or another program uses this port.",
+            "name": "Port in use"
+          }
+        }
+      },
+      "PORT_NOT_OPENED": {
+        "class": "cause",
+        "description": "The port could not be opened for listening",
+        "fields": {
+          "error": "",
+          "port": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Das Gerät neu einstecken und es noch einmal versuchen.",
+            "help": "Der Anschluss ließ sich zum Mithören nicht öffnen.",
+            "name": "Anschluss nicht lesbar"
+          },
+          "en": {
+            "fix": "Plug the device in again and try again.",
+            "help": "The port could not be opened for listening.",
+            "name": "Port not readable"
+          }
+        }
+      },
+      "PORT_UNKNOWN": {
+        "class": "cause",
+        "description": "setup.ports does not list this port",
+        "fields": {
+          "port": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Liste der Anschlüsse neu laden.",
+            "help": "Diesen Anschluss gibt es am Mäher nicht.",
+            "name": "Anschluss unbekannt"
+          },
+          "en": {
+            "fix": "Reload the list of ports.",
+            "help": "The mower has no such port.",
+            "name": "Unknown port"
           }
         }
       },
@@ -22576,6 +23374,26 @@
           }
         }
       },
+      "FIRMWARE_CHANGED": {
+        "class": "cause",
+        "closes": false,
+        "description": "The firmware or the device id changed during the run: it does not count",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Messung von vorn wiederholen.",
+            "help": "Während der Messung hat sich die gemeldete Firmware geändert.",
+            "name": "Firmware gewechselt"
+          },
+          "en": {
+            "fix": "Repeat the measurement from the start.",
+            "help": "The firmware reported changed during the measurement.",
+            "name": "Firmware changed"
+          }
+        }
+      },
       "FLUTTER": {
         "class": "cause",
         "closes": false,
@@ -22731,6 +23549,28 @@
             "fix": "Repeat the step and do the action within the time shown.",
             "help": "The action wasn't done. The check doesn't count.",
             "name": "Not done"
+          }
+        }
+      },
+      "NOT_OPENED": {
+        "class": "cause",
+        "closes": false,
+        "description": "A step with firmware: the driver did not let the measurement drive (FIRMWARE_INCOMPATIBLE stayed), its latch was not released within its time, or the driver latched the firmware again while the step ran (its guard ended the measurement)",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher neu starten und die Messung wiederholen.",
+            "help": "Der Treiber hat die Messung nicht zugelassen oder beendet. Firmware oder Gerätekennung passen nicht zu dem, was er meldet, oder seine Verbindung zur Platine hing kurz.",
+            "name": "Messung nicht frei"
+          },
+          "en": {
+            "fix": "Restart the mower and repeat the measurement.",
+            "help": "The driver did not let the measurement run or ended it. Firmware or device id don't fit what it reports, or its link to the board hung for a moment.",
+            "name": "Measurement not let through"
           }
         }
       },
@@ -23019,6 +23859,29 @@
             "fix": "Restart MowBite OS by hand, then repeat the step.",
             "help": "MowBite OS did not restart in time.",
             "name": "No restart"
+          }
+        }
+      },
+      "RUN_AGAIN": {
+        "class": "cause",
+        "closes": false,
+        "description": "The run passed, but after a run that failed more runs in a row have to pass: the steps with firmware are open again",
+        "fields": {
+          "needed": "",
+          "passed": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Messung von vorn wiederholen.",
+            "help": "Dieser Lauf ist bestanden. Weil ein früherer durchgefallen ist, muss noch einer in Folge bestehen.",
+            "name": "Noch ein Lauf"
+          },
+          "en": {
+            "fix": "Repeat the measurement from the start.",
+            "help": "This run passed. Because an earlier one failed, another one has to pass in a row.",
+            "name": "One more run"
           }
         }
       },
@@ -25391,6 +26254,15 @@
             "type": "number",
             "unit": "%"
           },
+          "rounds": {
+            "default": 1.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 5.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
           "rpm": {
             "default": 2000.0,
             "description": "The blade counts as turning from this speed on",
@@ -25806,6 +26678,15 @@
             "type": "number",
             "unit": "s"
           },
+          "rounds": {
+            "default": 1.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 2.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
           "speed": {
             "default": 0.05,
             "description": "Speed of each wheel",
@@ -25829,7 +26710,8 @@
           "EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -25861,6 +26743,138 @@
               }
             },
             "unit": "s"
+          }
+        }
+      },
+      "firmware": {
+        "auto": false,
+        "description": "Only with firmware, last of the stage: once every other step with firmware passed in this run, it holds the whole run to the bounds of the step link, then counts the run as passed. After a run that failed for real two runs in a row have to pass. Then, for firmware hw/capabilities names with firmware_source none, it writes the versions of boards in their order and the device_hash, joined by / (\"<version>/<version>/<device_hash>\"), into measured_firmware for node (parameter file of the program) and restarts the OS: after it hw/capabilities has to show firmware_source measured. With firmware_measure_force of the setup program and firmware listed it writes nothing. A run that fails for real takes the entry out again; setup.reset and setup.platform.set take it out with every count",
+        "kind": "confirm",
+        "params": {
+          "boards": {
+            "description": "The boards of firmware in hw/capabilities the entry names, in its order; others do not count",
+            "required": true,
+            "type": "list"
+          },
+          "node": {
+            "description": "The node of the driver measured_firmware is written for",
+            "required": true,
+            "type": "text"
+          },
+          "restart_time": {
+            "default": 120.0,
+            "description": "The OS is back within this time after the restart",
+            "max": 600.0,
+            "min": 20.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "LIMIT",
+          "RUN_AGAIN",
+          "FIRMWARE_CHANGED",
+          "NOT_APPLIED",
+          "RESTART_FAILED",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": false,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Fehlt ein Lauf, die Messung von vorn wiederholen.",
+            "help": "Sind alle Messungen bestanden, gibt der Mäher genau diese Firmware auf genau diesem Gerät frei. Dafür startet MowBite OS neu. Die Messung lässt sich als Datei teilen.",
+            "name": "Firmware freigeben"
+          },
+          "en": {
+            "fix": "If a run is missing, repeat the measurement from the start.",
+            "help": "Once every measurement passed, the mower releases exactly this firmware on exactly this device. MowBite OS restarts for it. The measurement can be shared as a file.",
+            "name": "Release the firmware"
+          }
+        },
+        "values": {
+          "checksum_errors": {
+            "description": "Frames with a wrong checksum in the whole run",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Prüfsummenfehler"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Checksum errors"
+              }
+            },
+            "unit": ""
+          },
+          "length_errors": {
+            "description": "Frames of a wrong length in the whole run",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Längenfehler"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Length errors"
+              }
+            },
+            "unit": ""
+          },
+          "rate": {
+            "description": "Frames per second of a module over the whole run, one value by module with its name",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Meldungen je Sekunde"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Frames per second"
+              }
+            },
+            "unit": "Hz"
+          },
+          "runs": {
+            "description": "Runs passed in a row, of needed",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Bestandene Läufe"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Runs passed"
+              }
+            },
+            "unit": ""
+          },
+          "written": {
+            "description": "The entry of measured_firmware written, empty for none",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Freigabe"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Release"
+              }
+            },
+            "unit": ""
           }
         }
       },
@@ -26033,7 +27047,8 @@
           "EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -26115,6 +27130,43 @@
             "unit": "m"
           }
         }
+      },
+      "hardware": {
+        "auto": false,
+        "description": "Switches the drivers of the platform on, which an installation leaves off (MOWBITE_HARDWARE=false): ok while they run. setup.start asks mowbite-host for host.hardware on, which writes it into the settings of the OS and restarts it; after the restart the drivers have to run, else NOT_APPLIED. Only with restart host in the step list and in IDLE. Without a safety measurement only the remote control drives and the blade stays locked, as with every driver",
+        "kind": "confirm",
+        "params": {
+          "restart_time": {
+            "default": 120.0,
+            "description": "The OS is back within this time after the restart",
+            "max": 600.0,
+            "min": 20.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NOT_APPLIED",
+          "RESTART_FAILED",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": false,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Kommt der Haken nach dem Neustart nicht: den Mäher neu starten und den Schritt wiederholen.",
+            "help": "Nach der Installation spricht MowBite OS die Platine noch nicht an. Mit einem Tipp startet es neu und schaltet die Treiber ein. Dabei bewegt sich nichts.",
+            "name": "Hardware einschalten"
+          },
+          "en": {
+            "fix": "If the tick does not come after the restart: restart the mower and repeat the step.",
+            "help": "After the installation MowBite OS does not talk to the board yet. One tap restarts it with the drivers on. Nothing moves.",
+            "name": "Switch the hardware on"
+          }
+        },
+        "values": {}
       },
       "imu": {
         "auto": true,
@@ -26207,6 +27259,15 @@
               "bumper_right"
             ]
           },
+          "rounds": {
+            "default": 1.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 5.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
           "short_max": {
             "default": 0.5,
             "description": "A part of mode short switches for less than this",
@@ -26244,7 +27305,8 @@
           "NO_DATA",
           "STOPPED",
           "INTERRUPTED",
-          "NOT_DONE"
+          "NOT_DONE",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -26324,6 +27386,309 @@
           }
         }
       },
+      "latch": {
+        "auto": true,
+        "description": "Only with firmware: how the board holds its inputs, part by part (role, mode). The program sends a clear of the board only through setup/firmware_measure. short of stop: pressed and let go, stop stays at least hold_min and one clear ends it within clear_max. short of a bumper side: pressed and let go, it ends without a clear within fall_max of switching (later is NOT_DONE, still on after time LIMIT). press: held, clears every clear_every, clears times, the input stays each time. release: after the input of the part before is let go (the mower put down), settle s later one clear ends it within clear_max. Every deviation fails it; an input that stays after the clear of short or release ends it open (NOT_DONE)",
+        "kind": "measure",
+        "params": {
+          "clear_every": {
+            "default": 0.5,
+            "description": "press: one clear this often",
+            "max": 5.0,
+            "min": 0.2,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "clear_max": {
+            "default": 0.2,
+            "description": "A clear ends the input within this time of the clear going out",
+            "max": 2.0,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "clears": {
+            "default": 4.0,
+            "description": "press: how many clears",
+            "max": 10.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "fall_max": {
+            "default": 1.0,
+            "description": "short of a bumper side: the input falls within this time of switching",
+            "max": 5.0,
+            "min": 0.2,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "hold_min": {
+            "default": 3.0,
+            "description": "short of stop: the input stays at least this long without a clear",
+            "max": 10.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "rounds": {
+            "default": 2.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 5.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "settle": {
+            "default": 2.0,
+            "description": "release: the clear comes this long after the part began",
+            "max": 10.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "time": {
+            "default": 30.0,
+            "description": "Each part is done within this time",
+            "max": 120.0,
+            "min": 5.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "LIMIT",
+          "WRONG_INPUT",
+          "NOT_DONE",
+          "NO_DATA",
+          "NOT_OPENED",
+          "EMERGENCY",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": false,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Weicht ein Wert ab, verhält sich diese Firmware anders als die bekannte: nicht freigeben.",
+            "help": "Der Mäher prüft, wie seine Platine STOP, Stoßfänger und Anheben festhält und wieder freigibt. Den Anweisungen genau folgen.",
+            "name": "Halten der Eingänge"
+          },
+          "en": {
+            "fix": "If a value differs, this firmware behaves otherwise than the known one: don't release it.",
+            "help": "The mower checks how its board holds STOP, bumper and lifting and lets them go again. Follow the instructions closely.",
+            "name": "Holding of the inputs"
+          }
+        },
+        "values": {
+          "cleared": {
+            "description": "From the clear going out to the input ending, one value by part of short or release",
+            "unit": "s"
+          },
+          "held": {
+            "description": "short: how long the input stood before the clear or before it fell, one value by part",
+            "unit": "s"
+          }
+        }
+      },
+      "link": {
+        "auto": true,
+        "description": "Only with firmware: the link to the board at rest for time, nothing to be touched: frames per second of each module of fast within fast_min and fast_max, of medium at least medium_min, of slow at least slow_min (from hw/link_stats), frames with a wrong checksum at most checksum_max and of a wrong length at most length_max, no input switched and no emergency. Frames of unknown modules are counted, not judged. The step firmware holds the whole measurement to the same bounds and to no unknown module this step did not see",
+        "kind": "measure",
+        "params": {
+          "checksum_max": {
+            "default": 0.0,
+            "description": "Frames with a wrong checksum at most",
+            "max": 100.0,
+            "min": 0.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "fast": {
+            "description": "Modules of hw/link_stats that come often",
+            "required": false,
+            "type": "list"
+          },
+          "fast_max": {
+            "default": 120.0,
+            "description": "Frames of each of fast per second at most",
+            "max": 1000.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "Hz"
+          },
+          "fast_min": {
+            "default": 80.0,
+            "description": "Frames of each of fast per second at least",
+            "max": 1000.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "Hz"
+          },
+          "length_max": {
+            "default": 0.0,
+            "description": "Frames of a known module with a wrong length at most",
+            "max": 100.0,
+            "min": 0.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "medium": {
+            "description": "Modules that come a few times a second",
+            "required": false,
+            "type": "list"
+          },
+          "medium_min": {
+            "default": 2.0,
+            "description": "Frames of each of medium per second at least",
+            "max": 100.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "Hz"
+          },
+          "slow": {
+            "description": "Modules that come about once a second",
+            "required": false,
+            "type": "list"
+          },
+          "slow_min": {
+            "default": 1.0,
+            "description": "Frames of each of slow per second at least",
+            "max": 100.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "Hz"
+          },
+          "time": {
+            "default": 60.0,
+            "description": "How long it watches",
+            "max": 300.0,
+            "min": 10.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "LIMIT",
+          "WRONG_INPUT",
+          "EMERGENCY",
+          "NO_DATA",
+          "NOT_OPENED",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": false,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Kommen Fehler oder zu wenige Meldungen: Kabel und Stecker zur Platine prüfen, dann wiederholen.",
+            "help": "Der Mäher zählt eine Minute lang die Meldungen seiner Platine und ihre Fehler. Dabei nichts berühren.",
+            "name": "Verbindung zur Platine"
+          },
+          "en": {
+            "fix": "If errors come or too few frames: check cable and plugs to the board, then try again.",
+            "help": "For a minute the mower counts the frames of its board and their errors. Touch nothing meanwhile.",
+            "name": "Link to the board"
+          }
+        },
+        "values": {
+          "checksum_errors": {
+            "description": "Frames with a wrong checksum",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Prüfsummenfehler"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Checksum errors"
+              }
+            },
+            "unit": ""
+          },
+          "inputs": {
+            "description": "Inputs that switched, none for ok",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Eingänge in Ruhe"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Inputs at rest"
+              }
+            },
+            "unit": ""
+          },
+          "length_errors": {
+            "description": "Frames of a known module with a wrong length",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Längenfehler"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Length errors"
+              }
+            },
+            "unit": ""
+          },
+          "rate": {
+            "description": "Frames per second of a module, one value by module with its name",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Meldungen je Sekunde"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Frames per second"
+              }
+            },
+            "unit": "Hz"
+          },
+          "unknown_frames": {
+            "description": "Frames of modules the driver does not know",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Unbekannte Meldungen"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Unknown frames"
+              }
+            },
+            "unit": ""
+          }
+        }
+      },
       "no_command": {
         "auto": false,
         "description": "While the wheels turn, the program sends no commands any more: the wheels stand within stop_max of the last one by the watchdogs alone and do not start for hold s; then a new command turns them again. No emergency. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
@@ -26337,6 +27702,15 @@
             "required": false,
             "type": "number",
             "unit": "s"
+          },
+          "rounds": {
+            "default": 1.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 5.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
           },
           "speed": {
             "default": 0.05,
@@ -26367,7 +27741,8 @@
           "EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -26385,7 +27760,7 @@
         },
         "values": {
           "stand": {
-            "description": "From the last command to standing wheels",
+            "description": "From the last command to standing wheels, one value by round",
             "texts": {
               "de": {
                 "fix": "",
@@ -26589,7 +27964,7 @@
       },
       "silence": {
         "auto": false,
-        "description": "Round by round, while the wheels turn: hw/silence for silence_max_s of the driver, commands go on. The board stops the wheels by itself within stop_max of the answer, nothing starts until hold s after the silence; then the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. The stand times of the rounds differ by spread_max at most. Offered where hw/capabilities has silence_max_s. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "Round by round, while the wheels turn: hw/silence for silence_max_s of the driver, commands go on. The board stops the wheels by itself within stop_max of the answer, nothing starts until hold s after the silence; then the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. The stand times of the rounds differ by spread_max at most. Offered where hw/capabilities has silence_max_s. With last_setpoint yes the last frame before each silence is a setpoint and the silence lasts silence_last_setpoint_max_s: the board stops by its own limit within stop_max (offered where hw/capabilities has it). Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "emergency": {
@@ -26631,6 +28006,16 @@
             "type": "number",
             "unit": "s"
           },
+          "last_setpoint": {
+            "default": "no",
+            "description": "yes: the board keeps the last setpoint until its own limit",
+            "required": false,
+            "type": "text",
+            "values": [
+              "yes",
+              "no"
+            ]
+          },
           "rounds": {
             "default": 5.0,
             "description": "How many rounds",
@@ -26661,7 +28046,7 @@
           "stop_max": {
             "default": 1.0,
             "description": "The wheels stand within this time of the trigger",
-            "max": 3.0,
+            "max": 6.0,
             "min": 0.1,
             "required": false,
             "type": "number",
@@ -26681,7 +28066,8 @@
           "EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -26746,6 +28132,15 @@
             "type": "number",
             "unit": "s"
           },
+          "rounds": {
+            "default": 1.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 5.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
           "speed": {
             "default": 0.05,
             "description": "Speed of each wheel",
@@ -26788,7 +28183,8 @@
           "EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -26901,7 +28297,7 @@
       },
       "wheels": {
         "auto": false,
-        "description": "The mower jacked up turns its wheels part by part, see wheel_parts: each part drives time s after a run-up of 0.5 s, and the odometry has to show it with its sign and 0.5 to 1.5 times speed. In the part one_wheel only the right wheel turns, and inputs[] asks which one turns. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "The mower jacked up turns its wheels part by part, see wheel_parts: each part drives time s after a run-up of 0.5 s, and the odometry has to show it with its sign and speed_min to speed_max times speed. In the part one_wheel only the right wheel turns, and inputs[] asks which one turns. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "answer_time": {
@@ -26913,6 +28309,15 @@
             "type": "number",
             "unit": "s"
           },
+          "rounds": {
+            "default": 1.0,
+            "description": "How often the whole step runs; every round has to pass",
+            "max": 5.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
           "speed": {
             "default": 0.05,
             "description": "Speed of each wheel",
@@ -26921,6 +28326,24 @@
             "required": false,
             "type": "number",
             "unit": "m/s"
+          },
+          "speed_max": {
+            "default": 1.5,
+            "description": "The wheels turn at most this share of speed",
+            "max": 1.5,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "speed_min": {
+            "default": 0.5,
+            "description": "The wheels turn at least this share of speed",
+            "max": 1.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": ""
           },
           "time": {
             "default": 2.0,
@@ -26944,7 +28367,8 @@
           "EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_OPENED"
         ],
         "safety": true,
         "start": true,
@@ -27187,7 +28611,7 @@
     "modes": {
       "assign": {
         "description": "A part of a step inputs_assign: one line alone changes, and the step asks whether it is the one of the role of the part. Help and fix of such a part; its name is the one of its role",
-        "order": 2,
+        "order": 3,
         "texts": {
           "de": {
             "fix": "Kommt kein Vorschlag: Stecker und Kabel des Sensors prüfen, dann wiederholen.",
@@ -27204,6 +28628,22 @@
       "press": {
         "description": "The input switches within the time of the step, the emergency of the step follows within its limit, then the input is let go",
         "order": 0
+      },
+      "release": {
+        "description": "A part of a step latch: the input held by the part before is let go (the mower put down), then one clear has to end its latch",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Jetzt loslassen bzw. den Mäher absetzen und nichts mehr berühren.",
+            "name": "Loslassen"
+          },
+          "en": {
+            "fix": "",
+            "help": "Let go now, or put the mower down, and touch nothing.",
+            "name": "Let go"
+          }
+        }
       },
       "short": {
         "description": "The input switches for less than short_max and no emergency follows: what a bump of the lift sensors must not stop",
@@ -27674,7 +29114,7 @@
     "stages": {
       "blade": {
         "description": "The blade and its stops",
-        "order": 5,
+        "order": 6,
         "texts": {
           "de": {
             "fix": "",
@@ -27690,7 +29130,7 @@
       },
       "calibration": {
         "description": "The calibration drive",
-        "order": 10,
+        "order": 11,
         "texts": {
           "de": {
             "fix": "",
@@ -27722,7 +29162,7 @@
       },
       "dimensions": {
         "description": "The dimensions of the mower",
-        "order": 7,
+        "order": 8,
         "texts": {
           "de": {
             "fix": "",
@@ -27736,9 +29176,25 @@
           }
         }
       },
+      "firmware": {
+        "description": "The owner measures firmware of the board the driver does not list (steps with firmware)",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Firmware messen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Measure firmware"
+          }
+        }
+      },
       "ground": {
         "description": "Driving and stopping on the ground",
-        "order": 4,
+        "order": 5,
         "texts": {
           "de": {
             "fix": "",
@@ -27754,7 +29210,7 @@
       },
       "inputs": {
         "description": "Every safety input by hand",
-        "order": 1,
+        "order": 2,
         "texts": {
           "de": {
             "fix": "",
@@ -27770,7 +29226,7 @@
       },
       "map": {
         "description": "The areas to mow",
-        "order": 9,
+        "order": 10,
         "texts": {
           "de": {
             "fix": "",
@@ -27786,7 +29242,7 @@
       },
       "position": {
         "description": "Correction data and a fix",
-        "order": 2,
+        "order": 3,
         "texts": {
           "de": {
             "fix": "",
@@ -27802,7 +29258,7 @@
       },
       "safety": {
         "description": "The summary of the safety checks",
-        "order": 6,
+        "order": 7,
         "texts": {
           "de": {
             "fix": "",
@@ -27818,7 +29274,7 @@
       },
       "station": {
         "description": "The docking station",
-        "order": 8,
+        "order": 9,
         "texts": {
           "de": {
             "fix": "",
@@ -27834,7 +29290,7 @@
       },
       "trial": {
         "description": "A first run",
-        "order": 11,
+        "order": 12,
         "texts": {
           "de": {
             "fix": "",
@@ -27850,7 +29306,7 @@
       },
       "wheels": {
         "description": "Wheels and stops with the mower jacked up",
-        "order": 3,
+        "order": 4,
         "texts": {
           "de": {
             "fix": "",

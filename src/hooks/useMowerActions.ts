@@ -4,7 +4,8 @@ import {describe, reasonSentence, reasonText} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
-import {ACTION, COMMAND, RPC, TOPIC} from '@/lib/openmower';
+import {ACTION, COMMAND, omActionId, ownActionId, OWN_NAMES_API, RPC, TOPIC} from '@/lib/openmower';
+import {knownSystemInfo, isMowbiteOs} from '@/lib/mowerOs';
 import {runningMisfit} from '@/lib/osUpdate';
 import {callCommand, knownMethods, RpcError} from '@/lib/rpc';
 import {refusalEvent, rpcErrorText} from '@/lib/rpcText';
@@ -20,7 +21,7 @@ interface ActionInfo {
 // kept for the whole run, actions/json is retained and comes only once
 const store = topicStore<Record<string, boolean>>(TOPIC.actions, {}, (payload) => {
   const list: ActionInfo[] = JSON.parse(payload.toString());
-  return Object.fromEntries(list.map((a) => [a.action_id, !!a.enabled]));
+  return Object.fromEntries(list.map((a) => [omActionId(a.action_id), !!a.enabled]));
 });
 
 // what the mower answered to the last command sent as a call (MowBite OS): why it turned it down, no answer in time, or
@@ -130,13 +131,19 @@ export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
     setNote(null);
     // plain text, not json. offline it's dropped, not kept for later
     if (!getMqttClient().connected) setNote({at: Date.now(), text: tr('Not sent, no connection to the mower.'), warn: true});
-    getMqttClient().publish(withPrefix(TOPIC.action), id);
+    getMqttClient().publish(withPrefix(TOPIC.action), actionName(id));
     return;
   }
   const params: Record<string, unknown> = {...cmd.params};
   if (cmd.method === 'mowing.skip_area' && typeof seen?.area === 'number') params.area = seen.area;
   if (cmd.method === 'mowing.skip_path' && typeof seen?.path === 'number') params.path = seen.path;
   sendCall(cmd.method, params);
+}
+
+// the action as the mower takes it: MowBite OS's own id from that api on
+function actionName(id: string): string {
+  const i = knownSystemInfo();
+  return isMowbiteOs(i) && (i!.api ?? 0) >= OWN_NAMES_API ? ownActionId(id) : id;
 }
 
 // a command that is only a call (no action behind it), answered like the others

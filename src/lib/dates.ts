@@ -1,5 +1,9 @@
 import {locale, monthStyle} from './i18n';
 
+// a day as YYYY-MM-DD in local time; the scheduler compares it with its own date in the browser's time zone
+export function localDay(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
 // today/yesterday in the app's language, like the weekday names. the formatters once per language, making them costs

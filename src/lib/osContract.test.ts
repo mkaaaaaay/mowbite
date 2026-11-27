@@ -23,8 +23,8 @@ import {ACTIVITIES} from './stops';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '27cadf6003446088540490440cdd151619ed9155',
-  sha256: '71e53eeafbad1c0e81eb69022a73e8691e862692f0dcab039e504c4d85931eb2',
+  commit: '822b50189491fb1d553bc8c236f85b3788814863',
+  sha256: 'a6ef190b7b0fc037d6559a7f6f9d6aa13ad358d457a3f1ae8ce847ad9f147490',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -50,13 +50,14 @@ const NOT_OFFERED: Record<string, string> = {
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
   'schedule.leftovers': 'to come: MowBite OS turns leftovers down until its planner prepares them',
+  'host.hardware': "the setup program's step hardware asks the host to switch the drivers on; off isn't offered",
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
 const osMethods = Object.keys(api['x-methods']);
 
 // decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
-// phone says it), update.set_channel (api 27). one the copy has is red until it's taken out here
+// phone says it). one the copy has is red until it's taken out here
 const AHEAD: Record<'reasons' | 'events' | 'methods' | 'variants', string[]> = {
   reasons: ['TOO_SHORT'],
   events: [],

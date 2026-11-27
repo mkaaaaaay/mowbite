@@ -3,7 +3,41 @@ import {describe, expect, it, vi} from 'vitest';
 import {DEMO_IMAGES, demoSetup} from './demo/setup';
 import {RPC} from './openmower';
 import {robotShape, shapePath} from './robotShape';
-import {asked, derivedParts, held, keepStep, loadSetup, ownInputs, platformImage, platformWords, safetyDue, setupNow, startStep, summaryPreview, words, type Platforms, type Setup, type SetupStep} from './setup';
+import {answerError} from './rpcText';
+import {RpcError} from './rpc';
+import {
+  asked,
+  derivedParts,
+  dropsRelease,
+  firmwareFileName,
+  firmwareReportUrl,
+  firmwareSourceText,
+  firstFirmwareStep,
+  held,
+  isRelease,
+  measuredFirmware,
+  runsText,
+  keepStep,
+  listenText,
+  loadSetup,
+  ownInputs,
+  platformImage,
+  platformWords,
+  portDevice,
+  portHolder,
+  portIds,
+  portsOf,
+  safetyDue,
+  setupNow,
+  startStep,
+  summaryPreview,
+  words,
+  type FirmwareExport,
+  type Platforms,
+  type PortListen,
+  type Setup,
+  type SetupStep,
+} from './setup';
 import {TRON_SHAPE} from './tronShape';
 
 // each call answers when the test lets it
@@ -227,5 +261,128 @@ describe('the choice of the mower', () => {
     vi.useRealTimers();
     expect(get().platform).toBe('yardforce_nx60i');
     expect(get().steps.find((s) => s.id === 'board')!.state).toBe('open');
+  });
+});
+
+describe('the serial ports', () => {
+  it("takes setup.ports' answer, lists missing as empty, free only where it says so, listening by its flag", () => {
+    const got = portsOf({
+      ports: [
+        {path: '/dev/ttyS3', by_id: [], driver: 'serial', usb: null, held_by: [{pid: 9, name: 'gnss_node'}], node: 'gnss', free: false},
+        {path: '/dev/ttyUSB0', by_id: ['/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'], usb: {vendor_id: '1a86', product_id: '7523', manufacturer: '', product: ''}, free: true},
+        {by_id: []},
+      ],
+      resting: true,
+      listening: null,
+    });
+    expect(got.ports.map((p) => p.path)).toEqual(['/dev/ttyS3', '/dev/ttyUSB0']);
+    expect(got.ports[1]).toMatchObject({driver: '', held_by: [], node: '', free: true});
+    expect([got.resting, got.listening]).toEqual([true, false]);
+    expect(portsOf({ports: [], listening: '/dev/ttyUSB0'}).listening).toBe(false);
+    expect(portsOf({listening: true, resting: 'yes'})).toEqual({ports: [], resting: false, listening: true});
+    expect(portsOf(null)).toEqual({ports: [], resting: false, listening: false});
+    const [held, usb] = got.ports;
+    expect([portHolder(held), portDevice(held), portHolder({...held, node: ''})]).toEqual(['gnss', '', 'gnss_node']);
+    expect([portDevice(usb), portIds(usb)]).toEqual(['USB 1a86:7523', ['usb-1a86_USB_Serial-if00-port0']]);
+    expect(portDevice({...usb, usb: {...usb.usb!, manufacturer: 'QinHeng', product: 'USB Serial'}})).toBe('QinHeng USB Serial');
+  });
+
+  it('says what came at a port in a short sentence', () => {
+    const none = {port: '/dev/ttyUSB0', baud: null, bytes_per_s: 0, stopped: false, nmea: null, wit: null, rtcm: null, tried: []};
+    const heard = (r: Partial<PortListen>) => listenText({...none, kind: 'silent', ...r});
+    const nmea = {lines: 50, talkers: ['GN'], sentences: ['GGA'], gga_hz: 5, fix: 4};
+    expect(heard({kind: 'nmea', baud: 115200, nmea})).toBe('GPS (NMEA), 115200 baud, 5 GGA/s, RTK fix');
+    expect(heard({kind: 'nmea', baud: 9600, nmea: {...nmea, gga_hz: 0, fix: null}})).toBe('GPS (NMEA), 9600 baud');
+    expect(heard({kind: 'nmea', baud: 9600, nmea: {...nmea, gga_hz: 0.2, fix: 3}})).toBe('GPS (NMEA), 9600 baud, 0.2 GGA/s, fix 3');
+    expect(heard({kind: 'wit', baud: 9600, wit: {frames: 120, types: [81, 83]}})).toBe('IMU (WIT), 9600 baud, 120 frames');
+    expect(heard({kind: 'rtcm', baud: 115200, rtcm: {frames: 40, types: [1005, 1077]}})).toBe('Corrections (RTCM), 115200 baud, messages 1005, 1077');
+    expect(heard({kind: 'unknown', bytes_per_s: 1200})).toBe('Data of unknown kind, 1200 bytes/s');
+    expect(heard({})).toBe('Silent, nothing came');
+    expect(heard({stopped: true})).toBe('Silent, nothing came, stopped early, the mower is no longer resting');
+  });
+
+  it('says why a listen was turned down', () => {
+    const refused = (reason: string, fields: object = {}) =>
+      answerError(new RpcError(RPC.setupPortsListen, -32600, reason, {event: 'SETUP_REFUSED', reason, message: reason, ...fields}));
+    expect(refused('PORT_IN_USE', {node: 'gnss', by: ''})).toBe('Port not listened to: gnss uses the port');
+    expect(refused('PORT_IN_USE', {node: '', by: 'minicom'})).toBe('Port not listened to: minicom uses the port');
+    expect(refused('PORT_NOT_OPENED', {error: 'EACCES'})).toBe("Port not listened to: the port couldn't be opened (EACCES)");
+    expect(refused('LISTENING')).toBe('Port not listened to: another port is being listened to, wait for its result');
+    expect(refused('BUSY')).toBe('Setup step refused: another step runs or the mower is on its way');
+    expect(refused('BUSY', {port: '/dev/ttyUSB0'})).toBe('Port not listened to: another step runs or the mower is on its way');
+  });
+
+  it("answers the demo's listen after a while, one at a time, a held port turned down", async () => {
+    vi.useFakeTimers();
+    const demo = demoSetup(() => {}, () => false, () => {});
+    const reason = (port: string) => {
+      try {
+        demo.methods[RPC.setupPortsListen]({port});
+      } catch (e) {
+        return (e as {data: {reason: string; node?: string}}).data;
+      }
+    };
+    expect(reason('/dev/ttyS3')).toMatchObject({reason: 'PORT_IN_USE', node: 'gnss'});
+    expect(reason('/dev/ttyACM9')).toMatchObject({reason: 'PORT_UNKNOWN'});
+    const answer = demo.methods[RPC.setupPortsListen]({port: '/dev/ttyUSB0'}) as Promise<PortListen>;
+    expect(reason('/dev/ttyUSB0')).toMatchObject({reason: 'LISTENING'});
+    expect(portsOf(demo.methods[RPC.setupPorts]({})).listening).toBe(true);
+    vi.runAllTimers();
+    vi.useRealTimers();
+    expect(listenText(await answer)).toBe('GPS (NMEA), 115200 baud, 5 GGA/s, RTK fix');
+    expect(portsOf(demo.methods[RPC.setupPorts]({})).listening).toBe(false);
+  });
+});
+
+describe("the owner's measurement of firmware", () => {
+  const step = (id: string, over: Partial<SetupStep> = {}) => ({id, check: 'input', firmware: true, state: 'ok', result: null, ...over}) as unknown as SetupStep;
+  const setup = (steps: SetupStep[], source: string | null = 'none') => ({steps, safety: {firmware_source: source}}) as unknown as Setup;
+  const ended = (t: number, firmware: string) => ({ok: true, reason: null, t, firmware}) as SetupStep['result'];
+
+  it('finds where a run begins and ends', () => {
+    const steps = [step('board', {firmware: undefined}), step('fw_link', {check: 'link'}), step('fw_release', {check: 'firmware'})];
+    expect(firstFirmwareStep(setup(steps))?.id).toBe('fw_link');
+    expect(steps.filter(isRelease).map((s) => s.id)).toEqual(['fw_release']);
+    expect(isRelease(step('summary', {check: 'firmware', firmware: undefined}))).toBe(false);
+    // a reset takes a release back that the program wrote or the driver uses
+    expect([dropsRelease(setup(steps, 'measured')), dropsRelease(setup(steps)), dropsRelease({...setup(steps), firmware: {written: 'x'}} as Setup)]).toEqual([true, false, true]);
+  });
+
+  it('names the firmware the steps of the measurement saw last, and why the mower drives with it', () => {
+    const steps = [step('fw_link', {result: ended(5, 'cutter 0.6.35')}), step('fw_stop', {result: ended(9, 'cutter 0.6.36')}), step('fw_lift')];
+    expect(measuredFirmware(setup(steps))).toBe('cutter 0.6.36');
+    expect(measuredFirmware(setup([step('board', {firmware: undefined, result: ended(20, 'x')})]))).toBe('');
+    expect(firmwareSourceText('none')).toContain('Until it is measured');
+    expect([firmwareSourceText(''), firmwareSourceText(null), firmwareSourceText('odd')]).toEqual(['', '', '']);
+  });
+
+  it("leaves the measurement's silence out of what the summary writes", () => {
+    const silence = (id: string, value: number, over: Partial<SetupStep> = {}) =>
+      step(id, {check: 'silence', values: [{id: 'round_1', value}], ...over} as Partial<SetupStep>);
+    expect(summaryPreview([silence('fw_setpoint', 3.6), silence('silence', 0.4, {firmware: undefined})], 0).failsafe).toBe(0.4);
+    expect(summaryPreview([silence('fw_silence', 0.3)], 0).failsafe).toBeNull();
+  });
+
+  it('counts the runs in a row and those that failed', () => {
+    const f = {offered: true, force: false, device: true, passed: 1, needed: 2, failed: 0, runs: 3, written: null};
+    expect(runsText(f)).toBe('1 of 2 runs in a row passed');
+    expect(runsText({...f, failed: 1})).toBe('1 of 2 runs in a row passed · 1 run failed');
+    expect(runsText({...f, failed: 3})).toBe('1 of 2 runs in a row passed · 3 runs failed');
+  });
+
+  it("reports a measurement without the device's checksum, named by the mower and the day", () => {
+    const hash = 'ab12'.repeat(16);
+    const e: FirmwareExport = {platform: 'tron', api: 73, catalog: 11, firmware_source: 'measured', device_hash: hash, passed: 2, needed: 2, failed: 1,
+      written: `0.6.36/0.6.34/${hash}`, runs: [{firmware: 'cutter 0.6.36, chassis 0.6.34', result: 'passed'}]};
+    expect(firmwareFileName(e, new Date(2026, 10, 27, 23, 30))).toBe('mowbite-firmware-tron-2026-11-27.json');
+    expect(firmwareFileName({...e, platform: '../x y'}, new Date(2026, 0, 2))).toBe('mowbite-firmware-xy-2026-01-02.json');
+    const url = new URL(firmwareReportUrl(e));
+    expect(url.origin + url.pathname).toBe('https://github.com/mkaaaaaay/mowbite-os/issues/new');
+    expect(url.searchParams.get('title')).toBe('Firmware measurement: tron cutter 0.6.36, chassis 0.6.34');
+    const body = url.searchParams.get('body')!;
+    expect(body).toContain('- Result: released on this mower');
+    expect(body).toContain('- Runs passed in a row: 2 of 2, failed: 1, kept: 1');
+    expect(url.href).not.toContain(hash);
+    expect(new URL(firmwareReportUrl({...e, written: null, passed: 1})).searchParams.get('body')).toContain('- Result: not passed yet');
   });
 });

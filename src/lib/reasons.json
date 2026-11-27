@@ -1427,6 +1427,31 @@
      "de": "Mäher gewählt: {platform}"
     },
     {
+     "when": {
+      "what": "blade_allowed"
+     },
+     "en": "Blade allowed by the setup, MowBite OS restarts",
+     "with_reason": false,
+     "de": "Messer in der Einrichtung zugelassen, MowBite OS startet neu"
+    },
+    {
+     "when": {
+      "what": "firmware_measured"
+     },
+     "en": "Firmware released for this mower",
+     "with_reason": false,
+     "de": "Firmware für diesen Mäher freigegeben"
+    },
+    {
+     "when": {
+      "what": "firmware_revoked"
+     },
+     "en": "Firmware release taken back, a run failed",
+     "severity": "warning",
+     "with_reason": false,
+     "de": "Firmware-Freigabe zurückgenommen, ein Lauf ist durchgefallen"
+    },
+    {
      "en": "Setup stage done",
      "with_reason": false,
      "de": "Einrichtungsabschnitt fertig"
@@ -1436,6 +1461,44 @@
   "SETUP_REFUSED": {
    "severity": "info",
    "variants": [
+    {
+     "when": {
+      "reason": "PORT_UNKNOWN"
+     },
+     "en": "Port not listened to",
+     "de": "Nicht mitgehört"
+    },
+    {
+     "when": {
+      "reason": "PORT_IN_USE"
+     },
+     "en": "Port not listened to",
+     "de": "Nicht mitgehört"
+    },
+    {
+     "when": {
+      "reason": "PORT_NOT_OPENED"
+     },
+     "en": "Port not listened to",
+     "de": "Nicht mitgehört"
+    },
+    {
+     "when": {
+      "reason": "LISTENING"
+     },
+     "en": "Port not listened to",
+     "de": "Nicht mitgehört"
+    },
+    {
+     "when": {
+      "reason": "BUSY",
+      "port": {
+       "present": true
+      }
+     },
+     "en": "Port not listened to",
+     "de": "Nicht mitgehört"
+    },
     {
      "en": "Setup step refused",
      "de": "Einrichtungsschritt abgelehnt"
@@ -3489,6 +3552,20 @@
     "de": "keine Daten von den Eingängen der Platine"
    },
    {
+    "en": "no link counts from the driver of the board",
+    "when": {
+     "source": "hw/link_stats"
+    },
+    "de": "keine Verbindungszählung vom Treiber der Platine"
+   },
+   {
+    "en": "the mower didn't report its firmware after the restart",
+    "when": {
+     "source": "hw/capabilities"
+    },
+    "de": "der Mäher hat nach dem Neustart seine Firmware nicht gemeldet"
+   },
+   {
     "en": "no data from board, motion sensor or GPS",
     "de": "keine Daten von Platine, Lagesensor oder GPS"
    }
@@ -3561,6 +3638,20 @@
     "de": "der Mäher nutzt nicht, was der Schritt eingetragen hat, {key} ist in der Gerätedatei von Hand gesetzt"
    },
    {
+    "en": "the drivers are still off after the restart",
+    "when": {
+     "check": "hardware"
+    },
+    "de": "die Treiber laufen nach dem Neustart noch nicht"
+   },
+   {
+    "en": "the mower doesn't use the release after the restart",
+    "when": {
+     "check": "firmware"
+    },
+    "de": "der Mäher nutzt die Freigabe nach dem Neustart nicht"
+   },
+   {
     "en": "the mower does not use what the step wrote after the restart",
     "de": "der Mäher nutzt nach dem Neustart nicht, was der Schritt eingetragen hat"
    }
@@ -3626,6 +3717,57 @@
    {
     "en": "the setup changed in the meantime, try again",
     "de": "die Einrichtung hat sich inzwischen geändert, noch einmal versuchen"
+   }
+  ],
+  "PORT_UNKNOWN": [
+   {
+    "en": "the mower has no such port, reload the list",
+    "de": "diesen Anschluss gibt es am Mäher nicht, die Liste neu laden"
+   }
+  ],
+  "PORT_IN_USE": [
+   {
+    "en": "{node} uses the port",
+    "when": {
+     "node": {
+      "present": true
+     }
+    },
+    "de": "{node} nutzt den Anschluss"
+   },
+   {
+    "en": "{by} uses the port",
+    "when": {
+     "by": {
+      "present": true
+     }
+    },
+    "de": "{by} nutzt den Anschluss"
+   },
+   {
+    "en": "a driver or another program uses the port",
+    "de": "ein Treiber oder ein anderes Programm nutzt den Anschluss"
+   }
+  ],
+  "PORT_NOT_OPENED": [
+   {
+    "en": "the port couldn't be opened ({error})",
+    "when": {
+     "error": {
+      "present": true
+     }
+    },
+    "de": "der Anschluss ließ sich nicht öffnen ({error})"
+   },
+   {
+    "en": "the port couldn't be opened",
+    "de": "der Anschluss ließ sich nicht öffnen"
+   }
+  ],
+  "LISTENING": [
+   {
+    "en": "another port is being listened to, wait for its result",
+    "de": "an einem anderen Anschluss wird schon mitgehört, auf das Ergebnis warten"
    }
   ],
   "WRONG_METHOD": [
@@ -3771,6 +3913,45 @@
    {
     "en": "another wheel than the right one turned, the motors are swapped",
     "de": "es hat sich ein anderes Rad gedreht als das rechte, die Motoren sind vertauscht"
+   }
+  ],
+  "NOT_OPENED": [
+   {
+    "en": "the driver didn't let the measurement run or ended it",
+    "de": "der Treiber hat die Messung nicht zugelassen oder beendet"
+   }
+  ],
+  "RUN_AGAIN": [
+   {
+    "en": "the run passed, {passed} of {needed} in a row so far",
+    "when": {
+     "needed": {
+      "present": true
+     }
+    },
+    "de": "Lauf bestanden, bisher {passed} von {needed} in Folge"
+   },
+   {
+    "en": "the run passed, another one in a row has to pass",
+    "de": "Lauf bestanden, es muss noch einer in Folge bestehen"
+   }
+  ],
+  "FIRMWARE_CHANGED": [
+   {
+    "en": "the firmware changed during the run, it doesn't count",
+    "de": "die Firmware hat sich während des Laufs geändert, er zählt nicht"
+   }
+  ],
+  "FIRMWARE_OLDER": [
+   {
+    "en": "a board's firmware is older than every known one, update it with the vendor first",
+    "de": "die Firmware einer Platine ist älter als jede bekannte, erst über den Hersteller aktualisieren"
+   }
+  ],
+  "NO_DEVICE_ID": [
+   {
+    "en": "the mower can't tell itself apart, the measurement isn't possible on it",
+    "de": "der Mäher kann sich nicht eindeutig erkennen, die Messung ist auf ihm nicht möglich"
    }
   ]
  },

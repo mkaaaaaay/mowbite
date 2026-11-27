@@ -6,9 +6,24 @@ import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {calibrationWay} from '@/lib/calibration';
 import {skipSsh, sshSkipped, useHostSsh} from '@/lib/hostOs';
 import {tr} from '@/lib/i18n';
-import {causeText, currentStep, isDone, isSummary, stepHref, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
+import {
+  causeText,
+  currentStep,
+  firmwareSourceText,
+  isDone,
+  isSummary,
+  stepHref,
+  nameById,
+  nameOf,
+  unmet,
+  whyText,
+  type Setup,
+  type SetupStep,
+  type StepState,
+} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
+import {FirmwareShare} from './FirmwareShare';
 import {StateMark, stateWord, useMoved} from './StateMark';
 import styles from './SetupOverview.module.css';
 
@@ -42,6 +57,8 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
   // SSH for root offered while it's off, until skipped for this mower
   const ssh = useHostSsh();
   const [sshAsked, setSshAsked] = useState(() => !sshSkipped());
+  // the firmware measured and released: its stage is gone then, the result stays to share
+  const [sharing, setSharing] = useState(false);
   return (
     <section className={styles.overview} aria-label={tr('Setup')}>
       <p className={styles.lock} data-open={safety.open} data-moved={lockMoved || undefined}>
@@ -123,6 +140,22 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
             );
           })}
         </ol>
+        {safety.firmware_source === 'measured' && (
+          <div className={styles.own} data-own="firmware">
+            <div className={styles.stage}>
+              <StateMark state="ok" />
+              <span className={styles.text}>
+                <b>{tr('Firmware released')}</b>
+                <span>{firmwareSourceText('measured')}</span>
+              </span>
+            </div>
+            {!!setup.firmware?.runs && (
+              <button type="button" className={styles.reset} onClick={() => setSharing(true)} data-share-result>
+                {tr('Share the result')}
+              </button>
+            )}
+          </div>
+        )}
         {calibration && (
           <Link href="/calibration" className={styles.stage} data-own="calibration">
             <span className={styles.text}>
@@ -154,6 +187,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
           </div>
         )}
       </div>
+      {sharing && <FirmwareShare onClose={() => setSharing(false)} />}
     </section>
   );
 }

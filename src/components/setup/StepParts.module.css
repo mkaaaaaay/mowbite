@@ -42,3 +42,9 @@
 .part[data-state='failed'] b {
   color: var(--soft-bad);
 }
+
+.text .help {
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--foreground);
+}

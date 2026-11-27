@@ -1,4 +1,4 @@
-import {clock} from './dates';
+import {clock, localDay} from './dates';
 import {describe, isReasonCode, readable, reasonText} from './events';
 import {forget, fresh} from './fresh';
 import {fmt, tr} from './i18n';
@@ -878,8 +878,3 @@ export const daySun = (tz: string | undefined, pos: {lat: number; lon: number}) 
   const noon = Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 12);
   return sunTimes(pos.lat, pos.lon, day, tzOffset(tz, new Date(noon - tzOffset(tz, new Date(noon)) * 60e3)));
 };
-
-// today as YYYY-MM-DD in local time, the scheduler compares it with its own date in the browser's time zone
-export function localDay(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}

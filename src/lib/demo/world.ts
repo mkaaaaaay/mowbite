@@ -1,6 +1,6 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan, ownCount} from '../mowPlan';
-import {ACTION, CALIBRATING, DOCK_TEST_RUNS, MOWBITE_OS, PARAM, RPC, TOPIC} from '../openmower';
+import {ACTION, CALIBRATING, DOCK_TEST_RUNS, MOWBITE_OS, omActionId, OWN_LOGIC, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
@@ -489,7 +489,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const release = () => {
     latchedBits = 0;
   };
-  // (back as the mower chosen: its state and its actions come)
+  // (back as the mower chosen: its state and its actions come; the drivers as the host has them, on without one)
   const setup = demoOn('Setup')
     ? demoSetup(
         deliver,
@@ -501,6 +501,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
           send.actions();
         },
         demoOn('Calibration'),
+        {state: () => state(), drivers: () => host?.hardware() ?? true, driversOn: () => host?.switchHardware(true)},
       )
     : null;
   let refusal: Record<string, unknown> | null = null;
@@ -929,11 +930,18 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         ]
       : [],
   });
+  // the state the setup program last heard of
+  let setupSaw: State | null = null;
   const send = {
     overlay: () => deliver(TOPIC.mapOverlay, JSON.stringify(overlay())),
     map: () => deliver(TOPIC.map, JSON.stringify(closedRings(map))),
     actions: () => deliver(TOPIC.actions, JSON.stringify(actions())),
-    state: () => deliver(TOPIC.robotState, JSON.stringify(robotState())),
+    state: () => {
+      deliver(TOPIC.robotState, JSON.stringify(robotState()));
+      if (state() === setupSaw) return;
+      setupSaw = state();
+      setup?.stateChanged();
+    },
     position: () => deliver(TOPIC.position, JSON.stringify(position())),
     calib: () => {
       if (!calib) return;
@@ -1227,23 +1235,27 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     [RPC.setParams]: (request) => {
       const wanted = (request as {params?: Record<string, unknown>})?.params;
       if (!wanted || typeof wanted !== 'object' || !Object.keys(wanted).length) throw new Error('Expected {"params": {name: value, ...}}');
+      // MowBite OS's own names too, answered by OpenMower's like its bridge by default
+      const took: Record<string, unknown> = {};
       for (const [name, v] of Object.entries(wanted)) {
-        if (!name.startsWith('/mower_logic/')) throw new Error(`No dynamic_reconfigure server found for ${name}`);
+        const om = name.startsWith(OWN_LOGIC) ? PARAM.mowerLogic(name.slice(OWN_LOGIC.length)) : name;
+        if (!om.startsWith('/mower_logic/')) throw new Error(`No dynamic_reconfigure server found for ${name}`);
         if (typeof v !== 'number' && typeof v !== 'boolean') throw new Error(`${name} must be a number or a bool`);
+        took[om] = v;
       }
-      Object.assign(ros, wanted);
+      Object.assign(ros, took);
       plans.clear();
       deliver(TOPIC.params, rosParams());
-      return wanted;
+      return took;
     },
-    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for, on the platform
-    // window.mowbiteDemoPlatform names
+    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for (or
+    // window.mowbiteDemoOsApi), on the platform window.mowbiteDemoPlatform names
     ...(demoOn('Os') && {
       [RPC.systemInfo]: () => ({
         name: MOWBITE_OS,
         version: '0.0.0',
         platform: setup?.choosing() ? '' : ((demoFlags().mowbiteDemoPlatform as string | undefined) ?? 'demo'),
-        api: JSON.parse(process.env.APP_OS_API ?? 'null')?.max,
+        api: (demoFlags().mowbiteDemoOsApi as number | undefined) ?? JSON.parse(process.env.APP_OS_API ?? 'null')?.max,
         ...(demoFlags().mowbiteDemoBladeHeight ? {blade_height: {min_mm: 30, max_mm: 90, default_mm: 50}} : {}),
         data_rollback: rollback,
       }),
@@ -1379,12 +1391,16 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const reply = (body: object) => setTimeout(() => deliver(TOPIC.rpcResponse, JSON.stringify({jsonrpc: '2.0', id: req.id, ...body})), 40);
     const method = methods[req.method ?? ''];
     if (!method) return reply({error: {code: -32601, message: `Method "${req.method}" not found`}});
-    try {
-      reply({result: method(req.params)});
-    } catch (e) {
-      // a refusal of MowBite OS brings its own code and data, anything else is a bad param
+    // a refusal of MowBite OS brings its own code and data, anything else is a bad param
+    const failed = (e: unknown) => {
       const {code = -32602, data} = e as {code?: number; data?: object};
       reply({error: {code, message: e instanceof Error ? e.message : String(e), ...(data ? {data} : {})}});
+    };
+    try {
+      // (a method that answers only when it ends gives a promise)
+      Promise.resolve(method(req.params)).then((result) => reply({result}), failed);
+    } catch (e) {
+      failed(e);
     }
   }
 
@@ -1520,7 +1536,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         return;
       }
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
-      if (topic === TOPIC.action) act(text);
+      // MowBite OS takes its own ids too (api 70)
+      if (topic === TOPIC.action) act(omActionId(text));
       else if (topic === TOPIC.rpcRequest) rpc(text);
     },
     tick,
